@@ -1,4 +1,7 @@
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom'
+import { setUnauthorizedHandler } from '../lib/apiClient'
+import { logout } from '../services/authService'
 import RequireRole from './RequireRole'
 import LoginPage from '../features/auth/pages/LoginPage'
 import ProfilePage from '../features/auth/pages/ProfilePage'
@@ -27,6 +30,22 @@ import NotificationsPage from '../features/notifications/pages/NotificationsPage
 import NotFoundPage from '../features/misc/pages/NotFoundPage'
 
 export default function App() {
+  const navigate = useNavigate()
+
+  // Token còn hạn vẫn có thể chết giữa phiên: backend xoay SecurityStamp khi tài khoản bị khoá
+  // hoặc đổi mật khẩu, và mọi token phát trước đó mất hiệu lực ngay. Không bắt lại thì người dùng
+  // ngồi trước một giao diện trông như đã đăng nhập mà thao tác nào cũng hỏng.
+  //
+  // Đăng ký ở đây vì đây là nơi đầu tiên có router; apiClient cố ý không biết gì về react-router.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      logout()
+      navigate('/dang-nhap', { replace: true, state: { sessionExpired: true } })
+    })
+
+    return () => setUnauthorizedHandler(null)
+  }, [navigate])
+
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dang-nhap" replace />} />

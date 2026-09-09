@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   GraduationCap, Eye, EyeOff, BookOpen, Users, Award,
   AlertCircle, Sparkles,
@@ -81,6 +81,12 @@ function fieldToneClass(hasError: boolean): string {
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // RequireRole gửi kèm địa chỉ đang muốn vào; luồng 401 giữa phiên thì gửi cờ sessionExpired.
+  const routeState = location.state as { from?: string; sessionExpired?: boolean } | null
+  const returnTo = typeof routeState?.from === 'string' ? routeState.from : undefined
+  const sessionExpired = routeState?.sessionExpired === true
   const toast = useToast()
   const [showPassword, setShowPassword] = useState(false)
   const [role, setRole] = useState<UserRole>('teacher')
@@ -125,7 +131,14 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const profile = await login({ username: form.username.trim(), password: form.password, role })
-      navigate(dashboardPath[profile.role], { replace: true })
+
+      // Quay lại đúng trang người dùng định vào, nếu nó thuộc khu vực của vai trò vừa đăng nhập.
+      // Kiểm tiền tố là bắt buộc: một liên kết của giáo viên mà mở bằng tài khoản học sinh thì
+      // RequireRole sẽ đá ngược ra ngay, và người dùng thấy màn hình nhấp nháy một cái rồi về
+      // chỗ cũ mà không hiểu vì sao.
+      const home = dashboardPath[profile.role]
+      const target = returnTo && returnTo.startsWith(home) ? returnTo : home
+      navigate(target, { replace: true })
     } catch (caught) {
       setServerError(caught instanceof Error ? caught.message : 'Đăng nhập không thành công. Vui lòng thử lại.')
       setLoading(false)
@@ -215,6 +228,25 @@ export default function LoginPage() {
               </button>
             ))}
           </div>
+
+          {/*
+            Phiên chết giữa chừng — tài khoản bị khoá, hoặc mật khẩu vừa được đổi ở nơi khác nên
+            backend đã xoay SecurityStamp. Không nói gì thì người dùng chỉ thấy mình đột nhiên bị
+            văng ra và tưởng hệ thống lỗi. Nhường chỗ cho serverError khi có lỗi đăng nhập mới,
+            vì lúc đó thông điệp kia mới là thứ đang cần đọc.
+          */}
+          {sessionExpired && !serverError && (
+            <div
+              role="status"
+              className="mb-5 flex items-start gap-3 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 animate-fade-in"
+            >
+              <AlertCircle size={17} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-700 leading-relaxed">
+                Phiên đăng nhập đã kết thúc. Việc này xảy ra khi tài khoản bị khoá hoặc mật khẩu
+                vừa được đổi. Hãy đăng nhập lại để tiếp tục.
+              </p>
+            </div>
+          )}
 
           {serverError && (
             <div

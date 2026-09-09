@@ -1,10 +1,9 @@
 import { mockAdminProfile, mockStudentProfile, mockTeacherProfile } from '../data/mockEduQuiz'
+import { TOKEN_STORAGE_KEY } from '../lib/apiClient'
 import { simulate } from '../lib/delay'
 import type { UserProfile, UserRole } from '../types'
 
 const SESSION_STORAGE_KEY = 'eduquiz.session'
-/** Cùng khoá với apiClient để khi có backend thật chỉ cần đổi giá trị token. */
-const TOKEN_STORAGE_KEY = 'eduquiz.token'
 
 export interface LoginPayload {
   username: string
