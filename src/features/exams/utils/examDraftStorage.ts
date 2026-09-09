@@ -27,8 +27,19 @@ export interface ExamBuilderDraft {
   savedAt: number
 }
 
-const DRAFT_STORAGE_KEY = 'eduquiz.exam-builder-draft'
+const DRAFT_STORAGE_PREFIX = 'eduquiz.exam-builder-draft:'
 const DRAFT_MAX_AGE_MS = 2 * 3600_000
+
+/**
+ * Mỗi đề một key riêng.
+ *
+ * Dùng chung một key thì lưu nháp của đề này là ghi đè nháp của đề kia, và vì trang soạn đề xoá
+ * nháp ngay khi mở, chỉ cần ghé qua một đề khác là nháp đang làm dở biến mất — không cảnh báo,
+ * không hoàn tác. Tách key ra thì hai bản nháp sống song song được, đúng như người dùng tưởng.
+ */
+function draftKey(examId: number | null): string {
+  return `${DRAFT_STORAGE_PREFIX}${examId ?? 'new'}`
+}
 
 const stringFields: (keyof ExamFormState)[] = [
   'title', 'description', 'topic', 'openAtLocal', 'closeAtLocal',
@@ -54,7 +65,7 @@ function isExamFormState(value: unknown): value is ExamFormState {
 
 export function saveExamBuilderDraft(draft: ExamBuilderDraft): void {
   try {
-    window.sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft))
+    window.sessionStorage.setItem(draftKey(draft.examId), JSON.stringify(draft))
   } catch {
     // Không lưu được thì luồng vẫn đi tiếp, chỉ mất phần khôi phục.
   }
@@ -63,7 +74,7 @@ export function saveExamBuilderDraft(draft: ExamBuilderDraft): void {
 /** Trả về bản nháp đúng bài kiểm tra đang mở và còn hạn, ngoài ra luôn là undefined. */
 export function readExamBuilderDraft(examId: number | null): ExamBuilderDraft | undefined {
   try {
-    const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY)
+    const raw = window.sessionStorage.getItem(draftKey(examId))
     if (!raw) return undefined
 
     const parsed: unknown = JSON.parse(raw)
@@ -87,9 +98,10 @@ export function readExamBuilderDraft(examId: number | null): ExamBuilderDraft | 
   }
 }
 
-export function clearExamBuilderDraft(): void {
+/** Chỉ xoá nháp của đúng đề đang mở. Xoá tất cả là làm mất bản nháp của đề khác. */
+export function clearExamBuilderDraft(examId: number | null): void {
   try {
-    window.sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+    window.sessionStorage.removeItem(draftKey(examId))
   } catch {
     // Không cần xử lý thêm.
   }
