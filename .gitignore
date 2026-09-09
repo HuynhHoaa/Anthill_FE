@@ -1,0 +1,35 @@
+# ---------- Node / Vite ----------
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# ---------- Log ----------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# ---------- Bí mật ----------
+# .env.example ĐƯỢC commit làm mẫu; mọi biến thể còn lại thì không.
+.env
+.env.*
+!.env.example
+
+# ---------- Trình soạn thảo ----------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.sw?
+
+# ---------- Hệ điều hành ----------
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ---------- Tài liệu làm việc nội bộ ----------
+# Giữ trên máy để theo dõi tiến độ, không thuộc về repo công khai.
+FRONTEND_REVIEW.md
+FRONTEND_INVENTORY.md

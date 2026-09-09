@@ -1,0 +1,17 @@
+# Chuẩn hoá line ending: lập trình trên Windows, build trên Linux khi deploy.
+* text=auto
+
+*.ts   text
+*.tsx  text
+*.json text
+*.md   text
+*.css  text
+*.html text
+
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.svg  text
