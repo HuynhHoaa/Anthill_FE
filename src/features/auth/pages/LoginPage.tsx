@@ -1,0 +1,395 @@
+import { useEffect, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  GraduationCap, Eye, EyeOff, BookOpen, Users, Award,
+  AlertCircle, Sparkles,
+} from 'lucide-react'
+import Modal from '../../../components/common/Modal'
+import { useToast } from '../../../components/common/Toast'
+import { DEMO_PASSWORD, demoAccounts, getCurrentUser, login } from '../../../services/authService'
+import type { UserRole } from '../../../types'
+
+const dashboardPath: Record<UserRole, string> = {
+  teacher: '/giao-vien',
+  student: '/hoc-sinh',
+  admin: '/quan-tri',
+}
+
+const roleLabels: Record<UserRole, string> = {
+  teacher: 'Giáo viên',
+  student: 'Học sinh',
+  admin: 'Quản trị viên',
+}
+
+const roleTabLabels: Record<UserRole, string> = {
+  teacher: '👨‍🏫 Giáo viên',
+  student: '👨‍🎓 Học sinh',
+  admin: '🧑‍💼 Quản trị viên',
+}
+
+/** Ô nhập tên đăng nhập đổi theo vai trò: chỉ học sinh dùng username, còn lại dùng email. */
+const identityLabels: Record<UserRole, string> = {
+  teacher: 'Email',
+  student: 'Tên đăng nhập',
+  admin: 'Email',
+}
+
+const identityPlaceholders: Record<UserRole, string> = {
+  teacher: 'giaovien@truong.edu.vn',
+  student: 'Mã học sinh hoặc tên đăng nhập',
+  admin: 'quantri@eduquiz.vn',
+}
+
+// Dẫn xuất từ roleLabels để thêm một vai trò là tab và thẻ tài khoản demo tự có mặt.
+const roleOptions = Object.keys(roleLabels) as UserRole[]
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const minPasswordLength = 4
+
+interface LoginFieldErrors {
+  username?: string
+  password?: string
+}
+
+function validateLoginForm(role: UserRole, username: string, password: string): LoginFieldErrors {
+  const errors: LoginFieldErrors = {}
+  const trimmedUsername = username.trim()
+
+  if (!trimmedUsername) {
+    errors.username = role === 'student' ? 'Vui lòng nhập tên đăng nhập.' : 'Vui lòng nhập email.'
+  } else if (role !== 'student' && !emailPattern.test(trimmedUsername)) {
+    errors.username = `Email chưa đúng định dạng, ví dụ: ${identityPlaceholders[role]}`
+  }
+
+  if (!password) {
+    errors.password = 'Vui lòng nhập mật khẩu.'
+  } else if (password.length < minPasswordLength) {
+    errors.password = `Mật khẩu phải có ít nhất ${minPasswordLength} ký tự.`
+  }
+
+  return errors
+}
+
+const baseInputClass =
+  'w-full px-4 py-3 rounded-xl border text-sm font-medium outline-none transition-all bg-white placeholder:text-slate-400 placeholder:font-normal'
+
+function fieldToneClass(hasError: boolean): string {
+  return hasError
+    ? 'border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-50'
+    : 'border-slate-200 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50'
+}
+
+export default function LoginPage() {
+  const navigate = useNavigate()
+  const toast = useToast()
+  const [showPassword, setShowPassword] = useState(false)
+  const [role, setRole] = useState<UserRole>('teacher')
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({ username: '', password: '' })
+  const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({})
+  const [serverError, setServerError] = useState<string | undefined>(undefined)
+  const [forgotOpen, setForgotOpen] = useState(false)
+
+  // Còn phiên đăng nhập thì vào thẳng khu vực tương ứng, không bắt đăng nhập lại
+  useEffect(() => {
+    const currentUser = getCurrentUser()
+    if (currentUser) {
+      navigate(dashboardPath[currentUser.role], { replace: true })
+    }
+  }, [navigate])
+
+  const changeRole = (nextRole: UserRole) => {
+    setRole(nextRole)
+    setFieldErrors({})
+    setServerError(undefined)
+  }
+
+  // Điền sẵn tài khoản mẫu và chuyển luôn sang tab vai trò tương ứng
+  const applyDemoAccount = (demoRole: UserRole) => {
+    const account = demoAccounts[demoRole]
+    setRole(demoRole)
+    setForm({ username: account.username, password: account.password })
+    setFieldErrors({})
+    setServerError(undefined)
+    setForgotOpen(false)
+    toast.info(`Đã điền tài khoản ${roleLabels[demoRole].toLowerCase()} mẫu. Bấm “Đăng nhập” để vào.`)
+  }
+
+  const handleLogin = async (event: FormEvent) => {
+    event.preventDefault()
+    const nextErrors = validateLoginForm(role, form.username, form.password)
+    setFieldErrors(nextErrors)
+    setServerError(undefined)
+    if (nextErrors.username || nextErrors.password) return
+
+    setLoading(true)
+    try {
+      const profile = await login({ username: form.username.trim(), password: form.password, role })
+      navigate(dashboardPath[profile.role], { replace: true })
+    } catch (caught) {
+      setServerError(caught instanceof Error ? caught.message : 'Đăng nhập không thành công. Vui lòng thử lại.')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex">
+      {/* LEFT — Branding */}
+      <div
+        className="hidden lg:flex flex-col justify-between w-[45%] p-12 relative overflow-hidden"
+        style={{ background: 'linear-gradient(145deg, #312E81 0%, #4F46E5 50%, #7C3AED 100%)' }}
+      >
+        {/* Decorative circles */}
+        <div className="absolute -top-20 -left-20 w-72 h-72 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }} />
+        <div className="absolute -bottom-32 -right-20 w-96 h-96 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }} />
+
+        {/* Logo */}
+        <div className="relative flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+            <GraduationCap size={26} className="text-white" />
+          </div>
+          <span className="text-white font-bold text-3xl tracking-tight">EduQuiz</span>
+        </div>
+
+        {/* Center text */}
+        <div className="relative space-y-8">
+          <div>
+            <h2 className="text-white font-bold text-4xl leading-tight mb-4">
+              Hệ thống kiểm tra<br />trực tuyến thông minh
+            </h2>
+            <p className="text-indigo-200 text-lg leading-relaxed">
+              Tạo bài kiểm tra, quản lý học sinh và theo dõi kết quả — tất cả trong một nơi.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {[
+              { icon: BookOpen, text: 'Ngân hàng câu hỏi phân loại theo độ khó' },
+              { icon: Users,    text: 'Giao bài cho học sinh theo nhóm/lớp' },
+              { icon: Award,    text: 'Tự động chấm điểm và thống kê kết quả' },
+            ].map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3 rounded-2xl px-4 py-3" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>
+                  <Icon size={16} className="text-white" />
+                </div>
+                <span className="text-white text-sm font-medium">{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="relative text-indigo-300 text-sm">
+          © {new Date().getFullYear()} EduQuiz — Đồng hành cùng thầy cô và học sinh.
+        </p>
+      </div>
+
+      {/* RIGHT — Form */}
+      <div className="flex-1 flex items-center justify-center p-8 bg-slate-50">
+        <div className="w-full max-w-md animate-fade-in-up">
+          {/* Mobile logo */}
+          <div className="flex lg:hidden items-center gap-2 mb-8">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}>
+              <GraduationCap size={20} className="text-white" />
+            </div>
+            <span className="font-bold text-2xl gradient-text">EduQuiz</span>
+          </div>
+
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">Đăng nhập</h1>
+            <p className="text-slate-500">Chào mừng bạn trở lại! 👋</p>
+          </div>
+
+          {/* Role Selector */}
+          <div className="flex bg-slate-200 rounded-2xl p-1 mb-8">
+            {roleOptions.map(roleOption => (
+              <button
+                key={roleOption}
+                type="button"
+                aria-pressed={role === roleOption}
+                onClick={() => changeRole(roleOption)}
+                className={`flex-1 min-w-0 truncate px-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                  role === roleOption ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {roleTabLabels[roleOption]}
+              </button>
+            ))}
+          </div>
+
+          {serverError && (
+            <div
+              role="alert"
+              className="mb-5 flex items-start gap-3 px-4 py-3 rounded-2xl bg-red-50 border border-red-200 animate-fade-in"
+            >
+              <AlertCircle size={17} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-600 leading-relaxed">{serverError}</p>
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleLogin} className="space-y-5" noValidate>
+            <div>
+              <label htmlFor="login-username" className="block text-sm font-semibold text-slate-700 mb-1.5">
+                {identityLabels[role]}
+              </label>
+              <input
+                id="login-username"
+                type={role === 'student' ? 'text' : 'email'}
+                autoComplete="username"
+                aria-invalid={Boolean(fieldErrors.username)}
+                className={`${baseInputClass} ${fieldToneClass(Boolean(fieldErrors.username))}`}
+                placeholder={identityPlaceholders[role]}
+                value={form.username}
+                onChange={event => {
+                  setForm({ ...form, username: event.target.value })
+                  if (fieldErrors.username) setFieldErrors({ ...fieldErrors, username: undefined })
+                }}
+              />
+              {fieldErrors.username && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.username}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="login-password" className="block text-sm font-semibold text-slate-700 mb-1.5">
+                Mật khẩu
+              </label>
+              <div className="relative">
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  className={`${baseInputClass} pr-12 ${fieldToneClass(Boolean(fieldErrors.password))}`}
+                  placeholder="Nhập mật khẩu"
+                  value={form.password}
+                  onChange={event => {
+                    setForm({ ...form, password: event.target.value })
+                    if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: undefined })
+                  }}
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {fieldErrors.password && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.password}</p>}
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setForgotOpen(true)}
+                className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors"
+              >
+                Quên mật khẩu?
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-semibold text-base text-white transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+              style={{ background: loading ? '#818cf8' : 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Đang đăng nhập...
+                </>
+              ) : 'Đăng nhập'}
+            </button>
+          </form>
+
+          {/* Tài khoản demo — in thẳng thông tin đăng nhập kèm nút điền sẵn */}
+          <div className="mt-6 p-4 rounded-2xl bg-indigo-50 border border-indigo-100">
+            <p className="text-xs font-semibold text-indigo-700 mb-1 flex items-center gap-1.5">
+              <Sparkles size={13} />
+              Tài khoản demo
+            </p>
+            <p className="text-xs text-indigo-600 leading-relaxed">
+              Bấm “Điền sẵn” để tự điền tài khoản và chuyển đúng tab vai trò. Bản demo chưa nối máy chủ
+              thật nên mọi mật khẩu khác cũng đăng nhập được.
+            </p>
+
+            <ul className="mt-3 space-y-2">
+              {roleOptions.map(demoRole => {
+                const account = demoAccounts[demoRole]
+                return (
+                  <li
+                    key={demoRole}
+                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-white border border-indigo-100"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-700">
+                        {roleTabLabels[demoRole]} · {account.fullName}
+                      </p>
+                      <p className="text-xs text-slate-500 font-mono break-all mt-0.5">
+                        {account.username} / {account.password}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => applyDemoAccount(demoRole)}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition-colors flex-shrink-0"
+                    >
+                      Điền sẵn
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <Modal
+        open={forgotOpen}
+        title="Quên mật khẩu?"
+        description="Tính năng tự đặt lại mật khẩu sẽ có ở phiên bản tiếp theo."
+        onClose={() => setForgotOpen(false)}
+        size="sm"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setForgotOpen(false)}
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+            >
+              Đóng
+            </button>
+            <button
+              type="button"
+              onClick={() => applyDemoAccount(role)}
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
+              style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+            >
+              Điền tài khoản {roleLabels[role].toLowerCase()} mẫu
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3 text-sm text-slate-600 leading-relaxed">
+          <p>
+            Ở bản hiện tại, mật khẩu do quản trị viên cấp phát. Nếu bạn quên mật khẩu, hãy liên hệ
+            quản trị viên hệ thống để được cấp lại.
+          </p>
+          <p>
+            Đang xem bản demo? Ba tài khoản mẫu dùng chung mật khẩu{' '}
+            <strong className="font-mono text-slate-700">{DEMO_PASSWORD}</strong>. Bấm nút bên dưới để
+            điền sẵn và đăng nhập ngay.
+          </p>
+          <p className="text-slate-500">
+            Sau khi đăng nhập, bạn có thể tự đổi mật khẩu trong mục{' '}
+            <strong className="text-slate-700">Hồ sơ cá nhân</strong>.
+          </p>
+        </div>
+      </Modal>
+    </div>
+  )
+}
