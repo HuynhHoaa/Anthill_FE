@@ -1,0 +1,856 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { NavLink, useNavigate, useParams } from 'react-router-dom'
+import {
+  AlertCircle, ArrowLeft, CalendarClock, CheckCircle2, Clock, FileText,
+  Layers, Loader2, Plus, Save, Send, Target,
+} from 'lucide-react'
+import TeacherLayout from '../../../components/layout/TeacherLayout'
+import ErrorState from '../../../components/common/ErrorState'
+import { SkeletonBlock } from '../../../components/common/Skeleton'
+import { useToast } from '../../../components/common/Toast'
+import { useAsync } from '../../../hooks/useAsync'
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
+import {
+  createExam, getExam, previewBlueprint, updateExam,
+  type BlueprintPreview, type ExamPayload,
+} from '../../../services/examService'
+import { listTopics } from '../../../services/questionService'
+import { difficultyLabels, type DifficultyLevel, type Exam } from '../../../types'
+import DifficultyRatioEditor from '../components/DifficultyRatioEditor'
+import FieldError from '../components/FieldError'
+import {
+  clampPercentage, difficultyBarColors, orderedDifficultyLevels, sumRatios,
+  type DifficultyRatios,
+} from '../utils/blueprintRatio'
+import {
+  clearExamBuilderDraft, readExamBuilderDraft, saveExamBuilderDraft,
+  type ExamFormState,
+} from '../utils/examDraftStorage'
+import {
+  buildDefaultSchedule, isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
+} from '../utils/examScheduleFormat'
+
+type SaveMode = 'draft' | 'publish' | 'assign'
+
+type FormErrorKey = keyof ExamFormState | 'ratio'
+type FormErrors = Partial<Record<FormErrorKey, string>>
+
+const inputBaseClass =
+  'w-full px-4 py-2.5 rounded-xl border text-sm outline-none transition-all focus:ring-4'
+const inputNormalClass = `${inputBaseClass} border-slate-200 focus:border-indigo-400 focus:ring-indigo-50`
+const inputInvalidClass = `${inputBaseClass} border-red-300 focus:border-red-400 focus:ring-red-50`
+const labelClass = 'block text-sm font-semibold text-slate-700 mb-2'
+const cardClass = 'bg-white rounded-2xl border border-slate-100 shadow-sm'
+
+function fieldClass(message: string | undefined): string {
+  return message ? inputInvalidClass : inputNormalClass
+}
+
+function createInitialForm(): ExamFormState {
+  const schedule = buildDefaultSchedule()
+  return {
+    title: '',
+    description: '',
+    durationMinutes: 45,
+    totalQuestions: 20,
+    pointPerQuestion: 0.5,
+    topic: '',
+    easyPercentage: 30,
+    mediumPercentage: 50,
+    hardPercentage: 20,
+    shuffleQuestions: true,
+    shuffleAnswers: true,
+    showResultAfterSubmit: true,
+    openAtLocal: schedule.openAtLocal,
+    closeAtLocal: schedule.closeAtLocal,
+  }
+}
+
+function toSafeNumber(rawValue: string): number {
+  const parsed = Number(rawValue)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function toErrorMessage(caught: unknown, fallback: string): string {
+  return caught instanceof Error && caught.message ? caught.message : fallback
+}
+
+/** Độ dài cửa sổ mở bài, viết thành 'N ngày M giờ' cho dễ đọc. */
+function formatScheduleWindow(totalMinutes: number): string {
+  if (totalMinutes <= 0) return 'Chưa xác định'
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+
+  const parts: string[] = []
+  if (days > 0) parts.push(`${days} ngày`)
+  if (hours > 0) parts.push(`${hours} giờ`)
+  if (minutes > 0 && days === 0) parts.push(`${minutes} phút`)
+  return parts.length > 0 ? parts.join(' ') : 'Dưới 1 phút'
+}
+
+function validateForm(state: ExamFormState, mode: SaveMode): FormErrors {
+  const nextErrors: FormErrors = {}
+  const isDraft = mode === 'draft'
+  const title = state.title.trim()
+
+  if (!title) {
+    nextErrors.title = 'Vui lòng nhập tên bài kiểm tra.'
+  } else if (title.length < 5) {
+    nextErrors.title = 'Tên bài kiểm tra cần ít nhất 5 ký tự.'
+  }
+
+  if (state.durationMinutes < 1) {
+    nextErrors.durationMinutes = 'Thời gian làm bài phải lớn hơn 0 phút.'
+  } else if (state.durationMinutes > 300) {
+    nextErrors.durationMinutes = 'Thời gian làm bài tối đa 300 phút.'
+  }
+
+  if (state.totalQuestions < 1) {
+    nextErrors.totalQuestions = 'Đề phải có ít nhất 1 câu hỏi.'
+  } else if (state.totalQuestions > 100) {
+    nextErrors.totalQuestions = 'Một đề chỉ nên có tối đa 100 câu hỏi.'
+  }
+
+  if (state.pointPerQuestion <= 0) {
+    nextErrors.pointPerQuestion = 'Điểm mỗi câu phải lớn hơn 0.'
+  } else if (state.pointPerQuestion > 10) {
+    nextErrors.pointPerQuestion = 'Điểm mỗi câu tối đa là 10.'
+  }
+
+  if (!isDraft && !state.openAtLocal) {
+    nextErrors.openAtLocal = 'Vui lòng chọn thời gian mở bài.'
+  }
+  if (!isDraft && !state.closeAtLocal) {
+    nextErrors.closeAtLocal = 'Vui lòng chọn thời gian đóng bài.'
+  }
+  if (state.openAtLocal && state.closeAtLocal && !isCloseAfterOpen(state.openAtLocal, state.closeAtLocal)) {
+    nextErrors.closeAtLocal = 'Thời gian đóng bài phải sau thời gian mở bài.'
+  }
+
+  const ratioTotal = sumRatios({
+    easy: state.easyPercentage,
+    medium: state.mediumPercentage,
+    hard: state.hardPercentage,
+  })
+  if (!isDraft && ratioTotal !== 100) {
+    nextErrors.ratio = `Tổng tỷ lệ ba mức độ phải bằng 100%, hiện tại là ${ratioTotal}%.`
+  }
+
+  return nextErrors
+}
+
+interface BlueprintPreviewCardProps {
+  preview: BlueprintPreview | undefined
+  loading: boolean
+  error: string | undefined
+  totalQuestions: number
+  pointPerQuestion: number
+  onRetry: () => void
+  onAddQuestion: () => void
+  onOpenQuestionBank: () => void
+}
+
+/** Kết quả sinh đề luôn lấy từ examService.previewBlueprint để logic nằm đúng tầng nghiệp vụ. */
+function BlueprintPreviewCard({
+  preview, loading, error, totalQuestions, pointPerQuestion, onRetry, onAddQuestion, onOpenQuestionBank,
+}: BlueprintPreviewCardProps) {
+  if (error) {
+    return <ErrorState message={error} onRetry={onRetry} />
+  }
+
+  if (!preview) {
+    return (
+      <div className={`${cardClass} p-5 space-y-3`}>
+        <SkeletonBlock className="h-4 w-1/2" />
+        <SkeletonBlock className="h-14 w-full rounded-xl" />
+        <SkeletonBlock className="h-16 w-full rounded-xl" />
+        <SkeletonBlock className="h-16 w-full rounded-xl" />
+        <SkeletonBlock className="h-16 w-full rounded-xl" />
+      </div>
+    )
+  }
+
+  const totalPoints = Math.round(totalQuestions * pointPerQuestion * 10) / 10
+
+  return (
+    <div className={`${cardClass} p-5`}>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <Layers size={18} className="text-indigo-600" />
+          <h2 className="text-base font-bold text-slate-800">Xem trước số câu</h2>
+        </div>
+        {loading && (
+          <span className="text-xs font-semibold text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-lg">
+            Đang tính lại…
+          </span>
+        )}
+      </div>
+
+      <div
+        className="rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3"
+        style={{ background: 'linear-gradient(135deg, #EEF2FF, #F5F3FF)' }}
+      >
+        <div>
+          <p className="text-xs text-indigo-500 font-semibold uppercase tracking-wider">Tổng điểm của đề</p>
+          <p className="text-xl font-bold text-indigo-700 mt-0.5">{totalPoints} điểm</p>
+        </div>
+        <p className="text-xs text-indigo-500 text-right leading-relaxed">
+          {totalQuestions} câu × {pointPerQuestion} điểm
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {orderedDifficultyLevels.map(level => {
+          const requiredCount = preview.required[level]
+          const availableCount = preview.available[level]
+          const isEnough = requiredCount <= availableCount
+          const usage =
+            availableCount > 0
+              ? Math.min(100, (requiredCount / availableCount) * 100)
+              : requiredCount > 0 ? 100 : 0
+
+          return (
+            <div
+              key={level}
+              className={`rounded-xl border p-3.5 ${isEnough ? 'border-slate-100' : 'border-red-200 bg-red-50/40'}`}
+            >
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ background: difficultyBarColors[level] }}
+                  />
+                  {difficultyLabels[level]}
+                </span>
+                <span className={`text-sm font-bold ${isEnough ? 'text-slate-700' : 'text-red-500'}`}>
+                  {requiredCount}
+                  <span className="font-medium text-slate-400"> / {availableCount} câu</span>
+                </span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${usage}%`,
+                    background: isEnough ? difficultyBarColors[level] : '#EF4444',
+                  }}
+                />
+              </div>
+              <p className={`text-xs mt-1.5 ${isEnough ? 'text-slate-400' : 'text-red-500 font-medium'}`}>
+                {isEnough
+                  ? `Ngân hàng còn dư ${availableCount - requiredCount} câu`
+                  : `Còn thiếu ${requiredCount - availableCount} câu trong ngân hàng`}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+
+      {preview.isValid ? (
+        <div className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 px-4 py-3">
+          <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm font-semibold text-emerald-700 leading-relaxed">
+            Ngân hàng đủ câu hỏi, hệ thống có thể sinh đề tự động cho từng học sinh.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4 rounded-xl bg-red-50 px-4 py-3">
+          <p className="text-sm font-bold text-red-600 flex items-center gap-2 mb-2">
+            <AlertCircle size={16} className="flex-shrink-0" />
+            Ma trận đề chưa hợp lệ
+          </p>
+          <ul className="space-y-1.5">
+            {preview.errors.map(message => (
+              <li key={message} className="text-sm text-red-600 leading-relaxed flex gap-2">
+                <span aria-hidden="true">•</span>
+                <span>{message}</span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-3 pt-3 border-t border-red-100 space-y-2">
+            <button
+              type="button"
+              onClick={onAddQuestion}
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
+              style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+            >
+              <Plus size={16} />
+              Thêm câu hỏi vào ngân hàng
+            </button>
+            <p className="text-xs text-red-500 leading-relaxed text-center">
+              Cấu hình đang nhập được giữ lại, bạn sẽ quay về đây ngay sau khi lưu câu hỏi.{' '}
+              <button
+                type="button"
+                onClick={onOpenQuestionBank}
+                className="font-semibold text-indigo-600 hover:text-indigo-700 underline underline-offset-2"
+              >
+                Mở ngân hàng câu hỏi
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function ExamBuilderPage() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const toast = useToast()
+
+  // useParams luôn trả về chuỗi nên phải ép về số trước khi dùng làm id.
+  // Đường dẫn '/sua' có id không đọc được vẫn phải ở chế độ sửa để báo lỗi,
+  // tuyệt đối không được rơi âm thầm sang chế độ tạo mới.
+  const examId = id === undefined ? undefined : Number(id)
+  const isEditing = examId !== undefined
+
+  // Nháp chỉ được đọc đúng một lần lúc gắn trang: hàm xóa chạy ngay sau đó nên các
+  // render sau không còn đọc lại được nữa.
+  const [restoredForm] = useState(() => readExamBuilderDraft(examId ?? null)?.form)
+  const restoredRef = useRef(restoredForm !== undefined)
+
+  const [form, setForm] = useState<ExamFormState>(() => restoredForm ?? createInitialForm())
+  const [errors, setErrors] = useState<FormErrors>({})
+  const [anchorLevel, setAnchorLevel] = useState<DifficultyLevel>('easy')
+  const [savingMode, setSavingMode] = useState<SaveMode | null>(null)
+
+  const examQuery = useAsync<Exam | null>(
+    () => (examId === undefined ? Promise.resolve(null) : getExam(examId)),
+    [examId ?? 0],
+  )
+  const topicsQuery = useAsync(() => listTopics(), [])
+  const loadedExam = examQuery.data
+
+  // Xóa ở effect riêng chứ không xóa trong initializer, vì StrictMode chạy initializer hai lần.
+  useEffect(() => {
+    clearExamBuilderDraft()
+  }, [])
+
+  useEffect(() => {
+    if (!loadedExam) return
+    // Bản nháp vừa khôi phục phải thắng dữ liệu nạp từ service, nếu không form bị đè ngay.
+    if (restoredRef.current) return
+    setForm({
+      title: loadedExam.title,
+      description: loadedExam.description,
+      durationMinutes: loadedExam.durationMinutes,
+      totalQuestions: loadedExam.totalQuestions,
+      pointPerQuestion: loadedExam.pointPerQuestion,
+      topic: loadedExam.topic,
+      easyPercentage: loadedExam.easyPercentage,
+      mediumPercentage: loadedExam.mediumPercentage,
+      hardPercentage: loadedExam.hardPercentage,
+      shuffleQuestions: loadedExam.shuffleQuestions,
+      shuffleAnswers: loadedExam.shuffleAnswers,
+      showResultAfterSubmit: loadedExam.showResultAfterSubmit,
+      openAtLocal: toDateTimeLocalValue(loadedExam.openAt),
+      closeAtLocal: toDateTimeLocalValue(loadedExam.closeAt),
+    })
+  }, [loadedExam])
+
+  const ratios = useMemo<DifficultyRatios>(
+    () => ({
+      easy: form.easyPercentage,
+      medium: form.mediumPercentage,
+      hard: form.hardPercentage,
+    }),
+    [form.easyPercentage, form.mediumPercentage, form.hardPercentage],
+  )
+  const ratioTotal = sumRatios(ratios)
+
+  // Chỉ gọi lại preview khi cấu hình đã ngưng thay đổi, tránh bắn request ở mỗi lần kéo thanh trượt.
+  const blueprintKey = [
+    form.totalQuestions, form.easyPercentage, form.mediumPercentage, form.hardPercentage, form.topic,
+  ].join('|')
+  const debouncedBlueprintKey = useDebouncedValue(blueprintKey, 400)
+  const blueprintQuery = useAsync(
+    () => previewBlueprint({
+      totalQuestions: form.totalQuestions,
+      easyPercentage: form.easyPercentage,
+      mediumPercentage: form.mediumPercentage,
+      hardPercentage: form.hardPercentage,
+      topic: form.topic,
+    }),
+    [debouncedBlueprintKey],
+  )
+
+  const topicChoices = useMemo(() => {
+    const choices = new Set(topicsQuery.data ?? [])
+    if (form.topic) choices.add(form.topic)
+    return Array.from(choices).sort((left, right) => left.localeCompare(right, 'vi'))
+  }, [topicsQuery.data, form.topic])
+
+  const scheduleWindowMinutes = minutesBetween(form.openAtLocal, form.closeAtLocal)
+  const isDurationTooLong = scheduleWindowMinutes > 0 && form.durationMinutes > scheduleWindowMinutes
+  const isSaving = savingMode !== null
+  const isBlueprintBlocked =
+    ratioTotal !== 100 || (blueprintQuery.data !== undefined && !blueprintQuery.data.isValid)
+  // Đề đã xuất bản mà lưu nháp lại thì học sinh đang được giao sẽ mất quyền vào làm,
+  // nên chỉ cho lưu nháp khi tạo mới hoặc khi đề vẫn còn là bản nháp.
+  const canSaveDraft = !isEditing || loadedExam?.lifecycle === 'draft'
+
+  const clearError = (key: FormErrorKey) => {
+    setErrors(current => {
+      if (current[key] === undefined) return current
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+  }
+
+  const updateField = <Key extends keyof ExamFormState>(key: Key, value: ExamFormState[Key]) => {
+    setForm(current => {
+      const next: ExamFormState = { ...current }
+      next[key] = value
+      return next
+    })
+    clearError(key)
+  }
+
+  const applyRatios = (nextRatios: DifficultyRatios) => {
+    setForm(current => ({
+      ...current,
+      easyPercentage: clampPercentage(nextRatios.easy),
+      mediumPercentage: clampPercentage(nextRatios.medium),
+      hardPercentage: clampPercentage(nextRatios.hard),
+    }))
+    clearError('ratio')
+  }
+
+  const changeRatios = (nextRatios: DifficultyRatios, nextAnchorLevel: DifficultyLevel) => {
+    setAnchorLevel(nextAnchorLevel)
+    applyRatios(nextRatios)
+  }
+
+  // Rời trang để bổ sung ngân hàng thì phải giữ nháp lại, nếu không toàn bộ cấu hình đang nhập sẽ mất.
+  const saveDraftAndNavigate = (targetPath: string) => {
+    saveExamBuilderDraft({ examId: examId ?? null, form, savedAt: Date.now() })
+    navigate(targetPath)
+  }
+
+  const goToQuestionEditor = () => {
+    const params = new URLSearchParams()
+    if (form.topic) params.set('chu-de', form.topic)
+    params.set('quay-lai', 'de')
+    if (examId !== undefined && Number.isFinite(examId)) params.set('de', String(examId))
+    saveDraftAndNavigate(`/giao-vien/cau-hoi/tao?${params.toString()}`)
+  }
+
+  const goToQuestionBank = () => {
+    saveDraftAndNavigate('/giao-vien/cau-hoi')
+  }
+
+  const handleSave = async (mode: SaveMode) => {
+    const nextErrors = validateForm(form, mode)
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length > 0) {
+      toast.error('Vui lòng kiểm tra lại các trường được đánh dấu đỏ.')
+      return
+    }
+
+    const payload: ExamPayload = {
+      title: form.title,
+      description: form.description,
+      durationMinutes: form.durationMinutes,
+      totalQuestions: form.totalQuestions,
+      easyPercentage: form.easyPercentage,
+      mediumPercentage: form.mediumPercentage,
+      hardPercentage: form.hardPercentage,
+      pointPerQuestion: form.pointPerQuestion,
+      topic: form.topic,
+      shuffleQuestions: form.shuffleQuestions,
+      shuffleAnswers: form.shuffleAnswers,
+      openAt: toServiceDateTime(form.openAtLocal),
+      closeAt: toServiceDateTime(form.closeAtLocal),
+      showResultAfterSubmit: form.showResultAfterSubmit,
+      lifecycle: mode === 'draft' ? 'draft' : undefined,
+    }
+
+    setSavingMode(mode)
+    try {
+      const saved = examId === undefined
+        ? await createExam(payload)
+        : await updateExam(examId, payload)
+
+      if (mode === 'draft') {
+        toast.success('Đã lưu bản nháp bài kiểm tra.')
+      } else {
+        toast.success(isEditing ? 'Đã cập nhật bài kiểm tra.' : 'Đã tạo bài kiểm tra thành công.')
+      }
+
+      navigate(
+        mode === 'assign'
+          ? `/giao-vien/bai-kiem-tra/${saved.id}/giao-bai`
+          : `/giao-vien/bai-kiem-tra/${saved.id}`,
+      )
+    } catch (caught) {
+      toast.error(toErrorMessage(caught, 'Không lưu được bài kiểm tra. Vui lòng thử lại.'))
+    } finally {
+      setSavingMode(null)
+    }
+  }
+
+  const pageTitle = isEditing ? 'Sửa bài kiểm tra' : 'Tạo bài kiểm tra'
+  const pageSubtitle = isEditing
+    ? loadedExam?.title ?? 'Đang tải cấu hình bài kiểm tra'
+    : 'Cấu hình Exam Blueprint để hệ thống tự sinh đề cho từng học sinh'
+
+  // Chỉ quay về trang chi tiết khi id thật sự là số, tránh dẫn tới '/bai-kiem-tra/NaN'.
+  const hasValidExamId = examId !== undefined && Number.isFinite(examId)
+  const backLink = (
+    <div className="mb-5">
+      <NavLink
+        to={hasValidExamId ? `/giao-vien/bai-kiem-tra/${examId}` : '/giao-vien/bai-kiem-tra'}
+        className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
+      >
+        <ArrowLeft size={16} />
+        {hasValidExamId ? 'Quay lại chi tiết bài kiểm tra' : 'Quay lại danh sách bài kiểm tra'}
+      </NavLink>
+    </div>
+  )
+
+  if (isEditing && examQuery.error) {
+    return (
+      <TeacherLayout pageTitle={pageTitle} pageSubtitle="Không tải được bài kiểm tra">
+        {backLink}
+        <ErrorState message={examQuery.error} onRetry={examQuery.reload} />
+      </TeacherLayout>
+    )
+  }
+
+  if (isEditing && !loadedExam) {
+    return (
+      <TeacherLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle}>
+        {backLink}
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start">
+          <div className="space-y-6">
+            {[0, 1, 2].map(blockIndex => (
+              <div key={blockIndex} className={`${cardClass} p-6 space-y-4`}>
+                <SkeletonBlock className="h-4 w-40" />
+                <SkeletonBlock className="h-11 w-full rounded-xl" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <SkeletonBlock className="h-11 w-full rounded-xl" />
+                  <SkeletonBlock className="h-11 w-full rounded-xl" />
+                  <SkeletonBlock className="h-11 w-full rounded-xl" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-4">
+            <div className={`${cardClass} p-5 space-y-3`}>
+              <SkeletonBlock className="h-4 w-1/2" />
+              <SkeletonBlock className="h-16 w-full rounded-xl" />
+              <SkeletonBlock className="h-16 w-full rounded-xl" />
+              <SkeletonBlock className="h-16 w-full rounded-xl" />
+            </div>
+            <div className={`${cardClass} p-5 space-y-3`}>
+              <SkeletonBlock className="h-10 w-full rounded-2xl" />
+              <SkeletonBlock className="h-10 w-full rounded-2xl" />
+            </div>
+          </div>
+        </div>
+      </TeacherLayout>
+    )
+  }
+
+  return (
+    <TeacherLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle}>
+      {backLink}
+
+      <form
+        onSubmit={event => {
+          event.preventDefault()
+          void handleSave('publish')
+        }}
+        className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start animate-fade-in-up"
+      >
+        <div className="space-y-6 min-w-0">
+          <section className={`${cardClass} p-6`}>
+            <div className="flex items-center gap-2 mb-5">
+              <FileText size={18} className="text-indigo-600" />
+              <h2 className="text-base font-bold text-slate-800">Thông tin chung</h2>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label htmlFor="exam-title" className={labelClass}>
+                  Tên bài kiểm tra <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="exam-title"
+                  value={form.title}
+                  onChange={event => updateField('title', event.target.value)}
+                  className={fieldClass(errors.title)}
+                  placeholder="Ví dụ: Kiểm tra 15 phút - Điện học"
+                />
+                <FieldError message={errors.title} />
+              </div>
+
+              <div>
+                <label htmlFor="exam-topic" className={labelClass}>Chủ đề câu hỏi</label>
+                <select
+                  id="exam-topic"
+                  value={form.topic}
+                  onChange={event => updateField('topic', event.target.value)}
+                  className={`${inputNormalClass} bg-white`}
+                >
+                  <option value="">Tổng hợp (mọi chủ đề)</option>
+                  {topicChoices.map(topic => (
+                    <option key={topic} value={topic}>{topic}</option>
+                  ))}
+                </select>
+                {topicsQuery.error ? (
+                  <p className="mt-1.5 text-xs text-red-500 flex flex-wrap items-center gap-1.5">
+                    Không tải được danh sách chủ đề.
+                    <button
+                      type="button"
+                      onClick={topicsQuery.reload}
+                      className="font-semibold text-indigo-600 hover:text-indigo-700 underline underline-offset-2"
+                    >
+                      Thử lại
+                    </button>
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-xs text-slate-400">
+                    Chọn một chủ đề để giới hạn ngân hàng sinh đề. Tổng hợp nghĩa là lấy câu hỏi từ mọi chủ đề.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="exam-description" className={labelClass}>Mô tả</label>
+                <textarea
+                  id="exam-description"
+                  rows={3}
+                  value={form.description}
+                  onChange={event => updateField('description', event.target.value)}
+                  className={inputNormalClass}
+                  placeholder="Mô tả phạm vi kiến thức và lưu ý cho học sinh"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className={`${cardClass} p-6`}>
+            <div className="flex items-center gap-2 mb-5">
+              <Target size={18} className="text-indigo-600" />
+              <h2 className="text-base font-bold text-slate-800">Cấu hình đề</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label htmlFor="exam-total-questions" className={labelClass}>
+                  Tổng số câu <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="exam-total-questions"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={form.totalQuestions}
+                  onChange={event => updateField('totalQuestions', toSafeNumber(event.target.value))}
+                  className={fieldClass(errors.totalQuestions)}
+                />
+                <FieldError message={errors.totalQuestions} />
+              </div>
+
+              <div>
+                <label htmlFor="exam-duration" className={labelClass}>
+                  Thời gian làm bài (phút) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Clock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    id="exam-duration"
+                    type="number"
+                    min={1}
+                    max={300}
+                    value={form.durationMinutes}
+                    onChange={event => updateField('durationMinutes', toSafeNumber(event.target.value))}
+                    className={`${fieldClass(errors.durationMinutes)} pl-10`}
+                  />
+                </div>
+                <FieldError message={errors.durationMinutes} />
+              </div>
+
+              <div>
+                <label htmlFor="exam-point" className={labelClass}>
+                  Điểm mỗi câu <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="exam-point"
+                  type="number"
+                  min={0.1}
+                  max={10}
+                  step={0.1}
+                  value={form.pointPerQuestion}
+                  onChange={event => updateField('pointPerQuestion', toSafeNumber(event.target.value))}
+                  className={fieldClass(errors.pointPerQuestion)}
+                />
+                <FieldError message={errors.pointPerQuestion} />
+              </div>
+            </div>
+          </section>
+
+          <section className={`${cardClass} p-6`}>
+            <div className="flex items-center gap-2 mb-5">
+              <CalendarClock size={18} className="text-indigo-600" />
+              <h2 className="text-base font-bold text-slate-800">Lịch mở bài</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="exam-open-at" className={labelClass}>
+                  Thời gian mở bài <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="exam-open-at"
+                  type="datetime-local"
+                  value={form.openAtLocal}
+                  onChange={event => updateField('openAtLocal', event.target.value)}
+                  className={fieldClass(errors.openAtLocal)}
+                />
+                <FieldError message={errors.openAtLocal} />
+              </div>
+
+              <div>
+                <label htmlFor="exam-close-at" className={labelClass}>
+                  Thời gian đóng bài <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="exam-close-at"
+                  type="datetime-local"
+                  value={form.closeAtLocal}
+                  onChange={event => updateField('closeAtLocal', event.target.value)}
+                  className={fieldClass(errors.closeAtLocal)}
+                />
+                <FieldError message={errors.closeAtLocal} />
+              </div>
+            </div>
+
+            {scheduleWindowMinutes > 0 && (
+              <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Học sinh có thể vào làm từ{' '}
+                <strong className="text-slate-800 font-semibold">{toServiceDateTime(form.openAtLocal)}</strong>{' '}
+                đến <strong className="text-slate-800 font-semibold">{toServiceDateTime(form.closeAtLocal)}</strong>{' '}
+                — cửa sổ mở bài kéo dài {formatScheduleWindow(scheduleWindowMinutes)}.
+              </div>
+            )}
+
+            {isDurationTooLong && (
+              <div className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-start gap-2">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span className="leading-relaxed">
+                  Thời gian làm bài ({form.durationMinutes} phút) đang dài hơn cửa sổ mở bài, học sinh vào
+                  muộn sẽ không kịp hoàn thành.
+                </span>
+              </div>
+            )}
+          </section>
+
+          <DifficultyRatioEditor
+            ratios={ratios}
+            anchorLevel={anchorLevel}
+            errorMessage={errors.ratio}
+            onChange={changeRatios}
+          />
+        </div>
+
+        <aside className="space-y-4 xl:sticky xl:top-6 min-w-0">
+          <BlueprintPreviewCard
+            preview={blueprintQuery.data}
+            loading={blueprintQuery.loading}
+            error={blueprintQuery.error}
+            totalQuestions={form.totalQuestions}
+            pointPerQuestion={form.pointPerQuestion}
+            onRetry={blueprintQuery.reload}
+            onAddQuestion={goToQuestionEditor}
+            onOpenQuestionBank={goToQuestionBank}
+          />
+
+          <div className={`${cardClass} p-5`}>
+            <h2 className="text-base font-bold text-slate-800 mb-2">Tùy chọn</h2>
+            <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
+              <span className="text-sm text-slate-600">Trộn thứ tự câu hỏi</span>
+              <input
+                type="checkbox"
+                checked={form.shuffleQuestions}
+                onChange={event => updateField('shuffleQuestions', event.target.checked)}
+                className="w-4 h-4 accent-indigo-600"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
+              <span className="text-sm text-slate-600">Trộn thứ tự đáp án</span>
+              <input
+                type="checkbox"
+                checked={form.shuffleAnswers}
+                onChange={event => updateField('shuffleAnswers', event.target.checked)}
+                className="w-4 h-4 accent-indigo-600"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
+              <span className="text-sm text-slate-600">Hiện kết quả sau khi nộp</span>
+              <input
+                type="checkbox"
+                checked={form.showResultAfterSubmit}
+                onChange={event => updateField('showResultAfterSubmit', event.target.checked)}
+                className="w-4 h-4 accent-indigo-600"
+              />
+            </label>
+          </div>
+
+          <div className={`${cardClass} p-5 space-y-2.5`}>
+            <button
+              type="submit"
+              disabled={isSaving || isBlueprintBlocked}
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-white font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+            >
+              {savingMode === 'publish'
+                ? <Loader2 size={17} className="animate-spin" />
+                : <Save size={17} />}
+              {isEditing ? 'Lưu thay đổi' : 'Lưu bài kiểm tra'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleSave('assign')}
+              disabled={isSaving || isBlueprintBlocked}
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingMode === 'assign'
+                ? <Loader2 size={16} className="animate-spin" />
+                : <Send size={16} />}
+              Lưu và giao bài
+            </button>
+
+            {canSaveDraft && (
+              <button
+                type="button"
+                onClick={() => void handleSave('draft')}
+                disabled={isSaving}
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingMode === 'draft'
+                  ? <Loader2 size={16} className="animate-spin" />
+                  : <FileText size={16} />}
+                Lưu nháp
+              </button>
+            )}
+
+            {isBlueprintBlocked && (
+              <p className="text-xs text-red-500 leading-relaxed pt-1">
+                {canSaveDraft
+                  ? 'Ma trận đề chưa hợp lệ nên chưa thể xuất bản. Hãy bấm "Thêm câu hỏi vào ngân hàng" ở khối xem trước, chỉnh lại tỷ lệ, hoặc lưu nháp để hoàn thiện sau.'
+                  : 'Ma trận đề chưa hợp lệ nên chưa thể lưu thay đổi. Hãy bấm "Thêm câu hỏi vào ngân hàng" ở khối xem trước, hoặc chỉnh lại tỷ lệ và số câu cho khớp ngân hàng.'}
+              </p>
+            )}
+          </div>
+        </aside>
+      </form>
+    </TeacherLayout>
+  )
+}
