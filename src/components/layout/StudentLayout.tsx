@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   GraduationCap, LayoutDashboard, FileText, BarChart3,
-  Bell, UserCircle, LogOut, Menu, X,
+  Bell, UserCircle, LogOut, Menu, X, Lock,
 } from 'lucide-react'
 import { useAsync } from '../../hooks/useAsync'
 import { getInitials } from '../../lib/format'
@@ -11,6 +11,16 @@ import { getUnreadCount } from '../../services/notificationService'
 
 interface StudentLayoutProps {
   children: ReactNode
+  /**
+   * Chế độ đang làm bài: giấu toàn bộ điều hướng, chỉ để lại thương hiệu và một dòng nhắc.
+   *
+   * Trong lúc thi, mọi liên kết trên thanh trên cùng đều là một cái bẫy: chạm nhầm vào "Kết quả
+   * của tôi" hay "Đăng xuất" là rời phòng thi ngay, không cảnh báo, trong khi đồng hồ vẫn chạy.
+   * Router của app dùng BrowserRouter nên không có useBlocker để chặn điều hướng; mà kể cả có thì
+   * dựng một hộp xác nhận trước mỗi liên kết vẫn tệ hơn là bỏ hẳn liên kết đi. Đang thi thì không
+   * có việc gì phải đi đâu cả.
+   */
+  examMode?: boolean
 }
 
 const menu = [
@@ -19,7 +29,7 @@ const menu = [
   { icon: BarChart3, label: 'Kết quả của tôi', to: '/hoc-sinh/ket-qua', end: false },
 ]
 
-export default function StudentLayout({ children }: StudentLayoutProps) {
+export default function StudentLayout({ children, examMode = false }: StudentLayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -45,17 +55,37 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
       <nav className="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16 gap-3">
-            <NavLink to="/hoc-sinh" className="flex items-center gap-2.5 flex-shrink-0">
-              <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}
-              >
-                <GraduationCap size={20} className="text-white" />
+            {examMode ? (
+              <div className="flex items-center gap-2.5 flex-shrink-0">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}
+                >
+                  <GraduationCap size={20} className="text-white" />
+                </div>
+                <span className="font-bold text-xl text-slate-800">EduQuiz</span>
               </div>
-              <span className="font-bold text-xl text-slate-800">EduQuiz</span>
-            </NavLink>
+            ) : (
+              <NavLink to="/hoc-sinh" className="flex items-center gap-2.5 flex-shrink-0">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}
+                >
+                  <GraduationCap size={20} className="text-white" />
+                </div>
+                <span className="font-bold text-xl text-slate-800">EduQuiz</span>
+              </NavLink>
+            )}
 
-            <div className="hidden md:flex items-center gap-1">
+            {examMode && (
+              <div className="flex items-center gap-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5">
+                <Lock size={14} />
+                <span className="hidden sm:inline">Đang trong giờ làm bài</span>
+                <span className="sm:hidden">Đang thi</span>
+              </div>
+            )}
+
+            <div className={`hidden md:flex items-center gap-1 ${examMode ? 'invisible pointer-events-none' : ''}`}>
               {menu.map(({ label, to, end }) => (
                 <NavLink
                   key={to}
@@ -74,7 +104,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
               ))}
             </div>
 
-            <div className="flex items-center gap-2.5 flex-shrink-0">
+            <div className={`flex items-center gap-2.5 flex-shrink-0 ${examMode ? 'hidden' : ''}`}>
               <NavLink
                 to="/hoc-sinh/thong-bao"
                 aria-label="Thông báo"
@@ -127,7 +157,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
           </div>
         </div>
 
-        {mobileOpen && (
+        {mobileOpen && !examMode && (
           <div className="md:hidden border-t border-slate-100 bg-white px-4 py-3 space-y-1">
             {menu.map(({ icon: Icon, label, to, end }) => (
               <NavLink

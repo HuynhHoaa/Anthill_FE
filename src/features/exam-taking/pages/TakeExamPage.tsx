@@ -5,6 +5,9 @@ import {
   Clock, FileText, Flag, LayoutGrid, Loader2, Save, Send,
 } from 'lucide-react'
 import StudentLayout from '../../../components/layout/StudentLayout'
+import {
+  clearAttemptProgress, readAttemptProgress, saveAttemptProgress,
+} from '../utils/examProgressStorage'
 import ConfirmDialog from '../../../components/common/ConfirmDialog'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
@@ -18,6 +21,15 @@ import type { AttemptQuestion, AttemptSession } from '../../../types'
 
 /** Chờ học sinh ngừng đổi đáp án rồi mới lưu nháp, tránh gọi service ở mỗi lần bấm. */
 const AUTO_SAVE_DELAY_MS = 800
+
+/**
+ * Khoảng chờ giữa hai lần thử nộp tự động.
+ *
+ * Nộp tự động hỏng — mạng chập, server bận — thì phải thử lại, vì học sinh lúc đó có thể đã rời
+ * máy và không còn ai bấm nút nữa. Năm giây đủ để qua một trục trặc thoáng qua mà không biến
+ * thành trận bão request lên một server đang chật vật.
+ */
+const AUTO_SUBMIT_RETRY_MS = 5000
 const WARNING_SECONDS = 5 * 60
 const CRITICAL_SECONDS = 60
 
@@ -174,6 +186,10 @@ export default function TakeExamPage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [autoSubmitting, setAutoSubmitting] = useState(false)
+  /** Số lần nộp tự động đã thất bại. Khác 0 thì giao diện phải nói thẳng, không im lặng. */
+  const [autoSubmitFailures, setAutoSubmitFailures] = useState(0)
+  /** Mốc sớm nhất được phép thử nộp tự động lần nữa. */
+  const autoSubmitRetryAtRef = useRef(0)
 
   // Chặn nộp hai lần khi đồng hồ về 0 đúng lúc học sinh cũng bấm nộp.
   const hasSubmittedRef = useRef(false)
@@ -201,9 +217,16 @@ export default function TakeExamPage() {
     hasSubmittedRef.current = false
     answersDirtyRef.current = false
     expiresAtRef.current = Date.now() + session.remainingSeconds * 1000
+    autoSubmitRetryAtRef.current = 0
+    setAutoSubmitFailures(0)
     setAnswers({ ...session.savedAnswers })
-    setFlaggedQuestionIds([])
-    setCurrentIndex(0)
+
+    // Khôi phục vị trí đang đọc và các câu đã đánh dấu. Đặt lại về câu 1 với danh sách cờ rỗng
+    // nghĩa là mỗi lần F5 giữa giờ thi, học sinh phải tự nhớ mình đang làm tới đâu và định quay
+    // lại những câu nào — đáp án thì còn nguyên nên sự mất mát này càng khó hiểu.
+    const progress = readAttemptProgress(session.attemptId, session.questions.length)
+    setFlaggedQuestionIds(progress.flaggedQuestionIds)
+    setCurrentIndex(progress.currentIndex)
     setRemainingSeconds(session.remainingSeconds)
     setSaveState('idle')
     setLastSavedLabel('')
@@ -222,6 +245,7 @@ export default function TakeExamPage() {
 
       try {
         const result = await submitAttempt(session.attemptId, answers, autoSubmitted)
+        clearAttemptProgress(session.attemptId)
         setConfirmOpen(false)
         if (autoSubmitted) {
           toast.info('Đã hết thời gian làm bài, hệ thống tự động nộp bài giúp bạn.')
@@ -236,6 +260,14 @@ export default function TakeExamPage() {
         hasSubmittedRef.current = false
         setSubmitting(false)
         setAutoSubmitting(false)
+
+        if (autoSubmitted) {
+          // Toast tắt sau ba giây, mà lúc này học sinh có thể đã rời máy. Đếm số lần hỏng để
+          // giao diện giữ lại một thông báo không tự biến mất, và đồng hồ sẽ tự thử lại.
+          setAutoSubmitFailures(count => count + 1)
+          return
+        }
+
         toast.error(caught instanceof Error ? caught.message : 'Không nộp được bài. Vui lòng thử lại.')
       }
     },
@@ -246,6 +278,13 @@ export default function TakeExamPage() {
   // mỗi khi học sinh đổi đáp án.
   const finishAttemptRef = useRef(finishAttempt)
   finishAttemptRef.current = finishAttempt
+
+  // Ghi lại tiến độ mỗi khi học sinh chuyển câu hoặc đổi cờ. Rẻ và đồng bộ, không cần debounce:
+  // đây là một dòng localStorage, không phải một lượt gọi mạng.
+  useEffect(() => {
+    if (!session || hasSubmittedRef.current) return
+    saveAttemptProgress(session.attemptId, { currentIndex, flaggedQuestionIds })
+  }, [session, currentIndex, flaggedQuestionIds])
 
   // Đếm ngược theo mốc hết giờ thay vì trừ dần, để chuyển tab không làm lệch đồng hồ.
   // Việc tự động nộp bài phải nằm ngay trong nhịp đồng hồ: nếu đợi state đổi rồi mới nộp thì
@@ -263,7 +302,14 @@ export default function TakeExamPage() {
       if (remaining > 0) return
       // Hết giờ thì tự động nộp, đúng yêu cầu nghiệp vụ. Cờ hasSubmittedRef bên trong
       // finishAttempt đảm bảo không nộp chồng lên lần nộp thủ công đang chạy.
-      window.clearInterval(timerId)
+      // KHÔNG tắt đồng hồ ở đây. Tắt rồi mà lần nộp đó hỏng thì hasSubmittedRef được đặt lại
+      // nhưng không còn nhịp nào gọi lại nữa: đồng hồ đứng im ở 00:00, bài không bao giờ được
+      // nộp, và thứ duy nhất báo cho học sinh là một toast biến mất sau ba giây.
+      // Để đồng hồ chạy tiếp và thử lại theo nhịp giãn cách; hasSubmittedRef bên trong
+      // finishAttempt chặn việc nộp chồng lên nhau.
+      const now = Date.now()
+      if (now < autoSubmitRetryAtRef.current) return
+      autoSubmitRetryAtRef.current = now + AUTO_SUBMIT_RETRY_MS
       void finishAttemptRef.current(true)
     }
 
@@ -400,7 +446,40 @@ export default function TakeExamPage() {
   )
 
   return (
-    <StudentLayout>
+    // examMode: giấu toàn bộ điều hướng trong lúc thi. Chạm nhầm một liên kết là rời phòng thi
+    // trong khi đồng hồ vẫn chạy, mà component đã unmount nên không còn ai tự nộp hộ nữa.
+    <StudentLayout examMode>
+      {/*
+        Nộp tự động đã hỏng ít nhất một lần. Dải này KHÔNG tự tắt: học sinh có thể đã rời máy lúc
+        hết giờ, và một toast ba giây thì họ quay lại chỉ thấy màn hình yên ắng rồi tưởng bài đã
+        nộp xong. Đồng hồ vẫn đang tự thử lại phía sau; nút bấm là đường tắt cho người còn ngồi đó.
+      */}
+      {autoSubmitFailures > 0 && !autoSubmitting && (
+        <div
+          role="alert"
+          className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 flex flex-col sm:flex-row sm:items-center gap-3"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-red-700">Chưa nộp được bài</p>
+            <p className="text-sm text-red-600 mt-0.5">
+              Đã hết giờ nhưng hệ thống chưa gửi được bài làm của bạn
+              {autoSubmitFailures > 1 ? ` (đã thử ${autoSubmitFailures} lần)` : ''}.
+              Bài làm vẫn được giữ nguyên và hệ thống đang tự thử lại. Đừng đóng trang này.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              autoSubmitRetryAtRef.current = 0
+              void finishAttempt(true)
+            }}
+            className="flex-shrink-0 px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors"
+          >
+            Thử nộp lại ngay
+          </button>
+        </div>
+      )}
+
       {/* Thanh điều khiển: đồng hồ, tiến độ, nộp bài */}
       <div className="mb-5 bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sticky top-16 z-20 animate-fade-in-up">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

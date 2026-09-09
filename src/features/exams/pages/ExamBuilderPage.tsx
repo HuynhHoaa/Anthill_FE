@@ -325,9 +325,11 @@ export default function ExamBuilderPage() {
   const loadedExam = examQuery.data
 
   // Xóa ở effect riêng chứ không xóa trong initializer, vì StrictMode chạy initializer hai lần.
+  // Chỉ xóa nháp của đúng đề này: bản nháp vừa được đọc vào state ở trên rồi, còn nháp của đề khác
+  // thì không liên quan gì tới lần mở này.
   useEffect(() => {
-    clearExamBuilderDraft()
-  }, [])
+    clearExamBuilderDraft(examId ?? null)
+  }, [examId])
 
   useEffect(() => {
     if (!loadedExam) return

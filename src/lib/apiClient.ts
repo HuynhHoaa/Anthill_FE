@@ -26,6 +26,16 @@ const statusMessages: Record<number, string> = {
 
 export interface ApiError extends Error {
   status: number
+  /**
+   * Lỗi theo từng trường, đúng như backend trả về trong <c>errors</c>.
+   *
+   * Bốn form của app đang hiện lỗi ngay dưới từng ô nhập. Nếu ở đây chỉ giữ lại <c>message</c> thì
+   * mọi lỗi validate đều thành một dòng chung chung phía trên form, và người dùng phải tự dò xem
+   * ô nào sai — trong khi server đã nói rõ ô nào rồi.
+   *
+   * Khoá là tên trường viết thường đầu (camelCase) như trong JSON gửi lên.
+   */
+  fieldErrors?: Record<string, string[]>
 }
 
 export interface ApiRequestOptions {
@@ -60,10 +70,33 @@ export function clearStoredToken(): void {
   }
 }
 
-export function createApiError(status: number, message: string): ApiError {
+export function createApiError(
+  status: number,
+  message: string,
+  fieldErrors?: Record<string, string[]>,
+): ApiError {
   const error = new Error(message) as ApiError
   error.status = status
+  if (fieldErrors) error.fieldErrors = fieldErrors
   return error
+}
+
+/**
+ * Được gọi khi server trả 401 trên một request có kèm token.
+ *
+ * Backend xoay <c>SecurityStamp</c> khi tài khoản bị khoá hoặc đổi mật khẩu, nên một token còn hạn
+ * vẫn có thể chết giữa phiên làm việc. Lúc đó người dùng đang cầm một giao diện trông như đã đăng
+ * nhập nhưng mọi thao tác đều hỏng — phải đưa họ về trang đăng nhập thay vì để họ bấm mãi.
+ *
+ * Đăng ký từ tầng ứng dụng (nơi có router) thay vì gọi thẳng: lớp này không được biết gì về
+ * react-router, nếu không nó thành thứ chỉ chạy được trong đúng một app.
+ */
+type UnauthorizedHandler = () => void
+
+let onUnauthorized: UnauthorizedHandler | null = null
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  onUnauthorized = handler
 }
 
 function getStatusMessage(status: number): string {
@@ -84,19 +117,41 @@ function buildUrl(path: string, query?: ApiRequestOptions['query']): string {
   return `${base}${normalizedPath}${queryString ? `?${queryString}` : ''}`
 }
 
-/** Lấy thông điệp lỗi do backend trả về nếu có, ngược lại dùng thông điệp theo mã lỗi. */
-async function readErrorMessage(response: Response): Promise<string> {
+/** Chỉ nhận đúng hình dạng { [ô]: [chuỗi] } mà backend cam kết, bỏ qua mọi thứ khác. */
+function readFieldErrors(value: unknown): Record<string, string[]> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+
+  const result: Record<string, string[]> = {}
+  for (const [field, messages] of Object.entries(value as Record<string, unknown>)) {
+    if (Array.isArray(messages)) {
+      const texts = messages.filter((item): item is string => typeof item === 'string')
+      if (texts.length > 0) result[field] = texts
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined
+}
+
+/** Bóc thông điệp và lỗi theo trường từ body lỗi; thiếu thì lùi về thông điệp theo mã HTTP. */
+async function readError(response: Response): Promise<{ message: string; fieldErrors?: Record<string, string[]> }> {
   try {
     const payload: unknown = await response.json()
     if (payload && typeof payload === 'object') {
-      const candidate = payload as { message?: unknown; error?: unknown }
-      if (typeof candidate.message === 'string' && candidate.message) return candidate.message
-      if (typeof candidate.error === 'string' && candidate.error) return candidate.error
+      const candidate = payload as { message?: unknown; error?: unknown; errors?: unknown }
+      const fieldErrors = readFieldErrors(candidate.errors)
+
+      if (typeof candidate.message === 'string' && candidate.message) {
+        return { message: candidate.message, fieldErrors }
+      }
+      if (typeof candidate.error === 'string' && candidate.error) {
+        return { message: candidate.error, fieldErrors }
+      }
+      return { message: getStatusMessage(response.status), fieldErrors }
     }
   } catch {
     // Body không phải JSON, dùng thông điệp mặc định.
   }
-  return getStatusMessage(response.status)
+  return { message: getStatusMessage(response.status) }
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
@@ -124,7 +179,15 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   if (!response.ok) {
-    throw createApiError(response.status, await readErrorMessage(response))
+    const { message, fieldErrors } = await readError(response)
+
+    // Chỉ đá về đăng nhập khi request CÓ mang token: 401 trên một lời gọi vốn không có token là
+    // chuyện bình thường (sai mật khẩu ở màn đăng nhập), gọi handler ở đó chỉ tạo vòng lặp.
+    if (response.status === 401 && token) {
+      onUnauthorized?.()
+    }
+
+    throw createApiError(response.status, message, fieldErrors)
   }
 
   if (response.status === 204) {
