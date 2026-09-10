@@ -34,8 +34,16 @@ function toErrorMessage(caught: unknown, fallback: string): string {
   return caught instanceof Error && caught.message ? caught.message : fallback
 }
 
-/** Giữ nguyên toàn bộ cấu hình đề, chỉ thay lịch mở và lịch đóng. */
-function buildScheduleOverridePayload(exam: Exam, openAtLocal: string, closeAtLocal: string): ExamPayload {
+/**
+ * Giữ nguyên toàn bộ cấu hình đề, chỉ thay những thứ trang giao bài được phép sửa.
+ *
+ * Sửa đề là ghi đè **cả** payload, nên mọi trường không đổi vẫn phải chép lại nguyên vẹn; thiếu
+ * một trường là âm thầm đặt nó về mặc định của server.
+ */
+function buildExamOverridePayload(
+  exam: Exam,
+  changes: { openAt: string; closeAt: string },
+): ExamPayload {
   return {
     title: exam.title,
     description: exam.description,
@@ -48,12 +56,9 @@ function buildScheduleOverridePayload(exam: Exam, openAtLocal: string, closeAtLo
     topic: exam.topic,
     shuffleQuestions: exam.shuffleQuestions,
     shuffleAnswers: exam.shuffleAnswers,
-    openAt: toServiceDateTime(openAtLocal),
-    closeAt: toServiceDateTime(closeAtLocal),
+    openAt: changes.openAt,
+    closeAt: changes.closeAt,
     showResultAfterSubmit: exam.showResultAfterSubmit,
-    // Bản nháp thì lịch ghi đè chính là lúc xuất bản nên để vòng đời tự suy ra;
-    // đề đã xuất bản phải giữ nguyên vòng đời, nếu không việc đổi lịch sẽ âm thầm đổi trạng thái đề.
-    lifecycle: exam.lifecycle === 'draft' ? undefined : exam.lifecycle,
   }
 }
 
@@ -179,7 +184,9 @@ export default function ExamAssignPage() {
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([])
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([])
   const [search, setSearch] = useState('')
-  const [randomizePerStudent, setRandomizePerStudent] = useState(true)
+  // Khởi tạo false rồi để hiệu ứng bên dưới đồng bộ theo đề: bật sẵn một ô tích không phản ánh
+  // cấu hình thật của đề là nói với giáo viên rằng đề đang sinh riêng trong khi có thể nó không.
+  const [randomizePerStudent, setRandomizePerStudent] = useState(false)
   const [notify, setNotify] = useState(true)
   const [scheduleOverrideEnabled, setScheduleOverrideEnabled] = useState(false)
   const [openAtLocal, setOpenAtLocal] = useState('')
@@ -208,6 +215,7 @@ export default function ExamAssignPage() {
     if (!exam) return
     setOpenAtLocal(toDateTimeLocalValue(exam.openAt))
     setCloseAtLocal(toDateTimeLocalValue(exam.closeAt))
+    setRandomizePerStudent(exam.randomizePerStudent)
   }, [exam])
 
   const assignedStudentIds = useMemo(
@@ -324,21 +332,42 @@ export default function ExamAssignPage() {
     setSubmitting(true)
     try {
       if (scheduleOverrideEnabled) {
-        await updateExam(exam.id, buildScheduleOverridePayload(exam, openAtLocal, closeAtLocal))
+        await updateExam(exam.id, buildExamOverridePayload(exam, {
+          openAt: toServiceDateTime(openAtLocal),
+          closeAt: toServiceDateTime(closeAtLocal),
+        }))
       }
 
+      // "Sinh đề riêng cho từng học sinh" đi trong payload GIAO BÀI, không qua updateExam: đây là
+      // endpoint duy nhất ghi được cờ này, vì nó chỉ có nghĩa tại thời điểm sinh đề. Gửi kèm mới
+      // là thứ làm nó thành điều khiển thật — trước đây nó nằm sai chỗ nên bấm vào không có tác
+      // dụng gì. Chỉ gửi khi khác giá trị hiện tại, để lần giao bổ sung không vô cớ đụng vào đề.
       const result = await assignExam(exam.id, {
         studentIds: selectedStudentIds,
         groupIds: selectedGroupIds,
-        randomizePerStudent,
         notify,
+        randomizePerStudent: randomizePerStudent === exam.randomizePerStudent
+          ? undefined
+          : randomizePerStudent,
       })
 
       setConfirmOpen(false)
+
+      // Mỗi lý do bị bỏ qua đòi một hành động khác nhau — mở khóa tài khoản, chọn lại lớp, hay
+      // không cần làm gì — nên gộp chúng thành một con số là lấy mất thông tin giáo viên cần.
+      const skipNotes = [
+        result.skippedAlreadyAssigned > 0 ? `${result.skippedAlreadyAssigned} em đã có bài này từ trước` : '',
+        result.skippedLocked > 0 ? `${result.skippedLocked} em đang bị khóa tài khoản` : '',
+        result.skippedOutOfScope > 0 ? `${result.skippedOutOfScope} em ngoài phạm vi lớp bạn phụ trách` : '',
+        result.skippedOutOfScopeGroups > 0 ? `${result.skippedOutOfScopeGroups} nhóm lớp không thuộc quyền bạn` : '',
+        result.skippedNotFound > 0 ? `${result.skippedNotFound} em không còn trong hệ thống` : '',
+      ].filter(Boolean)
+      const skipNote = skipNotes.length > 0 ? ` Bỏ qua ${skipNotes.join(', ')}.` : ''
+
       if (result.assignedCount > 0) {
-        toast.success(`Đã giao bài kiểm tra cho ${result.assignedCount} học sinh.`)
+        toast.success(`Đã giao bài kiểm tra cho ${result.assignedCount} học sinh.${skipNote}`)
       } else {
-        toast.info('Tất cả học sinh được chọn đều đã có bài kiểm tra này.')
+        toast.info(`Không có lượt giao mới nào được tạo.${skipNote}`)
       }
       navigate(`/giao-vien/bai-kiem-tra/${exam.id}`)
     } catch (caught) {
@@ -634,7 +663,8 @@ export default function ExamAssignPage() {
                     <Shuffle size={14} className="text-slate-400" /> Sinh đề riêng cho từng học sinh
                   </span>
                   <span className="block text-xs text-slate-400 mt-0.5 leading-relaxed">
-                    Mỗi học sinh nhận một bộ câu hỏi khác nhau theo đúng blueprint.
+                    Mỗi học sinh nhận một bộ câu hỏi khác nhau theo đúng blueprint. Đây là cấu hình
+                    của đề nên đổi ở đây sẽ áp dụng cho mọi lượt giao của bài này.
                   </span>
                 </span>
                 <input

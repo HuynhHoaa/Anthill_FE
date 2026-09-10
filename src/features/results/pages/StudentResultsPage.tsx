@@ -42,7 +42,7 @@ export default function StudentResultsPage() {
     [],
   )
 
-  const { data: myExams } = useAsync(() => listMyExams({ tab: 'all' }), [])
+  const { data: myExams } = useAsync(() => listMyExams(), [])
 
   // Gõ từ khóa mới thì quay về trang đầu, tránh rơi vào trang trống của kết quả cũ.
   const changeSearch = (value: string) => {
@@ -73,16 +73,32 @@ export default function StudentResultsPage() {
       return parts.join(' · ')
     }
 
-    const totalScore = gradedResults.reduce((total, result) => total + result.score, 0)
-    const bestScore = gradedResults.reduce(
-      (highest, result) => (result.score > highest ? result.score : highest),
-      gradedResults[0].score,
-    )
-    const totalQuestions = gradedResults.reduce((total, result) => total + result.totalQuestions, 0)
-    const totalCorrect = gradedResults.reduce((total, result) => total + result.correctCount, 0)
+    // Bài đã chấm vẫn có thể bị giấu kết quả. Những bài đó không có con số nào để cộng, và coi
+    // chúng như 0 sẽ kéo cả điểm trung bình lẫn tỷ lệ câu đúng xuống mà không để lại dấu vết gì
+    // trên màn hình — nên lọc hẳn ra trước khi tính.
+    const visibleScores = gradedResults
+      .map(result => result.score)
+      .filter((score): score is number => score !== null)
 
-    parts.push(`điểm trung bình ${formatScore(totalScore / gradedResults.length)}`)
-    parts.push(`cao nhất ${formatScore(bestScore)}`)
+    if (visibleScores.length === 0) {
+      parts.push('chờ công bố điểm')
+      return parts.join(' · ')
+    }
+
+    const visibleCounts = gradedResults
+      .map(result =>
+        result.correctCount === null
+          ? null
+          : { correct: result.correctCount, total: result.totalQuestions },
+      )
+      .filter((entry): entry is { correct: number; total: number } => entry !== null)
+
+    const totalScore = visibleScores.reduce((total, score) => total + score, 0)
+    const totalQuestions = visibleCounts.reduce((total, entry) => total + entry.total, 0)
+    const totalCorrect = visibleCounts.reduce((total, entry) => total + entry.correct, 0)
+
+    parts.push(`điểm trung bình ${formatScore(totalScore / visibleScores.length)}`)
+    parts.push(`cao nhất ${formatScore(Math.max(...visibleScores))}`)
     if (totalQuestions > 0) {
       parts.push(`${Math.round((totalCorrect / totalQuestions) * 100)}% câu đúng`)
     }
@@ -157,7 +173,7 @@ export default function StudentResultsPage() {
                     <h2 className="text-lg font-bold text-slate-800 leading-snug">{result.examTitle}</h2>
 
                     <div className="flex flex-wrap gap-2 mt-3">
-                      {isGraded ? (
+                      {result.correctCount !== null ? (
                         <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
                           <CheckCircle2 size={12} /> {result.correctCount}/{result.totalQuestions} câu đúng
                         </span>

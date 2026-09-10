@@ -30,7 +30,20 @@ export type NotificationType =
   | 'auto_submitted'
 
 /** Trạng thái hiển thị trên màn hình danh sách bài kiểm tra của học sinh. */
-export type StudentExamItemStatus = 'open' | 'upcoming' | 'submitted' | 'graded' | 'expired'
+/**
+ * Trạng thái một bài kiểm tra **dưới mắt học sinh**.
+ *
+ * `inprogress` là một trạng thái riêng, không gộp vào `open`: em đã bắt đầu làm và đồng hồ đang
+ * chạy. Gộp hai thứ lại thì màn hình nói "Đang mở" cho một bài sắp hết giờ, và em không biết mình
+ * cần quay lại gấp.
+ */
+export type StudentExamItemStatus =
+  | 'open'
+  | 'upcoming'
+  | 'inprogress'
+  | 'submitted'
+  | 'graded'
+  | 'expired'
 
 export type ActivityTone = 'success' | 'info' | 'warning' | 'purple'
 
@@ -104,9 +117,17 @@ export interface Exam {
   topic: string
   shuffleQuestions: boolean
   shuffleAnswers: boolean
+
+  /**
+   * Mỗi học sinh một bộ câu hỏi riêng thay vì cả lớp chung một đề.
+   *
+   * Trước đây đây là **điều khiển giả**: giao diện có ô tích, tầng giả lập nhận cờ rồi bỏ qua.
+   * Server làm thật — hạt giống sinh đề gắn với từng lượt giao bài.
+   */
+  randomizePerStudent: boolean
+
   assignedCount: number
   submittedCount: number
-  status: ExamStatus
   lifecycle: ExamLifecycle
   openAt: string
   closeAt: string
@@ -133,15 +154,31 @@ export interface ResultSummary {
   attemptId: number
   examId: number
   examTitle: string
+  topic: string
+  topicColor: string
   studentId: number
   studentName: string
+  studentCode: string
   group: string
   status: ExamStatus
-  score: number
-  maxScore: number
-  correctCount: number
+  /** True khi hệ thống nộp hộ vì hết giờ, không phải học sinh tự bấm nộp. */
+  autoSubmitted: boolean
+
+  /**
+   * `null` nghĩa là **chưa được phép xem**, không phải *bằng không*.
+   *
+   * Server bỏ hẳn ba trường điểm khỏi JSON khi người gọi chưa đủ điều kiện (§3 quy tắc ⑥), nên
+   * giao diện phải phân biệt được hai trạng thái này: một bài bị giấu điểm và một bài được 0 điểm
+   * trông giống hệt nhau nếu quy `null` về 0, và học sinh sẽ tưởng mình làm sai hết.
+   */
+  score: number | null
+  maxScore: number | null
+  correctCount: number | null
+
   totalQuestions: number
+  /** Chuỗi rỗng khi bài chưa nộp. */
   submittedAt: string
+  /** 0 khi bài chưa nộp. */
   durationMinutes: number
 }
 
@@ -149,11 +186,12 @@ export interface ResultSummary {
 
 export interface AttemptQuestion {
   id: number
+  ordinal: number
   content: string
   imageUrl?: string
-  topic: string
   point: number
-  answers: AnswerOption[]
+  /** Không có `isCorrect` — xem chú thích ở AttemptAnswerOption. */
+  answers: AttemptAnswerOption[]
 }
 
 export interface AttemptSession {
@@ -161,23 +199,60 @@ export interface AttemptSession {
   assignmentId: number
   examId: number
   examTitle: string
-  topic: string
   durationMinutes: number
+
+  /**
+   * Mốc hết giờ **theo đồng hồ máy này**, đã hiệu chỉnh lệch giờ với server.
+   *
+   * Server gửi kèm giờ của chính nó, nên chênh lệch giữa hai đồng hồ được trừ đi ngay lúc nhận.
+   * Không hiệu chỉnh thì một máy đặt sai giờ vài phút sẽ đếm ngược sai đúng chừng ấy — và học sinh
+   * ngồi trong phòng thi không có cách nào biết đồng hồ trên màn hình đang nói dối.
+   */
+  expiresAtLocal: number
+
   remainingSeconds: number
+  totalQuestions: number
+  maxScore: number
   questions: AttemptQuestion[]
   /** Map questionId -> answerId đã lưu nháp. */
   savedAnswers: Record<number, number>
+  /** Số thứ tự lần ghi cuối server đã nhận, để lần lưu nháp sau không lùi về sau nó. */
+  lastAppliedSeq: number
+}
+
+/**
+ * Một phương án trả lời khi xem lại bài đã làm.
+ *
+ * Cố ý **không có** `isCorrect`, khác với `AnswerOption` dùng ở màn hình soạn câu hỏi. Backend
+ * dùng hai DTO tách biệt vì đúng lý do này (§3 quy tắc ①): trong ngữ cảnh bài làm, đáp án đúng chỉ
+ * được nói ở cấp câu hỏi qua `correctAnswerId`, và chỉ khi người xem đủ điều kiện. Nếu tái dùng
+ * `AnswerOption` ở đây thì kiểu dữ liệu tự nó mời gọi việc gắn cờ đúng/sai vào từng phương án —
+ * và chỉ cần một lần gắn là đáp án rời server trong lúc học sinh còn đang làm bài.
+ */
+export interface AttemptAnswerOption {
+  id: number
+  content: string
+  imageUrl?: string
 }
 
 export interface AttemptAnswerDetail {
   questionId: number
+  ordinal: number
   content: string
   imageUrl?: string
   point: number
-  answers: AnswerOption[]
+  answers: AttemptAnswerOption[]
+  /** `null` khi học sinh bỏ trống câu này — và câu bỏ trống vẫn phải hiện ra. */
   selectedAnswerId: number | null
-  correctAnswerId: number
-  isCorrect: boolean
+
+  /**
+   * `null` khi người xem chưa được phép biết đáp án đúng.
+   *
+   * Server **không gửi** hai trường này thay vì gửi giá trị rỗng, nên chúng vắng mặt thật sự trong
+   * JSON chứ không phải bị giao diện giấu đi — mở tab Network cũng không thấy gì.
+   */
+  correctAnswerId: number | null
+  isCorrect: boolean | null
 }
 
 export interface AttemptDetail {
@@ -185,18 +260,23 @@ export interface AttemptDetail {
   examId: number
   examTitle: string
   topic: string
+  topicColor: string
   studentId: number
   studentName: string
   studentCode: string
   group: string
   status: ExamStatus
-  score: number
-  maxScore: number
-  correctCount: number
+  /** `null` nghĩa là chưa được phép xem — xem chú thích ở ResultSummary. */
+  score: number | null
+  maxScore: number | null
+  correctCount: number | null
   totalQuestions: number
+  /** Chuỗi rỗng khi bài chưa nộp. */
   submittedAt: string
   durationMinutes: number
-  /** Giáo viên luôn xem được đáp án, học sinh chỉ xem khi bài kiểm tra cho phép. */
+  /** True khi hệ thống nộp hộ vì hết giờ. */
+  autoSubmitted: boolean
+  /** Giáo viên sở hữu đề luôn xem được đáp án; học sinh chỉ xem khi đề cho phép (§3 quy tắc ⑥). */
   showAnswers: boolean
   questions: AttemptAnswerDetail[]
 }
@@ -213,14 +293,19 @@ export interface StudentExamItem {
   durationMinutes: number
   totalQuestions: number
   status: StudentExamItemStatus
+  /** Server quyết định bài này có vào làm được ngay bây giờ không — không phải giao diện tự suy. */
+  canStart: boolean
   openAt: string
   closeAt: string
-  /** Mốc thời gian thật để đếm ngược trên giao diện. */
+  /**
+   * Mốc đếm ngược trên giao diện: giờ hết bài với bài đang làm dở, giờ đóng đề với bài chưa vào.
+   */
   deadline: Date
   attemptId?: number
-  score?: number
-  correctCount?: number
-  maxScore?: number
+  /** `null` nghĩa là chưa được phép xem điểm — xem chú thích ở ResultSummary. */
+  score: number | null
+  maxScore: number | null
+  correctCount: number | null
 }
 
 // ===== Thông báo và hồ sơ =====
@@ -266,7 +351,8 @@ export interface TeacherDashboardStats {
   assignedExams: number
   openExams: number
   submittedThisWeek: number
-  averageScore: number
+  /** `null` khi chưa có bài nào được chấm — không phải 0 điểm. */
+  averageScore: number | null
 }
 
 export interface TeacherDashboardData {
@@ -278,8 +364,9 @@ export interface TeacherDashboardData {
 export interface StudentDashboardStats {
   assignedCount: number
   completedCount: number
-  averageScore: number
-  bestScore: number
+  /** `null` khi chưa có bài nào được cho xem điểm — xem chú thích ở ResultSummary. */
+  averageScore: number | null
+  bestScore: number | null
 }
 
 export interface StudentDashboardData {
@@ -333,6 +420,7 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
 export const studentExamItemStatusLabels: Record<StudentExamItemStatus, string> = {
   open: 'Đang mở',
   upcoming: 'Sắp diễn ra',
+  inprogress: 'Đang làm dở',
   submitted: 'Đã nộp',
   graded: 'Đã chấm',
   expired: 'Hết hạn',

@@ -124,11 +124,15 @@ export default function ExamIntroPage() {
     // Đồng hồ đếm ngược nhịp mỗi giây, nên các mốc so với hiện tại luôn được tính lại khi render.
     const remainingMs = closeDate !== null ? closeDate.getTime() - Date.now() : Number.POSITIVE_INFINITY
     const justClosed = assignment.status === 'open' && remainingMs <= 0
-    const canStart = assignment.status === 'open' && !justClosed
+    // Quyền vào làm do server chốt: nó biết cả những điều kiện trang này không thấy. `justClosed`
+    // chỉ để nút tắt ngay khi đồng hồ đếm về 0 mà không phải chờ tải lại trang.
+    const canStart = assignment.canStart && !justClosed
     const isExpired = assignment.status === 'expired' || justClosed
     const isUrgent = canStart && remainingMs < urgentThresholdMs
     const openTimeReached = openDate !== null && openDate.getTime() <= Date.now()
     const maxScore = assignment.maxScore ?? roundToOneDecimal(exam.totalQuestions * exam.pointPerQuestion)
+    // Bài đã chấm vẫn có thể bị giấu điểm, nên "đã chấm" chưa đủ để kết luận là có điểm để hiện.
+    const hasVisibleScore = isGraded && assignment.score !== null
     const resultLink = assignment.attemptId ? `/hoc-sinh/ket-qua/${assignment.attemptId}` : '/hoc-sinh/ket-qua'
 
     const notes: { icon: LucideIcon; text: string }[] = [
@@ -332,12 +336,16 @@ export default function ExamIntroPage() {
             {isDone && (
               <>
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  {isGraded ? 'Điểm của bạn' : 'Trạng thái bài làm'}
+                  {hasVisibleScore ? 'Điểm của bạn' : 'Trạng thái bài làm'}
                 </p>
-                {isGraded && assignment.score !== undefined ? (
+                {hasVisibleScore ? (
                   <p className="text-3xl font-bold text-emerald-600 mt-1.5">
                     {formatScore(assignment.score)}
                     <span className="text-base font-semibold text-slate-400">/{formatScore(maxScore)}</span>
+                  </p>
+                ) : isGraded ? (
+                  <p className="text-xl font-bold text-slate-500 mt-1.5 inline-flex items-center gap-2">
+                    <Hourglass size={20} /> Giáo viên chưa công bố điểm
                   </p>
                 ) : (
                   <p className="text-xl font-bold text-purple-600 mt-1.5 inline-flex items-center gap-2">

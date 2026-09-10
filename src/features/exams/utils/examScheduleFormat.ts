@@ -1,8 +1,7 @@
 /**
- * Cầu nối giữa input datetime-local ('YYYY-MM-DDTHH:mm') và định dạng lịch
- * mà tầng service đang dùng ('DD/MM/YYYY HH:mm').
+ * Cầu nối giữa input `datetime-local` ('YYYY-MM-DDTHH:mm') và định dạng API dùng (ISO 8601).
  */
-import { formatDateTime, parseDateTime } from '../../../lib/format'
+import { parseDateTime } from '../../../lib/format'
 
 const MINUTE_IN_MS = 60000
 
@@ -21,9 +20,19 @@ export function toDateTimeLocalValue(value: string): string {
   return parsed ? toLocalValue(parsed) : ''
 }
 
-/** Đổi giá trị input datetime-local về đúng định dạng service đang lưu. */
+/**
+ * Đổi giá trị input `datetime-local` sang chuỗi ISO 8601 để gửi lên API.
+ *
+ * Trước đây hàm này trả về 'DD/MM/YYYY HH:mm' — định dạng của tầng giả lập. Backend khai kiểu
+ * `DateTime`, chỉ đọc ISO, nên mọi lượt tạo hoặc sửa đề đều nhận 400 mà không rõ vì sao.
+ *
+ * Trình duyệt đọc chuỗi `datetime-local` theo **giờ máy người dùng**, còn `toISOString()` đổi sang
+ * UTC — đúng thứ server cần. Giáo viên chọn 8 giờ sáng ở Việt Nam thì server nhận 1 giờ sáng UTC,
+ * và học sinh ở múi giờ khác vẫn thấy đúng thời điểm đó theo giờ của mình.
+ */
 export function toServiceDateTime(localValue: string): string {
-  return formatDateTime(localValue)
+  const parsed = new Date(localValue)
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString()
 }
 
 /** Mốc đóng phải thực sự sau mốc mở; thiếu một trong hai thì coi là chưa hợp lệ. */

@@ -180,10 +180,9 @@ export default function NotificationsPage({ audience }: NotificationsPageProps) 
   const [processingId, setProcessingId] = useState<number | null>(null)
   const [markingAll, setMarkingAll] = useState(false)
 
-  const { data: notifications, loading, error, reload } = useAsync(
-    () => listNotifications({ role: audience }),
-    [audience],
-  )
+  // Không còn tham số vai trò: server gắn mỗi thông báo với đúng một người nhận và lấy danh
+  // tính từ token, nên "thông báo của tôi" là phép lọc theo khoá ngoại chứ không theo nhóm người.
+  const { data: notifications, loading, error, reload } = useAsync(() => listNotifications(), [])
 
   const totalCount = notifications?.length ?? 0
   const unreadCount = useMemo(
@@ -253,8 +252,8 @@ export default function NotificationsPage({ audience }: NotificationsPageProps) 
 
     setMarkingAll(true)
     try {
-      await markAllAsRead(audience)
-      toast.success(`Đã đánh dấu ${unreadCount} thông báo là đã đọc.`)
+      const marked = await markAllAsRead()
+      toast.success(`Đã đánh dấu ${marked} thông báo là đã đọc.`)
       reload()
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : 'Không đánh dấu được thông báo đã đọc.')

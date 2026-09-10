@@ -15,7 +15,6 @@ import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { formatClock } from '../../../lib/format'
-import { getTopicLabel } from '../../../lib/topicTheme'
 import { saveAnswers, startAttempt, submitAttempt } from '../../../services/attemptService'
 import type { AttemptQuestion, AttemptSession } from '../../../types'
 
@@ -196,6 +195,13 @@ export default function TakeExamPage() {
   // Chỉ lưu nháp sau khi học sinh thực sự đổi đáp án, không lưu ngay lúc nạp bài cũ.
   const answersDirtyRef = useRef(false)
   const expiresAtRef = useRef<number | null>(null)
+  /**
+   * Số thứ tự tăng dần gắn vào mỗi lượt ghi gửi lên server.
+   *
+   * Hai lần lưu nháp không nhất thiết về đích đúng thứ tự gửi đi; server so số này với lần ghi
+   * cuối nó đã nhận để bỏ qua gói đến muộn, thay vì để bản cũ đè lên lựa chọn mới hơn.
+   */
+  const clientSeqRef = useRef(0)
 
   const questions = useMemo(() => session?.questions ?? [], [session])
   const totalQuestions = questions.length
@@ -216,7 +222,11 @@ export default function TakeExamPage() {
     if (!session) return
     hasSubmittedRef.current = false
     answersDirtyRef.current = false
-    expiresAtRef.current = Date.now() + session.remainingSeconds * 1000
+    // Mốc hết giờ lấy thẳng từ phiên: nó đã trừ đi chênh lệch giữa đồng hồ máy và đồng hồ server,
+    // nên máy đặt sai giờ vẫn đếm ngược đúng bằng thời gian server thật sự còn cho phép.
+    expiresAtRef.current = session.expiresAtLocal
+    // Nối tiếp số thứ tự server đã ghi nhận, để những lượt ghi tiếp theo luôn lớn hơn nó.
+    clientSeqRef.current = session.lastAppliedSeq
     autoSubmitRetryAtRef.current = 0
     setAutoSubmitFailures(0)
     setAnswers({ ...session.savedAnswers })
@@ -244,7 +254,8 @@ export default function TakeExamPage() {
       }
 
       try {
-        const result = await submitAttempt(session.attemptId, answers, autoSubmitted)
+        clientSeqRef.current += 1
+        const result = await submitAttempt(session.attemptId, answers, clientSeqRef.current)
         clearAttemptProgress(session.attemptId)
         setConfirmOpen(false)
         if (autoSubmitted) {
@@ -326,7 +337,8 @@ export default function TakeExamPage() {
     const timer = window.setTimeout(() => {
       // Bài đã nộp thì phiên làm bài không còn, gọi lưu nháp chỉ sinh ra lỗi giả trên giao diện.
       if (hasSubmittedRef.current) return
-      saveAnswers(session.attemptId, answers)
+      clientSeqRef.current += 1
+      saveAnswers(session.attemptId, answers, clientSeqRef.current)
         .then(() => {
           if (cancelled) return
           setSaveState('saved')
@@ -484,7 +496,6 @@ export default function TakeExamPage() {
       <div className="mb-5 bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sticky top-16 z-20 animate-fade-in-up">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-indigo-600 mb-1">{getTopicLabel(session.topic)}</p>
             <h1 className="text-lg sm:text-xl font-bold text-slate-800 truncate">{session.examTitle}</h1>
             <p className="text-sm text-slate-500 mt-1">
               Đã trả lời <strong className="text-slate-700">{answeredCount}</strong>/{totalQuestions} câu
@@ -603,11 +614,6 @@ export default function TakeExamPage() {
                 {currentQuestion.content}
               </h2>
               <div className="flex flex-wrap items-center gap-2 mt-3">
-                {currentQuestion.topic && (
-                  <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-semibold">
-                    {currentQuestion.topic}
-                  </span>
-                )}
                 <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-semibold">
                   {currentQuestion.point} điểm
                 </span>

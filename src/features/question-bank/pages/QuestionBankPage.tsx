@@ -18,7 +18,8 @@ import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { formatDate } from '../../../lib/format'
 import { getCurrentUser } from '../../../services/authService'
 import {
-  countByDifficulty, deleteQuestion, listQuestions, listTopics, setQuestionStatus,
+  deleteQuestion, getQuestionBankSummary, listQuestions, setQuestionStatus,
+  type QuestionBankSummary,
 } from '../../../services/questionService'
 import {
   difficultyLabels, questionStatusLabels,
@@ -53,13 +54,6 @@ const iconButtonClass =
 const primaryButtonClass =
   'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all'
 const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
-
-interface QuestionBankSummary {
-  topics: string[]
-  /** Tổng câu hỏi của cả ngân hàng, tính cả câu đang ẩn — countByDifficulty() gộp cả hai trạng thái. */
-  totalQuestions: number
-  activeTotal: number
-}
 
 function toErrorMessage(caught: unknown, fallback: string): string {
   return caught instanceof Error && caught.message ? caught.message : fallback
@@ -273,18 +267,9 @@ export default function QuestionBankPage() {
 
   const debouncedSearch = useDebouncedValue(searchInput, 350)
 
-  const summaryState = useAsync<QuestionBankSummary>(async () => {
-    const [topics, counts, activePage] = await Promise.all([
-      listTopics(),
-      countByDifficulty(),
-      listQuestions({ status: 'active', page: 1, pageSize: 1 }),
-    ])
-    return {
-      topics,
-      totalQuestions: counts.easy + counts.medium + counts.hard,
-      activeTotal: activePage.total,
-    }
-  }, [])
+  // Một lời gọi trả về cả tổng số, số đang dùng và danh sách chủ đề — trước đây phải ghép ba
+  // request rời để dựng đúng dòng phụ đề này.
+  const summaryState = useAsync<QuestionBankSummary>(() => getQuestionBankSummary(), [])
 
   const listState = useAsync(
     () =>
@@ -309,9 +294,10 @@ export default function QuestionBankPage() {
     const teachingSubject = getCurrentUser()?.subject?.trim()
     const parts: string[] = []
     if (teachingSubject) parts.push(teachingSubject)
-    parts.push(`${summary.totalQuestions} câu hỏi`)
+    // `total` tính cả câu đang ẩn, `active` chỉ tính câu đang dùng — hai con số cố ý khác nhau.
+    parts.push(`${summary.total} câu hỏi`)
     parts.push(`${summary.topics.length} chủ đề`)
-    parts.push(`${summary.activeTotal} đang dùng`)
+    parts.push(`${summary.active} đang dùng`)
     return parts.join(' · ')
   }, [summary])
   // So khớp với từ khoá đã gửi cho service, không phải từ khoá đang gõ, để nhãn không lệch với kết quả

@@ -11,6 +11,7 @@ import {
   createQuestion,
   getQuestion,
   listTopics,
+  setQuestionStatus,
   updateQuestion,
   type QuestionPayload,
 } from '../../../services/questionService'
@@ -250,7 +251,6 @@ export default function QuestionEditorPage() {
     topic: topic.trim(),
     difficulty,
     defaultPoint,
-    status,
     answers: answers.map(answer => ({ ...answer, content: answer.content.trim() })),
   })
 
@@ -268,14 +268,19 @@ export default function QuestionEditorPage() {
     if (!isValid || saving) return
     setSaving(true)
     try {
+      // Ẩn/hiện câu hỏi đi qua một endpoint riêng chứ không nằm trong nội dung câu hỏi. So với
+      // trạng thái trong phản hồi để chỉ gọi thêm khi ô chọn thật sự khác — bỏ hẳn lời gọi này thì
+      // ô "Trạng thái" trên form trở thành một điều khiển giả, bấm xong không có gì xảy ra.
       if (isEdit) {
-        await updateQuestion(questionId, buildPayload())
+        const saved = await updateQuestion(questionId, buildPayload())
+        if (saved.status !== status) await setQuestionStatus(saved.id, status)
         toast.success('Đã lưu thay đổi cho câu hỏi.')
         navigate(backPath)
         return
       }
 
-      await createQuestion(buildPayload())
+      const created = await createQuestion(buildPayload())
+      if (created.status !== status) await setQuestionStatus(created.id, status)
       if (keepCreating) {
         toast.success('Đã tạo câu hỏi. Mời bạn nhập câu tiếp theo.')
         resetForNextQuestion()

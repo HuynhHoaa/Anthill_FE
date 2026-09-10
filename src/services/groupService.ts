@@ -1,9 +1,19 @@
-import { mockStudentGroups, mockStudents } from '../data/mockEduQuiz'
-import { simulate } from '../lib/delay'
-import { matchesSearch, nextId, todayLabel } from '../lib/format'
+/**
+ * Nhóm lớp — nối vào API thật (§4.3).
+ *
+ * Bản giả lập tự đếm lại sĩ số sau mỗi thao tác bằng `syncGroupCounts()`; server trả sĩ số kèm
+ * theo mỗi nhóm nên hàm đó biến mất — cùng với cả một lớp lỗi mà nó sinh ra: sĩ số chỉ đúng ở
+ * những màn hình nhớ gọi nó.
+ */
+import { apiClient } from '../lib/apiClient'
 import type { Student, StudentGroup } from '../types'
 
-/** Học sinh chưa thuộc nhóm lớp nào. */
+/**
+ * Học sinh chưa thuộc nhóm lớp nào.
+ *
+ * Số 0 là quy ước của hợp đồng API để biểu diễn `NULL` trong bộ lọc — `?groupId=0` nghĩa là "chưa
+ * phân nhóm", vì chuỗi rỗng trong query string không phân biệt được với "không lọc".
+ */
 export const UNASSIGNED_GROUP_ID = 0
 export const UNASSIGNED_GROUP_NAME = 'Chưa phân nhóm'
 
@@ -12,161 +22,65 @@ export interface GroupPayload {
   description: string
 }
 
-function countStudentsOf(groupId: number): number {
-  return mockStudents.filter(student => student.groupId === groupId).length
-}
-
-/** Đồng bộ lại sĩ số của mọi nhóm sau khi học sinh được thêm, chuyển nhóm hoặc gỡ ra. */
-export function syncGroupCounts(): void {
-  mockStudentGroups.forEach(group => {
-    group.studentCount = countStudentsOf(group.id)
-  })
-}
-
-function findGroup(id: number): StudentGroup {
-  const group = mockStudentGroups.find(item => item.id === id)
-  if (!group) {
-    throw new Error('Không tìm thấy nhóm lớp.')
-  }
-  return group
-}
-
-function findStudent(id: number): Student {
-  const student = mockStudents.find(item => item.id === id)
-  if (!student) {
-    throw new Error('Không tìm thấy học sinh.')
-  }
-  return student
-}
-
-function validatePayload(payload: GroupPayload, currentId?: number): GroupPayload {
-  const name = payload.name.trim()
-  const description = payload.description.trim()
-
-  if (!name) {
-    throw new Error('Tên nhóm lớp không được để trống.')
-  }
-  if (name.length < 2) {
-    throw new Error('Tên nhóm lớp phải có ít nhất 2 ký tự.')
-  }
-  const duplicated = mockStudentGroups.some(
-    group => group.id !== currentId && group.name.toLowerCase() === name.toLowerCase(),
-  )
-  if (duplicated) {
-    throw new Error('Tên nhóm lớp đã tồn tại.')
-  }
-
-  return { name, description }
-}
-
-export function listGroups(params: { search?: string } = {}): Promise<StudentGroup[]> {
-  return simulate(() => {
-    syncGroupCounts()
-    return mockStudentGroups
-      .filter(group => matchesSearch(params.search, [group.name, group.description]))
-      .map(group => ({ ...group }))
-  })
+export function listGroups(search?: string): Promise<StudentGroup[]> {
+  return apiClient.get<StudentGroup[]>('/api/student-groups', { search })
 }
 
 export function getGroup(id: number): Promise<StudentGroup> {
-  return simulate(() => {
-    syncGroupCounts()
-    return { ...findGroup(id) }
-  })
+  return apiClient.get<StudentGroup>(`/api/student-groups/${id}`)
 }
 
 export function createGroup(payload: GroupPayload): Promise<StudentGroup> {
-  return simulate(() => {
-    const validated = validatePayload(payload)
-    const group: StudentGroup = {
-      id: nextId(mockStudentGroups),
-      name: validated.name,
-      description: validated.description,
-      studentCount: 0,
-      createdAt: todayLabel(),
-    }
-    mockStudentGroups.unshift(group)
-    return { ...group }
-  })
+  return apiClient.post<StudentGroup>('/api/student-groups', payload)
 }
 
 export function updateGroup(id: number, payload: GroupPayload): Promise<StudentGroup> {
-  return simulate(() => {
-    const group = findGroup(id)
-    const validated = validatePayload(payload, id)
-    const previousName = group.name
-
-    group.name = validated.name
-    group.description = validated.description
-
-    // Tên nhóm được lưu kèm trong bản ghi học sinh nên phải cập nhật theo.
-    if (previousName !== group.name) {
-      mockStudents.forEach(student => {
-        if (student.groupId === group.id) {
-          student.group = group.name
-        }
-      })
-    }
-
-    group.studentCount = countStudentsOf(group.id)
-    return { ...group }
-  })
+  return apiClient.put<StudentGroup>(`/api/student-groups/${id}`, payload)
 }
 
-export function deleteGroup(id: number): Promise<void> {
-  return simulate(() => {
-    const group = findGroup(id)
-    const studentCount = countStudentsOf(group.id)
-    if (studentCount > 0) {
-      throw new Error(
-        `Không thể xóa nhóm còn ${studentCount} học sinh. Hãy chuyển học sinh sang nhóm khác trước.`,
-      )
-    }
-
-    const index = mockStudentGroups.findIndex(item => item.id === id)
-    mockStudentGroups.splice(index, 1)
-  })
+/**
+ * Xoá nhóm lớp.
+ *
+ * Server trả **409** khi nhóm còn thành viên, kèm sĩ số trong thông điệp. Đó là chủ đích: xoá một
+ * nhóm còn người sẽ để lại một đám học sinh không thuộc đâu cả, và người bấm nút cần biết còn bao
+ * nhiêu em trước khi quyết định.
+ */
+export async function deleteGroup(id: number): Promise<void> {
+  await apiClient.remove(`/api/student-groups/${id}`)
 }
 
 export function listGroupStudents(groupId: number): Promise<Student[]> {
-  return simulate(() => {
-    findGroup(groupId)
-    return mockStudents.filter(student => student.groupId === groupId).map(student => ({ ...student }))
-  })
+  return apiClient.get<Student[]>(`/api/student-groups/${groupId}/students`)
 }
 
-/** Học sinh có thể thêm vào nhóm: mọi học sinh chưa thuộc nhóm này. */
+/**
+ * Học sinh có thể thêm vào nhóm này.
+ *
+ * Bao gồm cả em đang thuộc nhóm khác: mỗi học sinh chỉ thuộc đúng một nhóm, nên thêm vào đây nghĩa
+ * là **chuyển** em sang. Giao diện phải nói rõ điều đó thay vì để giáo viên tưởng mình đang thêm.
+ */
 export function listAssignableStudents(groupId: number): Promise<Student[]> {
-  return simulate(() => {
-    findGroup(groupId)
-    return mockStudents.filter(student => student.groupId !== groupId).map(student => ({ ...student }))
-  })
+  return apiClient.get<Student[]>(`/api/student-groups/${groupId}/assignable-students`)
 }
 
-export function addStudentToGroup(groupId: number, studentId: number): Promise<void> {
-  return simulate(() => {
-    const group = findGroup(groupId)
-    const student = findStudent(studentId)
-    if (student.groupId === group.id) {
-      throw new Error('Học sinh đã thuộc nhóm lớp này.')
-    }
-
-    student.groupId = group.id
-    student.group = group.name
-    syncGroupCounts()
-  })
+export interface AddMembersResult {
+  added: number
+  skippedAlreadyMember: number
+  skippedNotFound: number
+  studentCount: number
 }
 
-export function removeStudentFromGroup(groupId: number, studentId: number): Promise<void> {
-  return simulate(() => {
-    findGroup(groupId)
-    const student = findStudent(studentId)
-    if (student.groupId !== groupId) {
-      throw new Error('Học sinh không thuộc nhóm lớp này.')
-    }
+/**
+ * Thêm học sinh vào nhóm theo lô.
+ *
+ * Trả về kết quả **theo từng loại** thay vì chỉ thành công hay thất bại: một id lạ lẫn trong danh
+ * sách không làm hỏng cả mẻ, và người bấm nút biết chính xác bao nhiêu em vào được, bao nhiêu bị
+ * bỏ qua vì lý do gì.
+ */
+export function addStudentsToGroup(groupId: number, studentIds: number[]): Promise<AddMembersResult> {
+  return apiClient.post<AddMembersResult>(`/api/student-groups/${groupId}/students`, { studentIds })
+}
 
-    student.groupId = UNASSIGNED_GROUP_ID
-    student.group = UNASSIGNED_GROUP_NAME
-    syncGroupCounts()
-  })
+export async function removeStudentFromGroup(groupId: number, studentId: number): Promise<void> {
+  await apiClient.remove(`/api/student-groups/${groupId}/students/${studentId}`)
 }

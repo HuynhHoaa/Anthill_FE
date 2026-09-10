@@ -33,7 +33,7 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { data: unreadCount } = useAsync(() => getUnreadCount('student'), [location.pathname])
+  const { data: unreadCount } = useAsync(() => getUnreadCount(), [location.pathname])
 
   const currentUser = getCurrentUser()
   const userName = currentUser?.fullName ?? ''

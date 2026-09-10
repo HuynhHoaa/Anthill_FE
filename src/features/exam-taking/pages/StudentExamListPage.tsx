@@ -13,7 +13,7 @@ import { SkeletonCards } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { listMyExams } from '../../../services/attemptService'
-import { formatDateTime, formatScore, parseDateTime } from '../../../lib/format'
+import { formatDateTime, formatScore, normalizeText, parseDateTime } from '../../../lib/format'
 import { useCountdown } from '../hooks/useCountdown'
 import type { StudentExamItem } from '../../../types'
 
@@ -62,7 +62,7 @@ function matchesTab(status: StudentExamItem['status'], tab: FilterTab): boolean 
 }
 
 // ===== Score Ring =====
-function ScoreRing({ score, maxScore }: { score: number; maxScore?: number }) {
+function ScoreRing({ score, maxScore }: { score: number; maxScore?: number | null }) {
   // Quy về thang 10 để xếp loại không phụ thuộc điểm tối đa của từng đề.
   const scoreOnTenScale = maxScore && maxScore > 0 ? (score / maxScore) * 10 : score
   const { color, label } =
@@ -128,7 +128,8 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
             <h3 className="font-bold text-slate-800 text-base leading-snug">{exam.name}</h3>
             <p className="text-xs text-slate-400 mt-1 truncate">GV: {exam.teacher}</p>
           </div>
-          {isGraded && exam.score !== undefined && (
+          {/* score null là "đề chưa cho xem điểm", nên không có vòng điểm nào để vẽ. */}
+          {isGraded && exam.score !== null && (
             <ScoreRing score={exam.score} maxScore={exam.maxScore} />
           )}
         </div>
@@ -146,7 +147,7 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
           <span className="inline-flex items-center gap-1 text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-lg">
             <FileText size={12} /> {exam.totalQuestions} câu hỏi
           </span>
-          {isGraded && exam.correctCount !== undefined && (
+          {isGraded && exam.correctCount !== null && (
             <span className="inline-flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
               <CheckCircle2 size={12} /> {exam.correctCount}/{exam.totalQuestions} đúng
             </span>
@@ -184,12 +185,12 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
                 </p>
               </div>
             )}
-            {isGraded && exam.score !== undefined && (
+            {isGraded && exam.score !== null && (
               <div>
                 <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium mb-0.5">Điểm số</p>
                 <p className="text-sm font-bold text-slate-700">
                   {formatScore(exam.score)}
-                  {exam.maxScore !== undefined && `/${formatScore(exam.maxScore)}`}
+                  {exam.maxScore !== null && `/${formatScore(exam.maxScore)}`}
                 </p>
               </div>
             )}
@@ -202,7 +203,12 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
           </div>
 
           {/* Nút hành động */}
-          {isOpen && !justClosed && (
+          {/*
+            Quyền vào làm do server chốt qua `canStart` — nó biết cả những điều kiện giao diện không
+            thấy (bài bị thu hồi, tài khoản bị khoá). `justClosed` chỉ để nút biến mất ngay khi đồng
+            hồ đếm về 0 mà không phải chờ tải lại trang.
+          */}
+          {exam.canStart && !justClosed && (
             <NavLink
               to={`/hoc-sinh/bai-kiem-tra/${exam.assignmentId}`}
               className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
@@ -250,10 +256,21 @@ export default function StudentExamListPage() {
   }, [])
 
   const normalizedSearch = search.trim()
-  const { data: examItems, loading, error, reload } = useAsync(
-    () => listMyExams({ search: normalizedSearch }),
-    [normalizedSearch],
-  )
+
+  // Nạp trọn danh sách một lần rồi lọc tại máy: server không nhận tham số tìm kiếm cho endpoint
+  // này, và danh sách bài của một học sinh vốn ngắn. Gõ tìm kiếm không còn gọi lại API nên kết quả
+  // hiện ra tức thì, và các tab bên dưới vẫn đếm trên đúng tập vừa lọc.
+  const { data: allExamItems, loading, error, reload } = useAsync(() => listMyExams(), [])
+
+  const examItems = useMemo(() => {
+    if (!allExamItems) return allExamItems
+    if (normalizedSearch === '') return allExamItems
+
+    const needle = normalizeText(normalizedSearch)
+    return allExamItems.filter(item =>
+      normalizeText(item.name).includes(needle) || normalizeText(item.topic).includes(needle),
+    )
+  }, [allExamItems, normalizedSearch])
 
   const counts = useMemo<Record<FilterTab, number>>(() => {
     const source = examItems ?? []

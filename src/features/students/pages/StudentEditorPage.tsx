@@ -12,7 +12,8 @@ import useAsync from '../../../hooks/useAsync'
 import { formatDate, getInitials } from '../../../lib/format'
 import { UNASSIGNED_GROUP_ID, UNASSIGNED_GROUP_NAME, listGroups } from '../../../services/groupService'
 import {
-  createStudent, getStudent, listStudents, updateStudent, type StudentPayload,
+  createStudent, getStudent, listStudents, setStudentStatus, updateStudent,
+  type StudentPayload,
 } from '../../../services/studentService'
 import StudentStatusPill from '../components/StudentStatusPill'
 import StudentTextField from '../components/StudentTextField'
@@ -198,16 +199,23 @@ export default function StudentEditorPage() {
       username: values.username.trim(),
       code: values.code.trim(),
       groupId: values.groupId,
-      status: values.status,
     }
+
+    // Server đòi mật khẩu khi tạo tài khoản — người tạo là người trao mật khẩu đầu tiên cho học
+    // sinh. Ở chế độ sửa thì không gửi: đổi mật khẩu đi qua chức năng đặt lại riêng.
+    if (!isEditMode) payload.password = values.password
 
     setSubmitting(true)
     try {
+      // Khóa/mở khóa tài khoản đi qua một endpoint riêng chứ không nằm trong hồ sơ, nên sau khi
+      // lưu còn phải đối chiếu trạng thái trong phản hồi và chỉnh thêm nếu ô chọn khác.
       if (studentId === null) {
-        await createStudent(payload)
+        const created = await createStudent(payload)
+        if (created.status !== values.status) await setStudentStatus(created.id, values.status)
         toast.success(`Đã thêm học sinh ${payload.fullName}.`)
       } else {
-        await updateStudent(studentId, payload)
+        const saved = await updateStudent(studentId, payload)
+        if (saved.status !== values.status) await setStudentStatus(saved.id, values.status)
         toast.success(`Đã lưu thay đổi cho ${payload.fullName}.`)
       }
       navigate('/quan-tri/hoc-sinh')

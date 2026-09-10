@@ -10,9 +10,19 @@ function padNumber(value: number): string {
   return value < 10 ? `0${value}` : `${value}`
 }
 
-/** Điểm số luôn hiển thị một chữ số thập phân: 8 -> '8.0', 7.25 -> '7.3'. */
-export function formatScore(score: number): string {
-  if (!Number.isFinite(score)) return '0.0'
+/** Ký hiệu cho một con số chưa có, để mọi màn hình dùng chung một dấu thay vì mỗi nơi một kiểu. */
+export const NO_VALUE = '—'
+
+/**
+ * Điểm số luôn hiển thị một chữ số thập phân: 8 -> '8.0', 7.25 -> '7.3'.
+ *
+ * `null` trả về dấu gạch ngang, **không** phải '0.0'. Server bỏ hẳn trường điểm khỏi JSON khi
+ * người xem chưa được phép thấy (§3 quy tắc ⑥), và một bài bị giấu điểm hiện ra "0.0" trông y hệt
+ * một bài làm sai hết — học sinh đọc con số đó sẽ tưởng mình trượt.
+ */
+export function formatScore(score: number | null | undefined): string {
+  if (score === null || score === undefined) return NO_VALUE
+  if (!Number.isFinite(score)) return NO_VALUE
   return score.toFixed(1)
 }
 

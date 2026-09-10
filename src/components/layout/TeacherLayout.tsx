@@ -25,7 +25,6 @@ export default function TeacherLayout({ children, pageTitle, pageSubtitle }: Tea
     <DashboardLayout
       pageTitle={pageTitle}
       pageSubtitle={pageSubtitle}
-      role="teacher"
       basePath="/giao-vien"
       roleLabel="Giáo viên"
       roleDetail={currentUser?.subject}

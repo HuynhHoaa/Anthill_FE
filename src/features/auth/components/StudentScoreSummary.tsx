@@ -34,11 +34,19 @@ export default function StudentScoreSummary() {
   }
 
   const gradedResults = data.items.filter(result => result.status === 'graded')
-  const hasGraded = gradedResults.length > 0
-  const totalScore = gradedResults.reduce((sum, result) => sum + result.score, 0)
+
+  // Bài đã chấm vẫn có thể bị giấu điểm. Cộng những bài đó vào như điểm 0 sẽ kéo trung bình xuống
+  // và học sinh không có cách nào biết con số mình đang đọc bị pha loãng, nên loại hẳn chúng ra.
+  const visibleScores = gradedResults
+    .map(result => result.score)
+    .filter((score): score is number => score !== null)
+
+  const hasScore = visibleScores.length > 0
   // Mảng rỗng thì không chia và không gọi Math.max để tránh NaN với -Infinity
-  const averageScore = hasGraded ? roundToOneDecimal(totalScore / gradedResults.length) : 0
-  const bestScore = gradedResults.reduce((best, result) => (result.score > best ? result.score : best), 0)
+  const averageScore = hasScore
+    ? roundToOneDecimal(visibleScores.reduce((sum, score) => sum + score, 0) / visibleScores.length)
+    : null
+  const bestScore = hasScore ? Math.max(...visibleScores) : null
 
   if (data.total === 0) {
     return (
@@ -49,7 +57,7 @@ export default function StudentScoreSummary() {
   }
 
   // Có lượt làm bài nhưng chưa lượt nào được chấm thì không hiện điểm 0 vô nghĩa
-  if (!hasGraded) {
+  if (gradedResults.length === 0) {
     return (
       <div className={shellClass}>
         <p className="text-sm text-slate-500">
