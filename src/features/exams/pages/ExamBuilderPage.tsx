@@ -7,6 +7,7 @@ import {
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
+import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
@@ -26,6 +27,7 @@ import {
   clearExamBuilderDraft, readExamBuilderDraft, saveExamBuilderDraft,
   type ExamFormState,
 } from '../utils/examDraftStorage'
+import { examPublishConfirmCopy, publishedExamEditConfirmCopy } from '../utils/examConfirmations'
 import {
   buildDefaultSchedule, isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
 } from '../utils/examScheduleFormat'
@@ -347,6 +349,7 @@ export default function ExamBuilderPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
 
   // useParams luôn trả về chuỗi nên phải ép về số trước khi dùng làm id.
   // Đường dẫn '/sua' có id không đọc được vẫn phải ở chế độ sửa để báo lỗi,
@@ -532,35 +535,73 @@ export default function ExamBuilderPage() {
       lifecycle: mode === 'draft' ? 'draft' : undefined,
     }
 
-    setSavingMode(mode)
-    try {
-      const saved = examId === undefined
-        ? await createExam(payload)
-        : await updateExam(examId, payload)
+    const outcome: { saved?: Exam; final?: Exam } = {}
+    const persist = async () => {
+      // Lần thử lại trong hộp xác nhận sau khi tạo đề xong mà bước xuất bản hỏng thì không được
+      // tạo thêm một đề nữa — dùng lại bản vừa lưu và chỉ thử lại bước còn thiếu.
+      if (!outcome.saved) {
+        outcome.saved = examId === undefined
+          ? await createExam(payload)
+          : await updateExam(examId, payload)
+      }
+      const saved = outcome.saved
 
       // Rời khỏi nháp là một HÀNH ĐỘNG riêng, không phải một trường dữ liệu: server kiểm lại đầy
       // đủ những điều kiện mà bản nháp vừa được miễn. Chỉ gọi khi đề thật sự còn là nháp — gọi
       // trên một đề đã xuất bản sẽ nhận 409.
-      const published = mode !== 'draft' && saved.lifecycle === 'draft'
+      outcome.final = mode !== 'draft' && saved.lifecycle === 'draft'
         ? await publishExam(saved.id)
         : saved
-
-      if (mode === 'draft') {
-        toast.success('Đã lưu bản nháp. Đề chưa phát cho học sinh.')
-      } else {
-        toast.success(isEditing ? 'Đã cập nhật bài kiểm tra.' : 'Đã tạo bài kiểm tra thành công.')
-      }
-
-      navigate(
-        mode === 'assign'
-          ? `/giao-vien/bai-kiem-tra/${published.id}/giao-bai`
-          : `/giao-vien/bai-kiem-tra/${published.id}`,
-      )
-    } catch (caught) {
-      toast.error(toErrorMessage(caught, 'Không lưu được bài kiểm tra. Vui lòng thử lại.'))
-    } finally {
-      setSavingMode(null)
     }
+
+    // Lưu nháp không đụng tới ai nên không hỏi. Hai trường hợp còn lại thì có: xuất bản là bước
+    // không quay lại được, còn sửa một đề đã xuất bản là sửa thứ học sinh đang cầm trên tay.
+    const goingToAssign = mode === 'assign'
+    const confirmCopy =
+      mode === 'draft'
+        ? undefined
+        : loadedExam && loadedExam.lifecycle !== 'draft'
+          ? publishedExamEditConfirmCopy(loadedExam, goingToAssign)
+          : examPublishConfirmCopy(
+              {
+                title: form.title,
+                totalQuestions: form.totalQuestions,
+                durationMinutes: form.durationMinutes,
+                openAt: toServiceDateTime(form.openAtLocal),
+                closeAt: toServiceDateTime(form.closeAtLocal),
+              },
+              goingToAssign,
+            )
+
+    if (confirmCopy) {
+      const confirmed = await confirm({ ...confirmCopy, onConfirm: persist })
+      if (!confirmed) return
+    } else {
+      setSavingMode(mode)
+      try {
+        await persist()
+      } catch (caught) {
+        toast.error(toErrorMessage(caught, 'Không lưu được bài kiểm tra. Vui lòng thử lại.'))
+        return
+      } finally {
+        setSavingMode(null)
+      }
+    }
+
+    const published = outcome.final
+    if (!published) return
+
+    if (mode === 'draft') {
+      toast.success('Đã lưu bản nháp. Đề chưa phát cho học sinh.')
+    } else {
+      toast.success(isEditing ? 'Đã cập nhật bài kiểm tra.' : 'Đã tạo bài kiểm tra thành công.')
+    }
+
+    navigate(
+      mode === 'assign'
+        ? `/giao-vien/bai-kiem-tra/${published.id}/giao-bai`
+        : `/giao-vien/bai-kiem-tra/${published.id}`,
+    )
   }
 
   const pageTitle = isEditing ? 'Sửa bài kiểm tra' : 'Tạo bài kiểm tra'

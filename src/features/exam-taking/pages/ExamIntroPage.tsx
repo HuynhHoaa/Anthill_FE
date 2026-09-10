@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, PlayCircle, Clock, FileText, Trophy, Award,
@@ -7,7 +6,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import StudentLayout from '../../../components/layout/StudentLayout'
-import ConfirmDialog from '../../../components/common/ConfirmDialog'
+import { useConfirm } from '../../../components/common/ConfirmProvider'
 import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { StatusBadge, TopicBadge } from '../../../components/common/Badge'
@@ -78,7 +77,7 @@ export default function ExamIntroPage() {
   const { assignmentId } = useParams<{ assignmentId: string }>()
   const navigate = useNavigate()
   const numericAssignmentId = Number(assignmentId)
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const confirm = useConfirm()
 
   const { data, loading, error, reload } = useAsync(async () => {
     if (!Number.isInteger(numericAssignmentId) || numericAssignmentId <= 0) {
@@ -104,9 +103,15 @@ export default function ExamIntroPage() {
   const closeCountdown = useCountdown(closeDate, 'Đã hết hạn')
   const openCountdown = useCountdown(openDate, 'Đã mở')
 
-  const startExam = () => {
-    setConfirmOpen(false)
-    navigate(`/hoc-sinh/bai-kiem-tra/${numericAssignmentId}/lam-bai`)
+  const requestStart = async () => {
+    if (!exam) return
+    const ready = await confirm({
+      title: 'Bắt đầu làm bài ngay?',
+      message: `Đồng hồ sẽ chạy ngay khi bạn xác nhận và không thể tạm dừng, kể cả khi bạn đóng trang. Bạn có ${formatDuration(exam.durationMinutes)} để hoàn thành ${exam.totalQuestions} câu hỏi; hết giờ hệ thống tự động nộp phần bài bạn đã làm.`,
+      confirmLabel: 'Bắt đầu ngay',
+      cancelLabel: 'Để sau',
+    })
+    if (ready) navigate(`/hoc-sinh/bai-kiem-tra/${numericAssignmentId}/lam-bai`)
   }
 
   const renderBody = () => {
@@ -279,7 +284,7 @@ export default function ExamIntroPage() {
 
                 <button
                   type="button"
-                  onClick={() => setConfirmOpen(true)}
+                  onClick={() => void requestStart()}
                   className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl text-white font-bold text-sm shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
                   style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
                 >
@@ -401,16 +406,6 @@ export default function ExamIntroPage() {
             </NavLink>
           </aside>
         </div>
-
-        <ConfirmDialog
-          open={confirmOpen && canStart}
-          title="Bắt đầu làm bài ngay?"
-          message={`Đồng hồ sẽ chạy ngay khi bạn xác nhận và không thể tạm dừng. Bạn có ${formatDuration(exam.durationMinutes)} để hoàn thành ${exam.totalQuestions} câu hỏi, hết giờ hệ thống sẽ tự động nộp bài.`}
-          confirmLabel="Bắt đầu ngay"
-          cancelLabel="Để sau"
-          onConfirm={startExam}
-          onCancel={() => setConfirmOpen(false)}
-        />
       </>
     )
   }

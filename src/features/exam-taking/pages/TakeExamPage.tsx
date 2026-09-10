@@ -8,7 +8,7 @@ import StudentLayout from '../../../components/layout/StudentLayout'
 import {
   clearAttemptProgress, readAttemptProgress, saveAttemptProgress,
 } from '../utils/examProgressStorage'
-import ConfirmDialog from '../../../components/common/ConfirmDialog'
+import { useConfirm } from '../../../components/common/ConfirmProvider'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
@@ -118,6 +118,28 @@ function QuestionNavigator({
   )
 }
 
+/**
+ * Đồng hồ trong hộp xác nhận nộp bài.
+ *
+ * Phải tiếp tục chạy chứ không đứng ở con số lúc mở hộp: học sinh quyết định nộp sớm hay quay lại
+ * soát bài dựa đúng vào con số này, và một con số đứng yên thì nói dối mỗi giây hộp còn mở.
+ */
+function RemainingClock({ expiresAt }: { expiresAt: number | null }) {
+  const [seconds, setSeconds] = useState(() =>
+    expiresAt === null ? 0 : Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)),
+  )
+
+  useEffect(() => {
+    if (expiresAt === null) return
+    const timerId = window.setInterval(() => {
+      setSeconds(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)))
+    }, 1000)
+    return () => window.clearInterval(timerId)
+  }, [expiresAt])
+
+  return <strong className="font-bold text-slate-800 tabular-nums">{formatClock(seconds)}</strong>
+}
+
 function TakeExamSkeleton() {
   return (
     <div className="animate-fade-in-up">
@@ -163,6 +185,7 @@ export default function TakeExamPage() {
   const { assignmentId } = useParams<{ assignmentId: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
 
   const parsedAssignmentId = Number(assignmentId)
   const isValidAssignmentId = Number.isFinite(parsedAssignmentId) && parsedAssignmentId > 0
@@ -182,7 +205,6 @@ export default function TakeExamPage() {
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [lastSavedLabel, setLastSavedLabel] = useState('')
   const [navigatorOpen, setNavigatorOpen] = useState(false)
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [autoSubmitting, setAutoSubmitting] = useState(false)
   /** Số lần nộp tự động đã thất bại. Khác 0 thì giao diện phải nói thẳng, không im lặng. */
@@ -249,7 +271,7 @@ export default function TakeExamPage() {
       setSubmitting(true)
       if (autoSubmitted) {
         // Đóng hộp xác nhận đang mở để không chồng hai lớp phủ lên nhau khi hết giờ.
-        setConfirmOpen(false)
+        confirm.dismiss()
         setAutoSubmitting(true)
       }
 
@@ -257,7 +279,6 @@ export default function TakeExamPage() {
         clientSeqRef.current += 1
         const result = await submitAttempt(session.attemptId, answers, clientSeqRef.current)
         clearAttemptProgress(session.attemptId)
-        setConfirmOpen(false)
         if (autoSubmitted) {
           toast.info('Đã hết thời gian làm bài, hệ thống tự động nộp bài giúp bạn.')
         } else {
@@ -279,10 +300,12 @@ export default function TakeExamPage() {
           return
         }
 
-        toast.error(caught instanceof Error ? caught.message : 'Không nộp được bài. Vui lòng thử lại.')
+        // Nộp tay thì ném tiếp cho hộp xác nhận: lỗi hiện ngay trong hộp, hộp không đóng, và học
+        // sinh bấm "Nộp bài" lần nữa ngay tại chỗ thay vì phải tìm lại nút giữa trang.
+        throw caught
       }
     },
-    [session, answers, navigate, toast],
+    [session, answers, navigate, toast, confirm],
   )
 
   // Giữ tham chiếu mới nhất tới hàm nộp bài để đồng hồ không phải khởi động lại
@@ -380,6 +403,31 @@ export default function TakeExamPage() {
         ? current.filter(id => id !== questionId)
         : [...current, questionId],
     )
+  }
+
+  const requestSubmit = () => {
+    const clock = <RemainingClock expiresAt={expiresAtRef.current} />
+    void confirm({
+      title: 'Xác nhận nộp bài',
+      message:
+        unansweredCount > 0 ? (
+          <>
+            Bạn đã trả lời <strong className="text-slate-800">{answeredCount}/{totalQuestions}</strong> câu — còn{' '}
+            <strong className="text-slate-800">{unansweredCount}</strong> câu bỏ trống sẽ không được tính điểm.
+            Thời gian còn lại: {clock}. Sau khi nộp bạn không thể sửa lại bài làm.
+          </>
+        ) : (
+          <>
+            Bạn đã trả lời đủ <strong className="text-slate-800">{answeredCount}/{totalQuestions}</strong> câu.
+            Thời gian còn lại: {clock} — bạn vẫn có thể quay lại soát bài. Sau khi nộp bạn không thể sửa lại
+            bài làm.
+          </>
+        ),
+      confirmLabel: 'Nộp bài',
+      cancelLabel: 'Tiếp tục làm bài',
+      tone: unansweredCount > 0 ? 'danger' : 'primary',
+      onConfirm: () => finishAttempt(false),
+    })
   }
 
   // Đổi câu thì cuộn lên đầu để trên tablet không phải kéo ngược lên tìm đề bài.
@@ -539,7 +587,7 @@ export default function TakeExamPage() {
 
             <button
               type="button"
-              onClick={() => setConfirmOpen(true)}
+              onClick={requestSubmit}
               disabled={submitting}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60"
               style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
@@ -701,7 +749,7 @@ export default function TakeExamPage() {
             {isLastQuestion ? (
               <button
                 type="button"
-                onClick={() => setConfirmOpen(true)}
+                onClick={requestSubmit}
                 disabled={submitting}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60"
                 style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
@@ -736,24 +784,6 @@ export default function TakeExamPage() {
           )}
         </aside>
       </div>
-
-      <ConfirmDialog
-        open={confirmOpen}
-        title="Xác nhận nộp bài"
-        message={
-          unansweredCount > 0
-            ? `Bạn còn ${unansweredCount} câu chưa trả lời (đã làm ${answeredCount}/${totalQuestions} câu). Sau khi nộp bạn không thể sửa lại bài làm. Bạn có chắc muốn nộp bài ngay bây giờ?`
-            : `Bạn đã trả lời đủ ${totalQuestions} câu. Sau khi nộp bạn không thể sửa lại bài làm. Xác nhận nộp bài?`
-        }
-        confirmLabel="Nộp bài"
-        cancelLabel="Tiếp tục làm bài"
-        tone={unansweredCount > 0 ? 'danger' : 'primary'}
-        loading={submitting}
-        onConfirm={() => {
-          void finishAttempt(false)
-        }}
-        onCancel={() => setConfirmOpen(false)}
-      />
 
       {autoSubmitting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/45 animate-fade-in">

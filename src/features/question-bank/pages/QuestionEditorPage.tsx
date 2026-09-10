@@ -5,6 +5,7 @@ import TeacherLayout from '../../../components/layout/TeacherLayout'
 import ErrorState from '../../../components/common/ErrorState'
 import ImageUploader from '../../../components/common/ImageUploader'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
+import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import {
@@ -25,6 +26,7 @@ import {
 } from '../../../types'
 import AnswerEditorRow from '../components/AnswerEditorRow'
 import QuestionPreview from '../components/QuestionPreview'
+import { questionStatusConfirmCopy } from '../utils/questionConfirmations'
 
 const MIN_ANSWERS = 2
 const MAX_ANSWERS = 6
@@ -58,6 +60,7 @@ export default function QuestionEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
   const [searchParams] = useSearchParams()
 
   const questionId = Number(id)
@@ -266,19 +269,44 @@ export default function QuestionEditorPage() {
 
   const handleSave = async (keepCreating: boolean) => {
     if (!isValid || saving) return
-    setSaving(true)
-    try {
+
+    if (isEdit) {
       // Ẩn/hiện câu hỏi đi qua một endpoint riêng chứ không nằm trong nội dung câu hỏi. So với
       // trạng thái trong phản hồi để chỉ gọi thêm khi ô chọn thật sự khác — bỏ hẳn lời gọi này thì
       // ô "Trạng thái" trên form trở thành một điều khiển giả, bấm xong không có gì xảy ra.
-      if (isEdit) {
+      const persist = async () => {
         const saved = await updateQuestion(questionId, buildPayload())
         if (saved.status !== status) await setQuestionStatus(saved.id, status)
-        toast.success('Đã lưu thay đổi cho câu hỏi.')
-        navigate(backPath)
-        return
       }
 
+      // Đổi ô trạng thái rồi bấm Lưu là ẩn hoặc hiện câu hỏi thật, nên hỏi lại đúng như nút ẩn ở
+      // ngân hàng câu hỏi — hai lối vào cùng một việc thì không được một lối hỏi, một lối không.
+      if (existingQuestion && existingQuestion.status !== status) {
+        const copy = questionStatusConfirmCopy({ content, difficulty }, status)
+        const saved = await confirm({
+          ...copy,
+          confirmLabel: status === 'hidden' ? 'Lưu và ẩn câu hỏi' : 'Lưu và hiện câu hỏi',
+          onConfirm: persist,
+        })
+        if (!saved) return
+      } else {
+        setSaving(true)
+        try {
+          await persist()
+        } catch (caught) {
+          toast.error(caught instanceof Error ? caught.message : 'Không lưu được câu hỏi. Vui lòng thử lại.')
+          setSaving(false)
+          return
+        }
+      }
+
+      toast.success('Đã lưu thay đổi cho câu hỏi.')
+      navigate(backPath)
+      return
+    }
+
+    setSaving(true)
+    try {
       const created = await createQuestion(buildPayload())
       if (created.status !== status) await setQuestionStatus(created.id, status)
       if (keepCreating) {

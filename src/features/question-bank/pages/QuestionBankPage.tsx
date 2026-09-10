@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   CheckCircle2, Eye, EyeOff, FilterX, Library, ListChecks,
-  Loader2, Pencil, Plus, Search, SearchX, Target, Trash2,
+  Pencil, Plus, Search, SearchX, Target, Trash2,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import Modal from '../../../components/common/Modal'
-import ConfirmDialog from '../../../components/common/ConfirmDialog'
+import { useConfirm } from '../../../components/common/ConfirmProvider'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
@@ -25,6 +25,7 @@ import {
   difficultyLabels, questionStatusLabels,
   type DifficultyLevel, type Paged, type Question, type QuestionStatus,
 } from '../../../types'
+import { questionDeleteConfirmCopy, questionStatusConfirmCopy } from '../utils/questionConfirmations'
 
 const PAGE_SIZE = 10
 const answerLabels = ['A', 'B', 'C', 'D', 'E', 'F']
@@ -55,15 +56,6 @@ const primaryButtonClass =
   'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all'
 const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
 
-function toErrorMessage(caught: unknown, fallback: string): string {
-  return caught instanceof Error && caught.message ? caught.message : fallback
-}
-
-function truncateContent(content: string, maxLength = 80): string {
-  const trimmed = content.trim()
-  return trimmed.length > maxLength ? `${trimmed.slice(0, maxLength)}…` : trimmed
-}
-
 function QuestionListSkeleton() {
   const rowKeys = [0, 1, 2, 3, 4, 5]
   return (
@@ -93,13 +85,12 @@ function QuestionListSkeleton() {
 
 interface QuestionRowProps {
   question: Question
-  statusUpdating: boolean
   onPreview: (question: Question) => void
   onToggleStatus: (question: Question) => void
   onDelete: (question: Question) => void
 }
 
-function QuestionRow({ question, statusUpdating, onPreview, onToggleStatus, onDelete }: QuestionRowProps) {
+function QuestionRow({ question, onPreview, onToggleStatus, onDelete }: QuestionRowProps) {
   const isActive = question.status === 'active'
   const toggleLabel = isActive ? 'Ẩn câu hỏi khỏi ngân hàng đề' : 'Đưa câu hỏi trở lại ngân hàng đề'
 
@@ -153,18 +144,11 @@ function QuestionRow({ question, statusUpdating, onPreview, onToggleStatus, onDe
           <button
             type="button"
             onClick={() => onToggleStatus(question)}
-            disabled={statusUpdating}
             title={toggleLabel}
             aria-label={toggleLabel}
-            className={`${iconButtonClass} disabled:opacity-50 disabled:cursor-not-allowed`}
+            className={iconButtonClass}
           >
-            {statusUpdating ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : isActive ? (
-              <EyeOff size={15} />
-            ) : (
-              <Eye size={15} />
-            )}
+            {isActive ? <EyeOff size={15} /> : <Eye size={15} />}
           </button>
           <button
             type="button"
@@ -252,6 +236,7 @@ function QuestionPreviewDetail({ question }: { question: Question }) {
 
 export default function QuestionBankPage() {
   const toast = useToast()
+  const confirm = useConfirm()
 
   const [searchInput, setSearchInput] = useState('')
   const [topicFilter, setTopicFilter] = useState('all')
@@ -260,9 +245,6 @@ export default function QuestionBankPage() {
   const [page, setPage] = useState(1)
 
   const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null)
-  const [questionPendingDelete, setQuestionPendingDelete] = useState<Question | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null)
   const syncedResponseRef = useRef<Paged<Question> | undefined>(undefined)
 
   const debouncedSearch = useDebouncedValue(searchInput, 350)
@@ -357,41 +339,33 @@ export default function QuestionBankPage() {
 
   async function handleToggleStatus(question: Question) {
     const nextStatus: QuestionStatus = question.status === 'active' ? 'hidden' : 'active'
-    setStatusUpdatingId(question.id)
-    try {
-      await setQuestionStatus(question.id, nextStatus)
-      toast.success(
-        nextStatus === 'hidden'
-          ? 'Đã ẩn câu hỏi khỏi ngân hàng đề.'
-          : 'Đã đưa câu hỏi trở lại ngân hàng đề.',
-      )
-      reloadAll()
-    } catch (caught) {
-      toast.error(toErrorMessage(caught, 'Không đổi được trạng thái câu hỏi.'))
-    } finally {
-      setStatusUpdatingId(null)
-    }
+    const changed = await confirm({
+      ...questionStatusConfirmCopy(question, nextStatus),
+      onConfirm: () => setQuestionStatus(question.id, nextStatus),
+    })
+    if (!changed) return
+    toast.success(
+      nextStatus === 'hidden'
+        ? 'Đã ẩn câu hỏi khỏi ngân hàng đề.'
+        : 'Đã đưa câu hỏi trở lại ngân hàng đề.',
+    )
+    reloadAll()
   }
 
-  async function handleConfirmDelete() {
-    if (!questionPendingDelete) return
-    setDeleting(true)
-    try {
-      await deleteQuestion(questionPendingDelete.id)
-      toast.success('Đã xoá câu hỏi khỏi ngân hàng.')
-      setQuestionPendingDelete(null)
-      // Xoá bản ghi cuối của trang thì lùi về trang trước để không rơi vào trang trống
-      if (questions.length === 1 && responsePage !== undefined && responsePage > 1) {
-        setPage(responsePage - 1)
-      } else {
-        listState.reload()
-      }
-      summaryState.reload()
-    } catch (caught) {
-      toast.error(toErrorMessage(caught, 'Không xoá được câu hỏi.'))
-    } finally {
-      setDeleting(false)
+  async function handleDelete(question: Question) {
+    const deleted = await confirm({
+      ...questionDeleteConfirmCopy(question),
+      onConfirm: () => deleteQuestion(question.id),
+    })
+    if (!deleted) return
+    toast.success('Đã xoá câu hỏi khỏi ngân hàng.')
+    // Xoá bản ghi cuối của trang thì lùi về trang trước để không rơi vào trang trống
+    if (questions.length === 1 && responsePage !== undefined && responsePage > 1) {
+      setPage(responsePage - 1)
+    } else {
+      listState.reload()
     }
+    summaryState.reload()
   }
 
   let listBody: ReactNode
@@ -439,10 +413,9 @@ export default function QuestionBankPage() {
             <QuestionRow
               key={question.id}
               question={question}
-              statusUpdating={statusUpdatingId === question.id}
               onPreview={setPreviewQuestion}
-              onToggleStatus={handleToggleStatus}
-              onDelete={setQuestionPendingDelete}
+              onToggleStatus={target => void handleToggleStatus(target)}
+              onDelete={target => void handleDelete(target)}
             />
           ))}
         </div>
@@ -589,23 +562,6 @@ export default function QuestionBankPage() {
       >
         {previewQuestion && <QuestionPreviewDetail question={previewQuestion} />}
       </Modal>
-
-      <ConfirmDialog
-        open={questionPendingDelete !== null}
-        title="Xoá câu hỏi"
-        message={
-          questionPendingDelete
-            ? `Bạn có chắc muốn xoá câu hỏi "${truncateContent(questionPendingDelete.content)}"? Thao tác này không thể hoàn tác.`
-            : ''
-        }
-        confirmLabel="Xoá câu hỏi"
-        tone="danger"
-        loading={deleting}
-        onConfirm={handleConfirmDelete}
-        onCancel={() => {
-          if (!deleting) setQuestionPendingDelete(null)
-        }}
-      />
     </TeacherLayout>
   )
 }

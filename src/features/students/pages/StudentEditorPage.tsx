@@ -2,21 +2,26 @@
 import { useState, type FormEvent } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
-  AlertCircle, ArrowLeft, AtSign, CheckCircle2, Hash, Loader2, Lock, Mail, Save, User,
+  AlertCircle, ArrowLeft, AtSign, CheckCircle2, Copy, Hash, KeyRound, Loader2, Lock, Mail,
+  RotateCcw, Save, ShieldAlert, Trash2, User,
 } from 'lucide-react'
 import AdminLayout from '../../../components/layout/AdminLayout'
 import ErrorState from '../../../components/common/ErrorState'
+import Modal from '../../../components/common/Modal'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
+import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import useAsync from '../../../hooks/useAsync'
 import { formatDate, getInitials } from '../../../lib/format'
 import { UNASSIGNED_GROUP_ID, UNASSIGNED_GROUP_NAME, listGroups } from '../../../services/groupService'
 import {
-  createStudent, getStudent, listStudents, setStudentStatus, updateStudent,
-  type StudentPayload,
+  DELETION_RETENTION_DAYS, ERASED_STUDENT_NAME,
+  createStudent, getStudent, isRetiredStudent, listStudents, setStudentStatus, updateStudent,
+  type ResetPasswordResult, type StudentPayload,
 } from '../../../services/studentService'
 import StudentStatusPill from '../components/StudentStatusPill'
 import StudentTextField from '../components/StudentTextField'
+import { lockConfirmCopy, useStudentAccountActions } from '../hooks/useStudentAccountActions'
 import { studentStatusLabels, type Student, type StudentStatus } from '../../../types'
 
 /** Số bản ghi tải về để kiểm tra trùng mã, email và tên đăng nhập ngay trên giao diện. */
@@ -47,6 +52,9 @@ const emptyValues: StudentFormValues = {
   status: 'active',
   password: '',
 }
+
+const accountActionButtonClass =
+  'w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60'
 
 function isTakenBy(
   students: Student[],
@@ -115,6 +123,8 @@ export default function StudentEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
+  const accountActions = useStudentAccountActions()
 
   const studentId = id === undefined ? null : Number(id)
   const isEditMode = studentId !== null
@@ -132,23 +142,27 @@ export default function StudentEditorPage() {
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [hasSubmitted, setHasSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [issuedPassword, setIssuedPassword] = useState<ResetPasswordResult | null>(null)
 
   const loadedStudent = editorQuery.data?.student ?? null
 
-  const [syncedStudentId, setSyncedStudentId] = useState<number | null>(null)
+  // So theo bản ghi chứ không theo id: sau một thao tác tài khoản (xoá, khôi phục) trang tải lại
+  // đúng học sinh đó, và form phải theo bản mới — nếu không ô trạng thái vẫn nói "Đang hoạt động"
+  // cho một tài khoản vừa bị đưa vào diện chờ xoá.
+  const [syncedStudent, setSyncedStudent] = useState<Student | null>(null)
 
   // Cùng một component phục vụ cả hai chế độ: khi chuyển sang tạo mới phải xóa sạch
   // dữ liệu của học sinh đang mở trước đó, nếu không form sẽ giữ lại thông tin người cũ.
-  if (!isEditMode && syncedStudentId !== null) {
-    setSyncedStudentId(null)
+  if (!isEditMode && syncedStudent !== null) {
+    setSyncedStudent(null)
     setValues(emptyValues)
     setTouchedFields({})
     setHasSubmitted(false)
   }
 
   // Đổ dữ liệu vào form ngay trong lúc render để không nháy form rỗng ở khoảnh khắc vừa tải xong.
-  if (loadedStudent && loadedStudent.id !== syncedStudentId) {
-    setSyncedStudentId(loadedStudent.id)
+  if (loadedStudent && loadedStudent !== syncedStudent) {
+    setSyncedStudent(loadedStudent)
     setValues({
       fullName: loadedStudent.fullName,
       email: loadedStudent.email,
@@ -161,6 +175,12 @@ export default function StudentEditorPage() {
     setTouchedFields({})
     setHasSubmitted(false)
   }
+
+  // Tài khoản đã rời hệ thống chỉ còn để xem. Server chưa chặn việc sửa hồ sơ hay đổi trạng thái
+  // của những tài khoản này, nên giao diện không được mở đường cho việc đó: đặt lại "Đang hoạt
+  // động" qua ô trạng thái là vòng qua bước khôi phục, còn sửa một tài khoản đã xoá là ghi đè lên
+  // chính phần dữ liệu đã được ẩn danh.
+  const isReadOnly = loadedStudent !== null && isRetiredStudent(loadedStudent)
 
   const groups = editorQuery.data?.groups ?? []
   const existingStudents = editorQuery.data?.existingStudents ?? []
@@ -186,6 +206,7 @@ export default function StudentEditorPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (isReadOnly || submitting) return
     setHasSubmitted(true)
 
     if (Object.keys(errors).length > 0) {
@@ -205,23 +226,62 @@ export default function StudentEditorPage() {
     // sinh. Ở chế độ sửa thì không gửi: đổi mật khẩu đi qua chức năng đặt lại riêng.
     if (!isEditMode) payload.password = values.password
 
-    setSubmitting(true)
-    try {
-      // Khóa/mở khóa tài khoản đi qua một endpoint riêng chứ không nằm trong hồ sơ, nên sau khi
-      // lưu còn phải đối chiếu trạng thái trong phản hồi và chỉnh thêm nếu ô chọn khác.
+    // Khóa/mở khóa tài khoản đi qua một endpoint riêng chứ không nằm trong hồ sơ, nên sau khi
+    // lưu còn phải đối chiếu trạng thái trong phản hồi và chỉnh thêm nếu ô chọn khác.
+    const save = async () => {
       if (studentId === null) {
         const created = await createStudent(payload)
         if (created.status !== values.status) await setStudentStatus(created.id, values.status)
-        toast.success(`Đã thêm học sinh ${payload.fullName}.`)
       } else {
         const saved = await updateStudent(studentId, payload)
         if (saved.status !== values.status) await setStudentStatus(saved.id, values.status)
-        toast.success(`Đã lưu thay đổi cho ${payload.fullName}.`)
       }
-      navigate('/quan-tri/hoc-sinh')
-    } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : 'Không lưu được thông tin học sinh.')
-      setSubmitting(false)
+    }
+
+    // Đổi ô trạng thái của một tài khoản đang có rồi bấm Lưu là khóa hoặc mở khóa thật, nên phải
+    // hỏi lại y như nút khóa ở danh sách. Tạo mới thì chưa ai dùng tài khoản đó, không cần hỏi.
+    const lockChanging = loadedStudent !== null && values.status !== loadedStudent.status
+    if (lockChanging) {
+      const locking = values.status === 'locked'
+      const saved = await confirm({
+        ...lockConfirmCopy(payload.fullName, locking),
+        confirmLabel: locking ? 'Lưu và khóa tài khoản' : 'Lưu và mở khóa',
+        onConfirm: save,
+      })
+      if (!saved) return
+    } else {
+      setSubmitting(true)
+      try {
+        await save()
+      } catch (caught) {
+        toast.error(caught instanceof Error ? caught.message : 'Không lưu được thông tin học sinh.')
+        setSubmitting(false)
+        return
+      }
+    }
+
+    toast.success(isEditMode ? `Đã lưu thay đổi cho ${payload.fullName}.` : `Đã thêm học sinh ${payload.fullName}.`)
+    navigate('/quan-tri/hoc-sinh')
+  }
+
+  /** Thao tác tài khoản có hiệu lực ngay, nên tải lại để form và nhãn trạng thái theo kịp. */
+  const runAccountAction = async (pending: Promise<boolean>) => {
+    if (await pending) editorQuery.reload()
+  }
+
+  const handleResetPassword = async () => {
+    if (!loadedStudent) return
+    const result = await accountActions.resetPassword(loadedStudent)
+    if (result) setIssuedPassword(result)
+  }
+
+  const copyIssuedPassword = async () => {
+    if (!issuedPassword) return
+    try {
+      await navigator.clipboard.writeText(issuedPassword.password)
+      toast.success('Đã chép mật khẩu mới.')
+    } catch {
+      toast.error('Trình duyệt không cho chép tự động. Hãy bôi đen mật khẩu rồi chép thủ công.')
     }
   }
 
@@ -235,15 +295,15 @@ export default function StudentEditorPage() {
     checklist.push({ label: 'Mật khẩu', done: !errors.password })
   }
 
+  const pageTitle = isReadOnly ? 'Thông tin học sinh' : isEditMode ? 'Sửa thông tin học sinh' : 'Thêm học sinh'
+  const pageSubtitle = isReadOnly
+    ? 'Tài khoản đã rời hệ thống, hồ sơ chỉ còn để xem'
+    : isEditMode
+      ? 'Cập nhật hồ sơ, nhóm lớp và trạng thái tài khoản'
+      : 'Tạo tài khoản mới để học sinh đăng nhập và làm bài kiểm tra'
+
   return (
-    <AdminLayout
-      pageTitle={isEditMode ? 'Sửa thông tin học sinh' : 'Thêm học sinh'}
-      pageSubtitle={
-        isEditMode
-          ? 'Cập nhật hồ sơ, nhóm lớp và trạng thái tài khoản'
-          : 'Tạo tài khoản mới để học sinh đăng nhập và làm bài kiểm tra'
-      }
-    >
+    <AdminLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle}>
       <div className="mb-5">
         <NavLink
           to="/quan-tri/hoc-sinh"
@@ -286,123 +346,169 @@ export default function StudentEditorPage() {
           noValidate
           className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start animate-fade-in-up"
         >
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6">
-            <section className="space-y-4">
-              <h2 className="text-base font-bold text-slate-800">Thông tin cá nhân</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <StudentTextField
-                  label="Họ và tên"
-                  icon={User}
-                  value={values.fullName}
-                  onChange={value => updateValues({ fullName: value })}
-                  onBlur={() => markTouched('fullName')}
-                  error={errorFor('fullName')}
-                  placeholder="Ví dụ: Nguyễn Minh Khoa"
-                  autoComplete="off"
-                />
-                <StudentTextField
-                  label="Email"
-                  icon={Mail}
-                  type="email"
-                  value={values.email}
-                  onChange={value => updateValues({ email: value })}
-                  onBlur={() => markTouched('email')}
-                  error={errorFor('email')}
-                  placeholder="khoa.nm@student.edu.vn"
-                  autoComplete="off"
-                />
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+            {loadedStudent?.status === 'pendingDeletion' && (
+              <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-3">
+                <ShieldAlert size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-amber-800">Tài khoản đang chờ xoá</p>
+                  <p className="text-sm text-amber-700 mt-1 leading-relaxed">
+                    {loadedStudent.fullName} không đăng nhập được. Bạn có thể khôi phục trong vòng{' '}
+                    {DELETION_RETENTION_DAYS} ngày kể từ lúc yêu cầu xoá; hết hạn, hệ thống xoá vĩnh viễn
+                    dữ liệu cá nhân nhưng vẫn giữ kết quả bài làm. Hồ sơ chỉ để xem cho tới khi được khôi phục.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void runAccountAction(accountActions.restore(loadedStudent))}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors flex-shrink-0"
+                >
+                  <RotateCcw size={15} /> Khôi phục
+                </button>
               </div>
-            </section>
+            )}
 
-            <section className="space-y-4 pt-6 border-t border-slate-100">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Tài khoản đăng nhập</h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  {isEditMode
-                    ? 'Học sinh dùng tên đăng nhập này để vào hệ thống. Mật khẩu do học sinh tự đổi trong hồ sơ.'
-                    : 'Hãy gửi tên đăng nhập và mật khẩu ban đầu cho học sinh sau khi tạo tài khoản.'}
-                </p>
+            {loadedStudent?.status === 'deleted' && (
+              <div className="mb-6 rounded-2xl border border-rose-100 bg-rose-50 px-5 py-4 flex items-start gap-3">
+                <ShieldAlert size={18} className="text-rose-400 flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-rose-700">Dữ liệu cá nhân đã bị xoá vĩnh viễn</p>
+                  <p className="text-sm text-rose-600 mt-1 leading-relaxed">
+                    Kết quả các bài đã làm vẫn được giữ dưới tên "{ERASED_STUDENT_NAME}". Tài khoản chỉ
+                    còn để xem: không sửa, khóa, cấp lại mật khẩu hay khôi phục được nữa.
+                  </p>
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <StudentTextField
-                  label="Tên đăng nhập"
-                  icon={AtSign}
-                  value={values.username}
-                  onChange={value => updateValues({ username: value })}
-                  onBlur={() => markTouched('username')}
-                  error={errorFor('username')}
-                  placeholder="khoa.nm"
-                  hint="Ít nhất 3 ký tự, không chứa khoảng trắng."
-                  autoComplete="off"
-                />
-                <StudentTextField
-                  label="Mã học sinh"
-                  icon={Hash}
-                  value={values.code}
-                  onChange={value => updateValues({ code: value })}
-                  onBlur={() => markTouched('code')}
-                  error={errorFor('code')}
-                  placeholder="HS1001"
-                  hint="Mã dùng để phân biệt học sinh, không được trùng."
-                  autoComplete="off"
-                />
-                {!isEditMode && (
+            )}
+
+            {/* fieldset khoá mọi ô cùng lúc bằng thuộc tính gốc của trình duyệt, không phải dựa vào
+                từng ô tự nhớ chế độ chỉ đọc. */}
+            <fieldset disabled={isReadOnly} className="min-w-0 space-y-6">
+              <section className="space-y-4">
+                <h2 className="text-base font-bold text-slate-800">Thông tin cá nhân</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <StudentTextField
-                    label="Mật khẩu ban đầu"
-                    icon={Lock}
-                    type="password"
-                    value={values.password}
-                    onChange={value => updateValues({ password: value })}
-                    onBlur={() => markTouched('password')}
-                    error={errorFor('password')}
-                    placeholder="Ít nhất 6 ký tự"
-                    hint="Học sinh nên đổi mật khẩu ở lần đăng nhập đầu tiên."
-                    autoComplete="new-password"
+                    label="Họ và tên"
+                    icon={User}
+                    value={values.fullName}
+                    onChange={value => updateValues({ fullName: value })}
+                    onBlur={() => markTouched('fullName')}
+                    error={errorFor('fullName')}
+                    placeholder="Ví dụ: Nguyễn Minh Khoa"
+                    autoComplete="off"
                   />
-                )}
-              </div>
-            </section>
+                  <StudentTextField
+                    label="Email"
+                    icon={Mail}
+                    type="email"
+                    value={values.email}
+                    onChange={value => updateValues({ email: value })}
+                    onBlur={() => markTouched('email')}
+                    error={errorFor('email')}
+                    placeholder="khoa.nm@student.edu.vn"
+                    autoComplete="off"
+                  />
+                </div>
+              </section>
 
-            <section className="space-y-4 pt-6 border-t border-slate-100">
-              <h2 className="text-base font-bold text-slate-800">Nhóm lớp và trạng thái</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <section className="space-y-4 pt-6 border-t border-slate-100">
                 <div>
-                  <label htmlFor="student-group" className="block text-sm font-semibold text-slate-700 mb-2">
-                    Nhóm/lớp
-                  </label>
-                  <select
-                    id="student-group"
-                    value={values.groupId}
-                    onChange={event => updateValues({ groupId: Number(event.target.value) })}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 bg-white"
-                  >
-                    {groupChoices.map(choice => (
-                      <option key={choice.id} value={choice.id}>{choice.name}</option>
-                    ))}
-                  </select>
-                  <p className="mt-1.5 text-xs text-slate-400">
-                    Học sinh sẽ nhận bài kiểm tra được giao cho nhóm này.
+                  <h2 className="text-base font-bold text-slate-800">Tài khoản đăng nhập</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {isEditMode
+                      ? 'Học sinh dùng tên đăng nhập này để vào hệ thống. Mật khẩu do học sinh tự đổi trong hồ sơ.'
+                      : 'Hãy gửi tên đăng nhập và mật khẩu ban đầu cho học sinh sau khi tạo tài khoản.'}
                   </p>
                 </div>
-                <div>
-                  <label htmlFor="student-status" className="block text-sm font-semibold text-slate-700 mb-2">
-                    Trạng thái tài khoản
-                  </label>
-                  <select
-                    id="student-status"
-                    value={values.status}
-                    onChange={event => updateValues({ status: event.target.value as StudentStatus })}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 bg-white"
-                  >
-                    <option value="active">{studentStatusLabels.active}</option>
-                    <option value="locked">{studentStatusLabels.locked}</option>
-                  </select>
-                  <p className="mt-1.5 text-xs text-slate-400">
-                    Tài khoản bị khóa sẽ không thể đăng nhập và làm bài.
-                  </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <StudentTextField
+                    label="Tên đăng nhập"
+                    icon={AtSign}
+                    value={values.username}
+                    onChange={value => updateValues({ username: value })}
+                    onBlur={() => markTouched('username')}
+                    error={errorFor('username')}
+                    placeholder="khoa.nm"
+                    hint="Ít nhất 3 ký tự, không chứa khoảng trắng."
+                    autoComplete="off"
+                  />
+                  <StudentTextField
+                    label="Mã học sinh"
+                    icon={Hash}
+                    value={values.code}
+                    onChange={value => updateValues({ code: value })}
+                    onBlur={() => markTouched('code')}
+                    error={errorFor('code')}
+                    placeholder="HS1001"
+                    hint="Mã dùng để phân biệt học sinh, không được trùng."
+                    autoComplete="off"
+                  />
+                  {!isEditMode && (
+                    <StudentTextField
+                      label="Mật khẩu ban đầu"
+                      icon={Lock}
+                      type="password"
+                      value={values.password}
+                      onChange={value => updateValues({ password: value })}
+                      onBlur={() => markTouched('password')}
+                      error={errorFor('password')}
+                      placeholder="Ít nhất 6 ký tự"
+                      hint="Học sinh nên đổi mật khẩu ở lần đăng nhập đầu tiên."
+                      autoComplete="new-password"
+                    />
+                  )}
                 </div>
-              </div>
-            </section>
+              </section>
+
+              <section className="space-y-4 pt-6 border-t border-slate-100">
+                <h2 className="text-base font-bold text-slate-800">Nhóm lớp và trạng thái</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="student-group" className="block text-sm font-semibold text-slate-700 mb-2">
+                      Nhóm/lớp
+                    </label>
+                    <select
+                      id="student-group"
+                      value={values.groupId}
+                      onChange={event => updateValues({ groupId: Number(event.target.value) })}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 bg-white"
+                    >
+                      {groupChoices.map(choice => (
+                        <option key={choice.id} value={choice.id}>{choice.name}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1.5 text-xs text-slate-400">
+                      Học sinh sẽ nhận bài kiểm tra được giao cho nhóm này.
+                    </p>
+                  </div>
+                  <div>
+                    <label htmlFor="student-status" className="block text-sm font-semibold text-slate-700 mb-2">
+                      Trạng thái tài khoản
+                    </label>
+                    {isReadOnly ? (
+                      // Ô chọn chỉ có hai lựa chọn khoá/mở khoá; chờ xoá và đã xoá không phải thứ
+                      // chọn được ở đây, nên hiện nhãn thay vì một ô chọn mang giá trị lạ.
+                      <div id="student-status" className="py-2">
+                        <StudentStatusPill status={values.status} />
+                      </div>
+                    ) : (
+                      <select
+                        id="student-status"
+                        value={values.status}
+                        onChange={event => updateValues({ status: event.target.value as StudentStatus })}
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 bg-white"
+                      >
+                        <option value="active">{studentStatusLabels.active}</option>
+                        <option value="locked">{studentStatusLabels.locked}</option>
+                      </select>
+                    )}
+                    <p className="mt-1.5 text-xs text-slate-400">
+                      Tài khoản bị khóa sẽ không thể đăng nhập và làm bài.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </fieldset>
           </div>
 
           <aside className="space-y-4 xl:sticky xl:top-6">
@@ -454,48 +560,123 @@ export default function StudentEditorPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-              <h2 className="text-base font-bold text-slate-800 mb-3">Kiểm tra nhanh</h2>
-              <div className="space-y-2.5 text-sm">
-                {checklist.map(item => (
-                  <div key={item.label} className="flex items-center justify-between gap-3">
-                    <span className="text-slate-500">{item.label}</span>
-                    {item.done ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
-                        <CheckCircle2 size={14} /> Hợp lệ
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-red-500 font-semibold">
-                        <AlertCircle size={14} /> Chưa xong
-                      </span>
-                    )}
-                  </div>
-                ))}
+            {!isReadOnly && (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <h2 className="text-base font-bold text-slate-800 mb-3">Kiểm tra nhanh</h2>
+                <div className="space-y-2.5 text-sm">
+                  {checklist.map(item => (
+                    <div key={item.label} className="flex items-center justify-between gap-3">
+                      <span className="text-slate-500">{item.label}</span>
+                      {item.done ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
+                          <CheckCircle2 size={14} /> Hợp lệ
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-red-500 font-semibold">
+                          <AlertCircle size={14} /> Chưa xong
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
+            {loadedStudent && !isReadOnly && (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <h2 className="text-base font-bold text-slate-800">Tài khoản</h2>
+                <p className="text-xs text-slate-400 mt-1 mb-3.5">
+                  Hai thao tác này có hiệu lực ngay, không cần bấm Lưu.
+                </p>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleResetPassword()}
+                    disabled={submitting}
+                    className={`${accountActionButtonClass} text-indigo-600 bg-indigo-50 hover:bg-indigo-100`}
+                  >
+                    <KeyRound size={15} /> Cấp lại mật khẩu
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void runAccountAction(accountActions.requestDeletion(loadedStudent))}
+                    disabled={submitting}
+                    className={`${accountActionButtonClass} text-red-600 bg-red-50 hover:bg-red-100`}
+                  >
+                    <Trash2 size={15} /> Xoá tài khoản
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2.5">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-white font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
-              >
-                {submitting ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
-                {submitting ? 'Đang lưu...' : isEditMode ? 'Lưu thay đổi' : 'Tạo học sinh'}
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-white font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                >
+                  {submitting ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
+                  {submitting ? 'Đang lưu...' : isEditMode ? 'Lưu thay đổi' : 'Tạo học sinh'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => navigate('/quan-tri/hoc-sinh')}
                 disabled={submitting}
                 className="w-full px-5 py-3 rounded-2xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-60"
               >
-                Hủy
+                {isReadOnly ? 'Quay lại danh sách' : 'Hủy'}
               </button>
             </div>
           </aside>
         </form>
       )}
+
+      {/* Mật khẩu chỉ nằm trong phản hồi của lần cấp lại, không endpoint nào trả lại lần hai — nên
+          hộp này là cơ hội duy nhất để chép. */}
+      <Modal
+        open={issuedPassword !== null}
+        title="Mật khẩu mới đã được tạo"
+        description={loadedStudent ? `Cho tài khoản ${loadedStudent.fullName} (@${loadedStudent.username})` : undefined}
+        size="sm"
+        onClose={() => setIssuedPassword(null)}
+        footer={
+          <button
+            type="button"
+            onClick={() => setIssuedPassword(null)}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
+            style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+          >
+            Tôi đã chép lại
+          </button>
+        }
+      >
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <code className="flex-1 min-w-0 font-mono text-lg font-bold text-slate-800 tracking-wide break-all select-all">
+              {issuedPassword?.password}
+            </code>
+            <button
+              type="button"
+              onClick={() => void copyIssuedPassword()}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-white border border-slate-200 hover:bg-indigo-50 transition-colors flex-shrink-0"
+            >
+              <Copy size={14} /> Chép
+            </button>
+          </div>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Mật khẩu này chỉ hiện đúng một lần. Đóng hộp thoại là không xem lại được nữa — khi đó phải cấp
+            mật khẩu mới.
+          </p>
+          {issuedPassword?.mustChangePassword && (
+            <p className="text-sm text-slate-500 leading-relaxed">
+              Học sinh sẽ phải đổi mật khẩu ở lần đăng nhập tới.
+            </p>
+          )}
+        </div>
+      </Modal>
     </AdminLayout>
   )
 }

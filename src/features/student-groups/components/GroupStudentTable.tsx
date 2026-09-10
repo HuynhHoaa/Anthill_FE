@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router-dom'
 import { UserMinus, type LucideIcon } from 'lucide-react'
 import { formatScore, getInitials, getScoreTone } from '../../../lib/format'
-import { studentStatusLabels, type Student, type StudentStatus } from '../../../types'
+import type { Student } from '../../../types'
+import StudentStatusPill from '../../students/components/StudentStatusPill'
 import { getAvatarTone } from './groupTheme'
 
 interface GroupStudentTableProps {
@@ -22,11 +23,6 @@ interface GroupStudentTableProps {
 }
 
 const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500'
-
-const statusToneClass: Record<StudentStatus, string> = {
-  active: 'bg-emerald-100 text-emerald-700',
-  locked: 'bg-slate-100 text-slate-500',
-}
 
 export default function GroupStudentTable({
   students,
@@ -101,11 +97,9 @@ export default function GroupStudentTable({
                   </td>
                   <td className="px-5 py-4 text-sm text-slate-600">{student.completedExams} bài</td>
                   <td className="px-5 py-4">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusToneClass[student.status]}`}
-                    >
-                      {studentStatusLabels[student.status]}
-                    </span>
+                    {/* Dùng chung một viên trạng thái với trang học sinh, để hai nơi không bao giờ
+                        tô cùng một trạng thái bằng hai màu. */}
+                    <StudentStatusPill status={student.status} />
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-end gap-2">

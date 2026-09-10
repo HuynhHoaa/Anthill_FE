@@ -8,11 +8,11 @@
 import { useMemo, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  Edit3, Plus, Search, Send, Settings2, Trash2, UsersRound, X,
+  Edit3, EyeOff, Plus, Search, Send, Settings2, Trash2, UsersRound, X,
 } from 'lucide-react'
 import AdminLayout from '../../../components/layout/AdminLayout'
 import { PublishStateBadge } from '../../../components/common/Badge'
-import ConfirmDialog from '../../../components/common/ConfirmDialog'
+import { useConfirm } from '../../../components/common/ConfirmProvider'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonTable } from '../../../components/common/Skeleton'
@@ -20,7 +20,7 @@ import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { formatDate } from '../../../lib/format'
-import { deleteGroup, listGroups, publishGroup } from '../../../services/groupService'
+import { deleteGroup, listGroups, publishGroup, unpublishGroup } from '../../../services/groupService'
 import type { StudentGroup } from '../../../types'
 import GroupFormModal from '../components/GroupFormModal'
 import GroupHealthIndicator from '../components/GroupHealthIndicator'
@@ -80,6 +80,7 @@ function TeacherCell({ group }: { group: StudentGroup }) {
 
 export default function AdminGroupListPage() {
   const toast = useToast()
+  const confirm = useConfirm()
   const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
   const debouncedSearch = useDebouncedValue(searchInput, 300)
@@ -97,10 +98,6 @@ export default function AdminGroupListPage() {
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<StudentGroup | undefined>(undefined)
-  const [deleteTarget, setDeleteTarget] = useState<StudentGroup | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const [publishTarget, setPublishTarget] = useState<StudentGroup | null>(null)
-  const [publishing, setPublishing] = useState(false)
 
   const summaryText = useMemo(() => {
     if (!allGroups || allGroups.length === 0) return undefined
@@ -140,72 +137,84 @@ export default function AdminGroupListPage() {
     reloadAll()
   }
 
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget || deleting) return
-
-    setDeleting(true)
+  /**
+   * Server từ chối thì vẫn tải lại danh sách rồi mới báo lỗi trong hộp: lỗi hay gặp nhất ở đây là
+   * 409 — lớp vừa được công bố, vừa có thêm học sinh ở nơi khác — nghĩa là thứ đang hiện trên màn
+   * hình đã cũ, và để nguyên nó chỉ mời người dùng bấm lại vào một thao tác chắc chắn hỏng lần nữa.
+   */
+  const reloadOnFailure = (action: () => Promise<unknown>) => async () => {
     try {
-      await deleteGroup(deleteTarget.id)
-      toast.success(`Đã xóa lớp ${deleteTarget.name}.`)
-      setDeleteTarget(null)
-      reloadAll()
+      await action()
     } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : 'Không xóa được lớp.')
-    } finally {
-      setDeleting(false)
+      reloadAll()
+      throw caught
     }
   }
 
-  const handlePublishConfirm = async () => {
-    if (!publishTarget || publishing) return
-
-    setPublishing(true)
-    try {
-      const published = await publishGroup(publishTarget.id)
-      toast.success(`Đã công bố lớp ${published.name}. Giáo viên được phân công đã thấy lớp này.`)
-    } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : 'Không công bố được lớp.')
-    } finally {
-      setPublishing(false)
-      // Cả hai nhánh đều đóng hộp thoại và tải lại: lỗi hay gặp nhất ở đây là 409 — lớp vừa được
-      // công bố ở nơi khác — nên danh sách trên màn hình đang cũ, và để nguyên nút "Công bố" ở đó
-      // chỉ mời người dùng bấm lại vào một thao tác chắc chắn hỏng lần nữa.
-      setPublishTarget(null)
-      reloadAll()
-    }
-  }
-
-  // Lớp còn học sinh thì server từ chối xóa, nên dẫn thẳng sang trang quản lý
-  // thay vì để quản trị viên bấm một nút chắc chắn thất bại.
-  const blockedByStudents = deleteTarget !== null && deleteTarget.studentCount > 0
-
-  const handleDeleteAction = () => {
-    if (!deleteTarget) return
-    if (blockedByStudents) {
-      const groupId = deleteTarget.id
-      setDeleteTarget(null)
-      navigate(groupDetailLink(groupId))
+  const requestDelete = async (group: StudentGroup) => {
+    // Lớp còn học sinh thì server từ chối xóa, nên dẫn thẳng sang trang quản lý
+    // thay vì để quản trị viên bấm một nút chắc chắn thất bại.
+    if (group.studentCount > 0) {
+      const openManager = await confirm({
+        title: 'Chưa thể xóa lớp',
+        message: `Lớp "${group.name}" đang có ${group.studentCount} học sinh nên chưa thể xóa. Hãy chuyển các em sang lớp khác trong trang quản lý lớp trước — tài khoản học sinh sẽ không bị xóa theo.`,
+        confirmLabel: 'Mở trang quản lý lớp',
+        cancelLabel: 'Để sau',
+      })
+      if (openManager) navigate(groupDetailLink(group.id))
       return
     }
-    void handleDeleteConfirm()
+
+    const teacherPart =
+      group.teachers.length > 0
+        ? ` ${group.teachers.length} giáo viên đang phụ trách sẽ không còn thấy lớp này.`
+        : ''
+    const deleted = await confirm({
+      title: 'Xóa lớp',
+      message: `Lớp "${group.name}" sẽ bị xóa và không khôi phục được.${teacherPart} Lớp hiện không có học sinh nào nên không tài khoản hay kết quả bài làm nào bị ảnh hưởng.`,
+      confirmLabel: 'Xóa lớp',
+      tone: 'danger',
+      onConfirm: reloadOnFailure(() => deleteGroup(group.id)),
+    })
+    if (!deleted) return
+    toast.success(`Đã xóa lớp ${group.name}.`)
+    reloadAll()
   }
 
-  const deleteMessage = deleteTarget
-    ? blockedByStudents
-      ? `Lớp "${deleteTarget.name}" đang có ${deleteTarget.studentCount} học sinh nên chưa thể xóa. Hãy chuyển họ sang lớp khác trong trang quản lý lớp trước — tài khoản học sinh sẽ không bị xóa theo.`
-      : `Bạn có chắc muốn xóa lớp "${deleteTarget.name}"? Thao tác này chỉ xóa lớp, tài khoản học sinh vẫn được giữ nguyên.`
-    : ''
+  const requestPublish = async (group: StudentGroup) => {
+    // Công bố một lớp chưa có giáo viên không sai, nhưng cũng không tới được ai: giáo viên chỉ thấy
+    // lớp mình được phân công. Cảnh báo mà vẫn cho làm — quản trị viên có thể đang công bố trước rồi
+    // phân công sau, và chặn hẳn ở đây là đoán hộ họ.
+    const withoutTeacher = group.teachers.length === 0
+    const published = await confirm({
+      title: withoutTeacher ? 'Công bố lớp chưa có giáo viên?' : 'Công bố lớp',
+      message: withoutTeacher
+        ? `Lớp "${group.name}" chưa có giáo viên nào phụ trách. Công bố bây giờ thì lớp vẫn chưa hiện với ai, vì giáo viên chỉ thấy lớp mình được phân công. Bạn nên phân công giáo viên trong trang quản lý lớp trước.`
+        : `${group.teachers.length} giáo viên được phân công sẽ thấy lớp "${group.name}" và có thể giao bài kiểm tra cho ${group.studentCount} học sinh trong lớp. Bạn có thể chuyển lớp về bản nháp sau nếu cần.`,
+      confirmLabel: withoutTeacher ? 'Vẫn công bố' : 'Công bố',
+      cancelLabel: 'Để sau',
+      onConfirm: reloadOnFailure(() => publishGroup(group.id)),
+    })
+    if (!published) return
+    toast.success(`Đã công bố lớp ${group.name}. Giáo viên được phân công đã thấy lớp này.`)
+    reloadAll()
+  }
 
-  const publishWithoutTeacher = publishTarget !== null && publishTarget.teachers.length === 0
-
-  // Công bố một lớp chưa có giáo viên không sai, nhưng cũng không tới được ai: giáo viên chỉ thấy
-  // lớp mình được phân công. Cảnh báo mà vẫn cho làm — quản trị viên có thể đang công bố trước rồi
-  // phân công sau, và chặn hẳn ở đây là đoán hộ họ.
-  const publishMessage = publishTarget
-    ? publishWithoutTeacher
-      ? `Lớp "${publishTarget.name}" chưa có giáo viên nào phụ trách. Công bố bây giờ thì lớp vẫn chưa hiện với ai, vì giáo viên chỉ thấy lớp mình được phân công. Bạn nên phân công giáo viên trong trang quản lý lớp trước.`
-      : `Công bố lớp "${publishTarget.name}"? ${publishTarget.teachers.length} giáo viên được phân công sẽ thấy lớp và có thể giao bài kiểm tra cho ${publishTarget.studentCount} học sinh trong lớp.`
-    : ''
+  const requestUnpublish = async (group: StudentGroup) => {
+    const teacherPart =
+      group.teachers.length > 0
+        ? `${group.teachers.length} giáo viên phụ trách sẽ không còn thấy lớp và không giao được bài mới cho ${group.studentCount} học sinh trong lớp.`
+        : 'Lớp chưa có giáo viên phụ trách nên chưa ai mất quyền xem.'
+    const unpublished = await confirm({
+      title: 'Chuyển lớp về bản nháp',
+      message: `Lớp "${group.name}" sẽ trở lại dạng bản nháp: ${teacherPart} Học sinh trong lớp, bài đã giao và kết quả giữ nguyên. Bạn có thể công bố lại bất cứ lúc nào.`,
+      confirmLabel: 'Chuyển về nháp',
+      onConfirm: reloadOnFailure(() => unpublishGroup(group.id)),
+    })
+    if (!unpublished) return
+    toast.success(`Đã chuyển lớp ${group.name} về bản nháp. Giáo viên không còn thấy lớp này.`)
+    reloadAll()
+  }
 
   const rows = groups ?? []
   const showSkeleton = loading && groups === undefined
@@ -343,7 +352,7 @@ export default function AdminGroupListPage() {
                         {!group.isPublished && (
                           <button
                             type="button"
-                            onClick={() => setPublishTarget(group)}
+                            onClick={() => void requestPublish(group)}
                             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
                           >
                             <Send size={14} /> Công bố
@@ -355,6 +364,17 @@ export default function AdminGroupListPage() {
                         >
                           <Settings2 size={14} /> Quản lý
                         </NavLink>
+                        {group.isPublished && (
+                          <button
+                            type="button"
+                            onClick={() => void requestUnpublish(group)}
+                            title="Chuyển lớp về bản nháp"
+                            aria-label={`Chuyển lớp ${group.name} về bản nháp`}
+                            className={iconButtonClass}
+                          >
+                            <EyeOff size={15} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => openEditForm(group)}
@@ -366,7 +386,7 @@ export default function AdminGroupListPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDeleteTarget(group)}
+                          onClick={() => void requestDelete(group)}
                           title="Xóa lớp"
                           aria-label={`Xóa lớp ${group.name}`}
                           className="w-9 h-9 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors"
@@ -388,33 +408,6 @@ export default function AdminGroupListPage() {
         group={editingGroup}
         onClose={() => setFormOpen(false)}
         onSaved={handleFormSaved}
-      />
-
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        title={blockedByStudents ? 'Chưa thể xóa lớp' : 'Xóa lớp'}
-        message={deleteMessage}
-        confirmLabel={blockedByStudents ? 'Mở trang quản lý lớp' : 'Xóa lớp'}
-        cancelLabel={blockedByStudents ? 'Để sau' : 'Hủy'}
-        tone={blockedByStudents ? 'primary' : 'danger'}
-        loading={deleting}
-        onConfirm={handleDeleteAction}
-        onCancel={() => {
-          if (!deleting) setDeleteTarget(null)
-        }}
-      />
-
-      <ConfirmDialog
-        open={publishTarget !== null}
-        title={publishWithoutTeacher ? 'Công bố lớp chưa có giáo viên?' : 'Công bố lớp'}
-        message={publishMessage}
-        confirmLabel={publishWithoutTeacher ? 'Vẫn công bố' : 'Công bố'}
-        cancelLabel="Để sau"
-        loading={publishing}
-        onConfirm={handlePublishConfirm}
-        onCancel={() => {
-          if (!publishing) setPublishTarget(null)
-        }}
       />
     </AdminLayout>
   )
