@@ -56,8 +56,10 @@ export interface StudentExamItemDto {
   openAt: string
   closeAt: string
   teacherName: string
+  /** 'open' · 'scheduled' · 'closed' — vòng đời của ĐỀ, suy từ mốc thời gian. */
   lifecycle: string
-  status: StudentExamItemStatus
+  /** 'assigned' · 'inprogress' · 'submitted' · 'graded' · 'expired' — tiến độ của HỌC SINH. */
+  status: string
   canStart: boolean
   showResultAfterSubmit: boolean
   attemptId?: number
@@ -109,6 +111,36 @@ export function toResultSummary(dto: ResultSummaryDto): ResultSummary {
   }
 }
 
+/**
+ * Suy trạng thái hiển thị từ hai trường riêng biệt của server.
+ *
+ * Server tách chúng có lý: `status` nói **em đã làm tới đâu**, `lifecycle` nói **đề còn hiệu lực
+ * không**. Giao diện thì cần một nhãn duy nhất trên mỗi thẻ, và nhãn đó phụ thuộc cả hai — một bài
+ * chưa làm là "Sắp diễn ra" hay "Đang mở" tuỳ vào đề đã tới giờ chưa.
+ *
+ * Ba trạng thái đã kết thúc (`submitted`, `graded`, `expired`) đi thẳng, vì lúc đó vòng đời của đề
+ * không còn đổi được gì nữa.
+ */
+function toDisplayStatus(status: string, lifecycle: string): StudentExamItemStatus {
+  switch (status) {
+    case 'submitted':
+      return 'submitted'
+    case 'graded':
+      return 'graded'
+    case 'expired':
+      return 'expired'
+    case 'inprogress':
+      return 'inprogress'
+    default:
+      break
+  }
+
+  // Còn lại là 'assigned' — chưa động tới. Lúc này vòng đời của đề quyết định.
+  if (lifecycle === 'scheduled') return 'upcoming'
+  if (lifecycle === 'closed') return 'expired'
+  return 'open'
+}
+
 export function toStudentExamItem(dto: StudentExamItemDto): StudentExamItem {
   // Bài đang làm dở đếm ngược tới lúc HẾT GIỜ LÀM BÀI, không tới lúc đề đóng: hai mốc đó khác
   // nhau, và hiện mốc xa hơn sẽ khiến học sinh tưởng còn nhiều thời gian hơn thực tế.
@@ -124,7 +156,7 @@ export function toStudentExamItem(dto: StudentExamItemDto): StudentExamItem {
     teacher: dto.teacherName,
     durationMinutes: dto.durationMinutes,
     totalQuestions: dto.totalQuestions,
-    status: dto.status,
+    status: toDisplayStatus(dto.status, dto.lifecycle),
     canStart: dto.canStart,
     openAt: dto.openAt,
     closeAt: dto.closeAt,

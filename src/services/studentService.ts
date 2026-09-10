@@ -51,17 +51,34 @@ export function getStudent(id: number): Promise<Student> {
  * Để form báo trùng ngay lúc gõ thay vì đợi bấm Lưu rồi nhận 409 — và quan trọng hơn, để người
  * nhập biết **ô nào** trùng thay vì chỉ biết "có gì đó trùng".
  */
+export interface AvailabilityResult {
+  /**
+   * `true` là **còn trống**, không phải đã bị chiếm.
+   *
+   * Chiều này theo đúng tên trường của server (`emailAvailable`). Đảo chiều ở tầng service sẽ tạo
+   * ra một cái bẫy im lặng: cùng một chữ `true` mang hai nghĩa trái ngược ở hai bên đường truyền,
+   * và ai đọc code cũng phải nhớ mình đang đứng bên nào.
+   *
+   * `undefined` nghĩa là không hỏi trường đó ở lần gọi này.
+   */
+  emailAvailable?: boolean
+  usernameAvailable?: boolean
+  codeAvailable?: boolean
+  allAvailable: boolean
+}
+
 export function checkAvailability(params: {
   email?: string
   username?: string
   code?: string
-  excludeId?: number
-}): Promise<{ emailTaken: boolean; usernameTaken: boolean; codeTaken: boolean }> {
-  return apiClient.get('/api/students/availability', {
+  /** Id của chính học sinh đang sửa, để không tự báo trùng với bản ghi của mình. */
+  excludeStudentId?: number
+}): Promise<AvailabilityResult> {
+  return apiClient.get<AvailabilityResult>('/api/students/availability', {
     email: params.email,
     username: params.username,
     code: params.code,
-    excludeId: params.excludeId,
+    excludeStudentId: params.excludeStudentId,
   })
 }
 

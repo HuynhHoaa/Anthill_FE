@@ -42,7 +42,7 @@ function toErrorMessage(caught: unknown, fallback: string): string {
  */
 function buildExamOverridePayload(
   exam: Exam,
-  changes: { openAt: string; closeAt: string; randomizePerStudent: boolean },
+  changes: { openAt: string; closeAt: string },
 ): ExamPayload {
   return {
     title: exam.title,
@@ -56,7 +56,6 @@ function buildExamOverridePayload(
     topic: exam.topic,
     shuffleQuestions: exam.shuffleQuestions,
     shuffleAnswers: exam.shuffleAnswers,
-    randomizePerStudent: changes.randomizePerStudent,
     openAt: changes.openAt,
     closeAt: changes.closeAt,
     showResultAfterSubmit: exam.showResultAfterSubmit,
@@ -332,22 +331,24 @@ export default function ExamAssignPage() {
 
     setSubmitting(true)
     try {
-      // "Sinh đề riêng cho từng học sinh" là thuộc tính của **đề**, không phải của lượt giao bài,
-      // nên nó phải đi qua updateExam. Chỉ gọi khi thật sự có thay đổi để việc giao bài không âm
-      // thầm ghi đè lại cả đề mỗi lần bấm nút.
-      const randomizeChanged = randomizePerStudent !== exam.randomizePerStudent
-      if (scheduleOverrideEnabled || randomizeChanged) {
+      if (scheduleOverrideEnabled) {
         await updateExam(exam.id, buildExamOverridePayload(exam, {
-          openAt: scheduleOverrideEnabled ? toServiceDateTime(openAtLocal) : exam.openAt,
-          closeAt: scheduleOverrideEnabled ? toServiceDateTime(closeAtLocal) : exam.closeAt,
-          randomizePerStudent,
+          openAt: toServiceDateTime(openAtLocal),
+          closeAt: toServiceDateTime(closeAtLocal),
         }))
       }
 
+      // "Sinh đề riêng cho từng học sinh" đi trong payload GIAO BÀI, không qua updateExam: đây là
+      // endpoint duy nhất ghi được cờ này, vì nó chỉ có nghĩa tại thời điểm sinh đề. Gửi kèm mới
+      // là thứ làm nó thành điều khiển thật — trước đây nó nằm sai chỗ nên bấm vào không có tác
+      // dụng gì. Chỉ gửi khi khác giá trị hiện tại, để lần giao bổ sung không vô cớ đụng vào đề.
       const result = await assignExam(exam.id, {
         studentIds: selectedStudentIds,
         groupIds: selectedGroupIds,
         notify,
+        randomizePerStudent: randomizePerStudent === exam.randomizePerStudent
+          ? undefined
+          : randomizePerStudent,
       })
 
       setConfirmOpen(false)
@@ -358,12 +359,13 @@ export default function ExamAssignPage() {
         result.skippedAlreadyAssigned > 0 ? `${result.skippedAlreadyAssigned} em đã có bài này từ trước` : '',
         result.skippedLocked > 0 ? `${result.skippedLocked} em đang bị khóa tài khoản` : '',
         result.skippedOutOfScope > 0 ? `${result.skippedOutOfScope} em ngoài phạm vi lớp bạn phụ trách` : '',
+        result.skippedOutOfScopeGroups > 0 ? `${result.skippedOutOfScopeGroups} nhóm lớp không thuộc quyền bạn` : '',
         result.skippedNotFound > 0 ? `${result.skippedNotFound} em không còn trong hệ thống` : '',
       ].filter(Boolean)
       const skipNote = skipNotes.length > 0 ? ` Bỏ qua ${skipNotes.join(', ')}.` : ''
 
-      if (result.assigned > 0) {
-        toast.success(`Đã giao bài kiểm tra cho ${result.assigned} học sinh.${skipNote}`)
+      if (result.assignedCount > 0) {
+        toast.success(`Đã giao bài kiểm tra cho ${result.assignedCount} học sinh.${skipNote}`)
       } else {
         toast.info(`Không có lượt giao mới nào được tạo.${skipNote}`)
       }

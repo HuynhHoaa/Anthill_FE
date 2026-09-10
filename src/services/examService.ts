@@ -23,7 +23,6 @@ export interface ExamPayload {
   pointPerQuestion: number
   shuffleQuestions: boolean
   shuffleAnswers: boolean
-  randomizePerStudent: boolean
   showResultAfterSubmit: boolean
   openAt: string
   closeAt: string
@@ -126,12 +125,14 @@ export function listExamAssignments(examId: number): Promise<ExamAssignment[]> {
 }
 
 export interface AssignExamResult {
-  assigned: number
+  assignedCount: number
   skippedAlreadyAssigned: number
   skippedLocked: number
   skippedNotFound: number
+  /** Học sinh không thuộc lớp nào của giáo viên này. */
   skippedOutOfScope: number
-  totalAssigned: number
+  /** Nhóm lớp không thuộc quyền quản lý của giáo viên này. */
+  skippedOutOfScopeGroups: number
 }
 
 /**
@@ -146,7 +147,21 @@ export interface AssignExamResult {
  */
 export function assignExam(
   examId: number,
-  payload: { studentIds: number[]; groupIds: number[]; notify: boolean },
+  payload: {
+    studentIds: number[]
+    groupIds: number[]
+    notify: boolean
+
+    /**
+     * Mỗi học sinh một bộ câu hỏi riêng.
+     *
+     * Thuộc payload **giao bài** chứ không phải payload lưu đề: đây là endpoint duy nhất ghi được
+     * cờ này, vì nó chỉ có nghĩa tại thời điểm sinh đề. Bỏ trống thì giữ nguyên giá trị cũ; đổi nó
+     * khi đề đã giao cho một phần lớp sẽ bị server từ chối, để không có lớp nào rơi vào cảnh nửa
+     * số em dùng đề chung, nửa còn lại dùng đề riêng.
+     */
+    randomizePerStudent?: boolean
+  },
 ): Promise<AssignExamResult> {
   return apiClient.post<AssignExamResult>(`/api/exams/${examId}/assignments`, payload)
 }

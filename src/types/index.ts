@@ -30,7 +30,20 @@ export type NotificationType =
   | 'auto_submitted'
 
 /** Trạng thái hiển thị trên màn hình danh sách bài kiểm tra của học sinh. */
-export type StudentExamItemStatus = 'open' | 'upcoming' | 'submitted' | 'graded' | 'expired'
+/**
+ * Trạng thái một bài kiểm tra **dưới mắt học sinh**.
+ *
+ * `inprogress` là một trạng thái riêng, không gộp vào `open`: em đã bắt đầu làm và đồng hồ đang
+ * chạy. Gộp hai thứ lại thì màn hình nói "Đang mở" cho một bài sắp hết giờ, và em không biết mình
+ * cần quay lại gấp.
+ */
+export type StudentExamItemStatus =
+  | 'open'
+  | 'upcoming'
+  | 'inprogress'
+  | 'submitted'
+  | 'graded'
+  | 'expired'
 
 export type ActivityTone = 'success' | 'info' | 'warning' | 'purple'
 
@@ -407,6 +420,7 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
 export const studentExamItemStatusLabels: Record<StudentExamItemStatus, string> = {
   open: 'Đang mở',
   upcoming: 'Sắp diễn ra',
+  inprogress: 'Đang làm dở',
   submitted: 'Đã nộp',
   graded: 'Đã chấm',
   expired: 'Hết hạn',

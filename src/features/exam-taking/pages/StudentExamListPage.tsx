@@ -13,7 +13,7 @@ import { SkeletonCards } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { listMyExams } from '../../../services/attemptService'
-import { formatDateTime, formatScore, parseDateTime } from '../../../lib/format'
+import { formatDateTime, formatScore, normalizeText, parseDateTime } from '../../../lib/format'
 import { useCountdown } from '../hooks/useCountdown'
 import type { StudentExamItem } from '../../../types'
 
@@ -256,10 +256,21 @@ export default function StudentExamListPage() {
   }, [])
 
   const normalizedSearch = search.trim()
-  const { data: examItems, loading, error, reload } = useAsync(
-    () => listMyExams({ search: normalizedSearch }),
-    [normalizedSearch],
-  )
+
+  // Nạp trọn danh sách một lần rồi lọc tại máy: server không nhận tham số tìm kiếm cho endpoint
+  // này, và danh sách bài của một học sinh vốn ngắn. Gõ tìm kiếm không còn gọi lại API nên kết quả
+  // hiện ra tức thì, và các tab bên dưới vẫn đếm trên đúng tập vừa lọc.
+  const { data: allExamItems, loading, error, reload } = useAsync(() => listMyExams(), [])
+
+  const examItems = useMemo(() => {
+    if (!allExamItems) return allExamItems
+    if (normalizedSearch === '') return allExamItems
+
+    const needle = normalizeText(normalizedSearch)
+    return allExamItems.filter(item =>
+      normalizeText(item.name).includes(needle) || normalizeText(item.topic).includes(needle),
+    )
+  }, [allExamItems, normalizedSearch])
 
   const counts = useMemo<Record<FilterTab, number>>(() => {
     const source = examItems ?? []

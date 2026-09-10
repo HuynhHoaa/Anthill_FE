@@ -18,7 +18,13 @@ import type { AttemptSession, StudentExamItem } from '../types'
 import { toStudentExamItem, type StudentExamItemDto } from './mappers'
 
 export interface ListMyExamsParams {
-  search?: string
+  /**
+   * Cố ý **không có** ô tìm kiếm: `ListMyExamsQuery` của server chỉ nhận `status`.
+   *
+   * Danh sách bài của một học sinh vốn ngắn, nên lọc ngay tại máy sau khi nhận về vẫn nhanh và
+   * không phải chờ mạng. Gửi `search` lên thì tham số bị bỏ qua trong im lặng — ô tìm kiếm trông
+   * như hoạt động mà thật ra không lọc gì.
+   */
   status?: string
 }
 
@@ -125,7 +131,6 @@ function toSession(dto: AttemptSessionDto): AttemptSession {
 /** Danh sách bài kiểm tra được giao cho chính học sinh đang đăng nhập. */
 export async function listMyExams(params: ListMyExamsParams = {}): Promise<StudentExamItem[]> {
   const items = await apiClient.get<StudentExamItemDto[]>('/api/my/exams', {
-    search: params.search,
     status: params.status,
   })
 

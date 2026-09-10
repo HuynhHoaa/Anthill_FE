@@ -468,9 +468,6 @@ export default function ExamBuilderPage() {
       openAt: toServiceDateTime(form.openAtLocal),
       closeAt: toServiceDateTime(form.closeAtLocal),
       showResultAfterSubmit: form.showResultAfterSubmit,
-      // Sửa đề là ghi đè cả payload, nên phải chép lại lựa chọn sinh đề riêng của đề đang sửa —
-      // bỏ trống là âm thầm tắt nó đi. Đề mới bật sẵn vì đó chính là cách blueprint được thiết kế.
-      randomizePerStudent: loadedExam?.randomizePerStudent ?? true,
 
       // Bỏ trống trường này nghĩa là đề CÓ HIỆU LỰC THẬT — server nói rõ như vậy. Nên nút "Lưu
       // nháp" bắt buộc phải gửi cờ 'draft', nếu không giáo viên cất tạm một cấu hình đang dở lại

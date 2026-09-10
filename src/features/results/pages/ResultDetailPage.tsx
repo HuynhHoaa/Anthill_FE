@@ -419,7 +419,9 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                     nhóm, mà chi tiết bài làm chỉ mang tên nhóm nên không dựng được liên kết đúng.
                     Một liên kết luôn trả về bảng rỗng còn tệ hơn là không có liên kết.
                   */}
-                  {` · ${detail.group}`}
+                  {/* Chi tiết bài làm không kèm nhóm lớp, nên bỏ trống là chuyện thường —
+                      in dấu chấm giữa mà không có gì theo sau trông như dữ liệu bị mất. */}
+                  {detail.group !== '' && ` · ${detail.group}`}
                 </p>
               ) : (
                 <p className="text-sm text-slate-500 mt-1.5">Nộp lúc {formatDateTime(detail.submittedAt)}</p>
@@ -536,9 +538,10 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                 </div>
                 <div className="min-w-0">
                   <p className="font-semibold text-slate-800 truncate">{detail.studentName}</p>
+                  {/* Ghép bằng join thay vì nối chuỗi có điều kiện: thiếu nhóm lớp thì dấu chấm
+                      giữa cũng biến mất theo, không để lại "HS1001 ·" cụt đuôi. */}
                   <p className="text-xs text-slate-400 truncate">
-                    {detail.studentCode ? `${detail.studentCode} · ` : ''}
-                    {detail.group}
+                    {[detail.studentCode, detail.group].filter(Boolean).join(' · ')}
                   </p>
                 </div>
               </div>
