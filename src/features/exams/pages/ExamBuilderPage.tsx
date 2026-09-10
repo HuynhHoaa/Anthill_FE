@@ -35,6 +35,53 @@ type SaveMode = 'draft' | 'publish' | 'assign'
 type FormErrorKey = keyof ExamFormState | 'ratio'
 type FormErrors = Partial<Record<FormErrorKey, string>>
 
+type BuilderTab = 'general' | 'blueprint'
+
+/**
+ * Ô nhập nào thuộc tab nào.
+ *
+ * Tồn tại vì chia form thành tab sinh ra một cái bẫy: người dùng đang ở tab 2 bấm Lưu, form báo
+ * lỗi ở một ô nằm tab 1, và họ nhìn quanh không thấy ô nào sai. Bảng này cho phép nhảy thẳng về
+ * tab đầu tiên có lỗi và chấm dấu lên nhãn tab còn lại.
+ */
+const errorKeyToTab: Record<FormErrorKey, BuilderTab> = {
+  title: 'general',
+  description: 'general',
+  topic: 'general',
+  openAtLocal: 'general',
+  closeAtLocal: 'general',
+
+  durationMinutes: 'blueprint',
+  totalQuestions: 'blueprint',
+  pointPerQuestion: 'blueprint',
+  easyPercentage: 'blueprint',
+  mediumPercentage: 'blueprint',
+  hardPercentage: 'blueprint',
+  ratio: 'blueprint',
+
+  // Ba tuỳ chọn này nằm ở thanh bên, luôn nhìn thấy được ở cả hai tab. Xếp vào tab đầu chỉ để
+  // Record không thiếu khoá — chúng không sinh lỗi validate nào.
+  shuffleQuestions: 'general',
+  shuffleAnswers: 'general',
+  showResultAfterSubmit: 'general',
+}
+
+const builderTabs: { id: BuilderTab; label: string }[] = [
+  { id: 'general', label: 'Thông tin chung' },
+  { id: 'blueprint', label: 'Cấu hình đề' },
+]
+
+/** Tab đầu tiên đang có lỗi, theo đúng thứ tự hiển thị. */
+function firstTabWithError(errors: FormErrors): BuilderTab | undefined {
+  const withError = new Set(
+    (Object.keys(errors) as FormErrorKey[])
+      .filter(key => errors[key])
+      .map(key => errorKeyToTab[key]),
+  )
+
+  return builderTabs.find(tab => withError.has(tab.id))?.id
+}
+
 const inputBaseClass =
   'w-full px-4 py-2.5 rounded-xl border text-sm outline-none transition-all focus:ring-4'
 const inputNormalClass = `${inputBaseClass} border-slate-200 focus:border-indigo-400 focus:ring-indigo-50`
@@ -314,6 +361,7 @@ export default function ExamBuilderPage() {
 
   const [form, setForm] = useState<ExamFormState>(() => restoredForm ?? createInitialForm())
   const [errors, setErrors] = useState<FormErrors>({})
+  const [activeTab, setActiveTab] = useState<BuilderTab>('general')
   const [anchorLevel, setAnchorLevel] = useState<DifficultyLevel>('easy')
   const [savingMode, setSavingMode] = useState<SaveMode | null>(null)
 
@@ -449,6 +497,14 @@ export default function ExamBuilderPage() {
     const nextErrors = validateForm(form, mode)
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) {
+      // Nhảy về tab chứa lỗi trước khi báo. Không có bước này thì người dùng đang ở tab 2 sẽ nhận
+      // một dòng "kiểm tra lại các trường đánh dấu đỏ" rồi nhìn quanh không thấy ô đỏ nào — ô đó
+      // nằm ở tab họ không mở.
+      const target = firstTabWithError(nextErrors)
+      if (target) {
+        setActiveTab(target)
+      }
+
       toast.error('Vui lòng kiểm tra lại các trường được đánh dấu đỏ.')
       return
     }
@@ -582,195 +638,234 @@ export default function ExamBuilderPage() {
         className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start animate-fade-in-up"
       >
         <div className="space-y-6 min-w-0">
-          <section className={`${cardClass} p-6`}>
-            <div className="flex items-center gap-2 mb-5">
-              <FileText size={18} className="text-indigo-600" />
-              <h2 className="text-base font-bold text-slate-800">Thông tin chung</h2>
-            </div>
+          {/* Chia form dài thành hai tab thay vì một trang cuộn: mỗi tab vừa một màn hình nên
+              không phải kéo lên kéo xuống để đối chiếu hai ô liên quan nhau. Dấu chấm đỏ trên
+              nhãn tab là thứ khiến việc ẩn bớt nội dung không giấu mất lỗi. */}
+          <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 w-fit">
+            {builderTabs.map(tab => {
+              const isActive = activeTab === tab.id
+              const hasError = (Object.keys(errors) as FormErrorKey[])
+                .some(key => errors[key] && errorKeyToTab[key] === tab.id)
 
-            <div className="space-y-5">
-              <div>
-                <label htmlFor="exam-title" className={labelClass}>
-                  Tên bài kiểm tra <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="exam-title"
-                  value={form.title}
-                  onChange={event => updateField('title', event.target.value)}
-                  className={fieldClass(errors.title)}
-                  placeholder="Ví dụ: Kiểm tra 15 phút - Điện học"
-                />
-                <FieldError message={errors.title} />
-              </div>
-
-              <div>
-                <label htmlFor="exam-topic" className={labelClass}>Chủ đề câu hỏi</label>
-                <select
-                  id="exam-topic"
-                  value={form.topic}
-                  onChange={event => updateField('topic', event.target.value)}
-                  className={`${inputNormalClass} bg-white`}
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                    isActive ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
                 >
-                  <option value="">Tổng hợp (mọi chủ đề)</option>
-                  {topicChoices.map(topic => (
-                    <option key={topic} value={topic}>{topic}</option>
-                  ))}
-                </select>
-                {topicsQuery.error ? (
-                  <p className="mt-1.5 text-xs text-red-500 flex flex-wrap items-center gap-1.5">
-                    Không tải được danh sách chủ đề.
-                    <button
-                      type="button"
-                      onClick={topicsQuery.reload}
-                      className="font-semibold text-indigo-600 hover:text-indigo-700 underline underline-offset-2"
-                    >
-                      Thử lại
-                    </button>
-                  </p>
-                ) : (
-                  <p className="mt-1.5 text-xs text-slate-400">
-                    Chọn một chủ đề để giới hạn ngân hàng sinh đề. Tổng hợp nghĩa là lấy câu hỏi từ mọi chủ đề.
-                  </p>
-                )}
+                  {tab.label}
+                  {hasError && (
+                    <span
+                      className="w-1.5 h-1.5 rounded-full bg-red-500"
+                      title="Tab này còn ô chưa hợp lệ"
+                      aria-label="còn ô chưa hợp lệ"
+                    />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+
+          {activeTab === 'general' && (
+            <>
+            <section className={`${cardClass} p-6`}>
+              <div className="flex items-center gap-2 mb-5">
+                <FileText size={18} className="text-indigo-600" />
+                <h2 className="text-base font-bold text-slate-800">Thông tin chung</h2>
               </div>
 
-              <div>
-                <label htmlFor="exam-description" className={labelClass}>Mô tả</label>
-                <textarea
-                  id="exam-description"
-                  rows={3}
-                  value={form.description}
-                  onChange={event => updateField('description', event.target.value)}
-                  className={inputNormalClass}
-                  placeholder="Mô tả phạm vi kiến thức và lưu ý cho học sinh"
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className={`${cardClass} p-6`}>
-            <div className="flex items-center gap-2 mb-5">
-              <Target size={18} className="text-indigo-600" />
-              <h2 className="text-base font-bold text-slate-800">Cấu hình đề</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="exam-total-questions" className={labelClass}>
-                  Tổng số câu <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="exam-total-questions"
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={form.totalQuestions}
-                  onChange={event => updateField('totalQuestions', toSafeNumber(event.target.value))}
-                  className={fieldClass(errors.totalQuestions)}
-                />
-                <FieldError message={errors.totalQuestions} />
-              </div>
-
-              <div>
-                <label htmlFor="exam-duration" className={labelClass}>
-                  Thời gian làm bài (phút) <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Clock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <div className="space-y-5">
+                <div>
+                  <label htmlFor="exam-title" className={labelClass}>
+                    Tên bài kiểm tra <span className="text-red-500">*</span>
+                  </label>
                   <input
-                    id="exam-duration"
-                    type="number"
-                    min={1}
-                    max={300}
-                    value={form.durationMinutes}
-                    onChange={event => updateField('durationMinutes', toSafeNumber(event.target.value))}
-                    className={`${fieldClass(errors.durationMinutes)} pl-10`}
+                    id="exam-title"
+                    value={form.title}
+                    onChange={event => updateField('title', event.target.value)}
+                    className={fieldClass(errors.title)}
+                    placeholder="Ví dụ: Kiểm tra 15 phút - Điện học"
+                  />
+                  <FieldError message={errors.title} />
+                </div>
+
+                <div>
+                  <label htmlFor="exam-topic" className={labelClass}>Chủ đề câu hỏi</label>
+                  <select
+                    id="exam-topic"
+                    value={form.topic}
+                    onChange={event => updateField('topic', event.target.value)}
+                    className={`${inputNormalClass} bg-white`}
+                  >
+                    <option value="">Tổng hợp (mọi chủ đề)</option>
+                    {topicChoices.map(topic => (
+                      <option key={topic} value={topic}>{topic}</option>
+                    ))}
+                  </select>
+                  {topicsQuery.error ? (
+                    <p className="mt-1.5 text-xs text-red-500 flex flex-wrap items-center gap-1.5">
+                      Không tải được danh sách chủ đề.
+                      <button
+                        type="button"
+                        onClick={topicsQuery.reload}
+                        className="font-semibold text-indigo-600 hover:text-indigo-700 underline underline-offset-2"
+                      >
+                        Thử lại
+                      </button>
+                    </p>
+                  ) : (
+                    <p className="mt-1.5 text-xs text-slate-400">
+                      Chọn một chủ đề để giới hạn ngân hàng sinh đề. Tổng hợp nghĩa là lấy câu hỏi từ mọi chủ đề.
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="exam-description" className={labelClass}>Mô tả</label>
+                  <textarea
+                    id="exam-description"
+                    rows={3}
+                    value={form.description}
+                    onChange={event => updateField('description', event.target.value)}
+                    className={inputNormalClass}
+                    placeholder="Mô tả phạm vi kiến thức và lưu ý cho học sinh"
                   />
                 </div>
-                <FieldError message={errors.durationMinutes} />
+              </div>
+            </section>
+            <section className={`${cardClass} p-6`}>
+              <div className="flex items-center gap-2 mb-5">
+                <CalendarClock size={18} className="text-indigo-600" />
+                <h2 className="text-base font-bold text-slate-800">Lịch mở bài</h2>
               </div>
 
-              <div>
-                <label htmlFor="exam-point" className={labelClass}>
-                  Điểm mỗi câu <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="exam-point"
-                  type="number"
-                  min={0.1}
-                  max={10}
-                  step={0.1}
-                  value={form.pointPerQuestion}
-                  onChange={event => updateField('pointPerQuestion', toSafeNumber(event.target.value))}
-                  className={fieldClass(errors.pointPerQuestion)}
-                />
-                <FieldError message={errors.pointPerQuestion} />
-              </div>
-            </div>
-          </section>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="exam-open-at" className={labelClass}>
+                    Thời gian mở bài <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="exam-open-at"
+                    type="datetime-local"
+                    value={form.openAtLocal}
+                    onChange={event => updateField('openAtLocal', event.target.value)}
+                    className={fieldClass(errors.openAtLocal)}
+                  />
+                  <FieldError message={errors.openAtLocal} />
+                </div>
 
-          <section className={`${cardClass} p-6`}>
-            <div className="flex items-center gap-2 mb-5">
-              <CalendarClock size={18} className="text-indigo-600" />
-              <h2 className="text-base font-bold text-slate-800">Lịch mở bài</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="exam-open-at" className={labelClass}>
-                  Thời gian mở bài <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="exam-open-at"
-                  type="datetime-local"
-                  value={form.openAtLocal}
-                  onChange={event => updateField('openAtLocal', event.target.value)}
-                  className={fieldClass(errors.openAtLocal)}
-                />
-                <FieldError message={errors.openAtLocal} />
+                <div>
+                  <label htmlFor="exam-close-at" className={labelClass}>
+                    Thời gian đóng bài <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="exam-close-at"
+                    type="datetime-local"
+                    value={form.closeAtLocal}
+                    onChange={event => updateField('closeAtLocal', event.target.value)}
+                    className={fieldClass(errors.closeAtLocal)}
+                  />
+                  <FieldError message={errors.closeAtLocal} />
+                </div>
               </div>
 
-              <div>
-                <label htmlFor="exam-close-at" className={labelClass}>
-                  Thời gian đóng bài <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="exam-close-at"
-                  type="datetime-local"
-                  value={form.closeAtLocal}
-                  onChange={event => updateField('closeAtLocal', event.target.value)}
-                  className={fieldClass(errors.closeAtLocal)}
-                />
-                <FieldError message={errors.closeAtLocal} />
-              </div>
-            </div>
+              {scheduleWindowMinutes > 0 && (
+                <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  Học sinh có thể vào làm từ{' '}
+                  <strong className="text-slate-800 font-semibold">{toServiceDateTime(form.openAtLocal)}</strong>{' '}
+                  đến <strong className="text-slate-800 font-semibold">{toServiceDateTime(form.closeAtLocal)}</strong>{' '}
+                  — cửa sổ mở bài kéo dài {formatScheduleWindow(scheduleWindowMinutes)}.
+                </div>
+              )}
 
-            {scheduleWindowMinutes > 0 && (
-              <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Học sinh có thể vào làm từ{' '}
-                <strong className="text-slate-800 font-semibold">{toServiceDateTime(form.openAtLocal)}</strong>{' '}
-                đến <strong className="text-slate-800 font-semibold">{toServiceDateTime(form.closeAtLocal)}</strong>{' '}
-                — cửa sổ mở bài kéo dài {formatScheduleWindow(scheduleWindowMinutes)}.
-              </div>
-            )}
+              {isDurationTooLong && (
+                <div className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-start gap-2">
+                  <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">
+                    Thời gian làm bài ({form.durationMinutes} phút) đang dài hơn cửa sổ mở bài, học sinh vào
+                    muộn sẽ không kịp hoàn thành.
+                  </span>
+                </div>
+              )}
+            </section>
+            </>
+          )}
 
-            {isDurationTooLong && (
-              <div className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-start gap-2">
-                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                <span className="leading-relaxed">
-                  Thời gian làm bài ({form.durationMinutes} phút) đang dài hơn cửa sổ mở bài, học sinh vào
-                  muộn sẽ không kịp hoàn thành.
-                </span>
+          {activeTab === 'blueprint' && (
+            <>
+            <section className={`${cardClass} p-6`}>
+              <div className="flex items-center gap-2 mb-5">
+                <Target size={18} className="text-indigo-600" />
+                <h2 className="text-base font-bold text-slate-800">Cấu hình đề</h2>
               </div>
-            )}
-          </section>
 
-          <DifficultyRatioEditor
-            ratios={ratios}
-            anchorLevel={anchorLevel}
-            errorMessage={errors.ratio}
-            onChange={changeRatios}
-          />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label htmlFor="exam-total-questions" className={labelClass}>
+                    Tổng số câu <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="exam-total-questions"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={form.totalQuestions}
+                    onChange={event => updateField('totalQuestions', toSafeNumber(event.target.value))}
+                    className={fieldClass(errors.totalQuestions)}
+                  />
+                  <FieldError message={errors.totalQuestions} />
+                </div>
+
+                <div>
+                  <label htmlFor="exam-duration" className={labelClass}>
+                    Thời gian làm bài (phút) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Clock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      id="exam-duration"
+                      type="number"
+                      min={1}
+                      max={300}
+                      value={form.durationMinutes}
+                      onChange={event => updateField('durationMinutes', toSafeNumber(event.target.value))}
+                      className={`${fieldClass(errors.durationMinutes)} pl-10`}
+                    />
+                  </div>
+                  <FieldError message={errors.durationMinutes} />
+                </div>
+
+                <div>
+                  <label htmlFor="exam-point" className={labelClass}>
+                    Điểm mỗi câu <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="exam-point"
+                    type="number"
+                    min={0.1}
+                    max={10}
+                    step={0.1}
+                    value={form.pointPerQuestion}
+                    onChange={event => updateField('pointPerQuestion', toSafeNumber(event.target.value))}
+                    className={fieldClass(errors.pointPerQuestion)}
+                  />
+                  <FieldError message={errors.pointPerQuestion} />
+                </div>
+              </div>
+            </section>
+            <DifficultyRatioEditor
+              ratios={ratios}
+              anchorLevel={anchorLevel}
+              errorMessage={errors.ratio}
+              onChange={changeRatios}
+            />
+            </>
+          )}
         </div>
 
         <aside className="space-y-4 xl:sticky xl:top-6 min-w-0">

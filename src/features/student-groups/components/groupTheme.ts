@@ -1,26 +1,16 @@
 /**
- * Bảng màu xoay vòng cho nhóm lớp và avatar học sinh.
+ * Bảng màu xoay vòng cho avatar học sinh.
  * Màu được suy ra từ id nên mỗi lần render đều cho ra cùng một kết quả.
+ *
+ * Chỉ còn avatar dùng cách này, và đó là chỗ duy nhất nó đúng: màu ở đây là **danh tính** — cùng
+ * một em luôn cùng một màu, giúp mắt bắt lại đúng dòng khi lướt bảng. Bảng màu cũ cho nhóm lớp đã
+ * bị bỏ vì nó đặt một chấm màu vô nghĩa ở đầu mỗi dòng, đúng chỗ mà ai cũng đọc là trạng thái.
  */
-
-export interface GroupAccent {
-  iconBg: string
-  iconColor: string
-  bar: string
-}
 
 export interface AvatarTone {
   bg: string
   text: string
 }
-
-const groupAccents: GroupAccent[] = [
-  { iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600', bar: '#6366F1' },
-  { iconBg: 'bg-violet-50', iconColor: 'text-violet-600', bar: '#8B5CF6' },
-  { iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', bar: '#10B981' },
-  { iconBg: 'bg-amber-50', iconColor: 'text-amber-600', bar: '#F59E0B' },
-  { iconBg: 'bg-sky-50', iconColor: 'text-sky-600', bar: '#0EA5E9' },
-]
 
 const avatarTones: AvatarTone[] = [
   { bg: 'bg-indigo-100', text: 'text-indigo-700' },
@@ -34,10 +24,6 @@ const avatarTones: AvatarTone[] = [
 function toSafeIndex(value: number, length: number): number {
   if (!Number.isFinite(value) || length <= 0) return 0
   return Math.abs(Math.trunc(value)) % length
-}
-
-export function getGroupAccent(groupId: number): GroupAccent {
-  return groupAccents[toSafeIndex(groupId, groupAccents.length)]
 }
 
 export function getAvatarTone(studentId: number): AvatarTone {

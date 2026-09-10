@@ -486,17 +486,8 @@ export default function ExamAssignPage() {
               {groups.length === 0 ? (
                 <EmptyState
                   icon={Layers}
-                  title="Chưa có nhóm lớp nào"
-                  description="Hãy tạo nhóm lớp để giao bài cho cả lớp chỉ bằng một thao tác."
-                  action={
-                    <NavLink
-                      to="/giao-vien/nhom-lop"
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm"
-                      style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
-                    >
-                      <Layers size={15} /> Quản lý nhóm lớp
-                    </NavLink>
-                  }
+                  title="Bạn chưa được phân công lớp nào"
+                  description="Lớp học do quản trị viên lập và phân công giáo viên phụ trách. Hãy liên hệ quản trị viên, hoặc chọn từng học sinh ở phần bên dưới."
                 />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -580,7 +571,7 @@ export default function ExamAssignPage() {
                 <EmptyState
                   icon={Users}
                   title="Chưa có học sinh nào"
-                  description="Tài khoản học sinh do quản trị viên tạo. Hãy liên hệ quản trị viên, hoặc kiểm tra lại nhóm lớp."
+                  description="Tài khoản học sinh do quản trị viên tạo và xếp vào lớp. Hãy liên hệ quản trị viên, hoặc kiểm tra lại nhóm lớp."
                   action={
                     <NavLink
                       to="/giao-vien/nhom-lop"

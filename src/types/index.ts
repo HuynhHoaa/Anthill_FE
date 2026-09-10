@@ -72,11 +72,47 @@ export interface Student {
   averageScore: number
 }
 
+/**
+ * Giáo viên được phân công phụ trách một lớp.
+ *
+ * `avatarColor` đi kèm tài khoản chứ không suy từ id như avatar học sinh: cùng một giáo viên xuất
+ * hiện ở nhiều lớp, và màu phải theo người thì người xem mới nhận ra được ai là ai.
+ */
+export interface GroupTeacher {
+  id: number
+  fullName: string
+  email: string
+  /** Chuỗi rỗng khi tài khoản chưa được gán môn. */
+  subject: string
+  avatarColor: string
+}
+
 export interface StudentGroup {
   id: number
   name: string
   description: string
   studentCount: number
+
+  /**
+   * Lớp đã công bố hay còn là bản nháp.
+   *
+   * Server đã lọc theo vai trò trước khi trả kết quả — giáo viên không bao giờ nhận về lớp nháp.
+   * Trường này để màn hình quản trị phân biệt hai loại, **không** phải để giao diện lọc lại lần
+   * nữa: lọc ở hai nơi thì một ngày nào đó hai nơi hiểu khác nhau.
+   */
+  isPublished: boolean
+
+  /** Vắng mặt khi lớp còn là bản nháp. */
+  publishedAt?: string
+
+  /**
+   * Mảng rỗng nghĩa là chưa ai phụ trách.
+   *
+   * Đó là tín hiệu quản trị viên phải thấy chứ không phải một danh sách trang trí: lớp không có
+   * giáo viên thì không ai giao bài, và bài kiểm tra không bao giờ tới được học sinh trong đó.
+   */
+  teachers: GroupTeacher[]
+
   createdAt: string
 }
 

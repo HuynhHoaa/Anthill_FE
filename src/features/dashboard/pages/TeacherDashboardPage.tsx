@@ -45,7 +45,7 @@ const difficultyOrder: { level: DifficultyLevel; color: string }[] = [
 const quickActions: { label: string; description: string; to: string; icon: LucideIcon; gradient: string }[] = [
   {
     label: 'Nhóm lớp',
-    description: 'Xem lớp và học sinh',
+    description: 'Xem lớp bạn phụ trách',
     to: '/giao-vien/nhom-lop',
     icon: Users,
     gradient: 'linear-gradient(135deg,#3B82F6,#2563EB)',

@@ -11,8 +11,10 @@ import StudentDashboardPage from '../features/dashboard/pages/StudentDashboardPa
 import StudentDetailPage from '../features/students/pages/StudentDetailPage'
 import StudentListPage from '../features/students/pages/StudentListPage'
 import StudentEditorPage from '../features/students/pages/StudentEditorPage'
-import StudentGroupPage from '../features/student-groups/pages/StudentGroupPage'
-import StudentGroupDetailPage from '../features/student-groups/pages/StudentGroupDetailPage'
+import AdminGroupListPage from '../features/student-groups/pages/AdminGroupListPage'
+import AdminGroupDetailPage from '../features/student-groups/pages/AdminGroupDetailPage'
+import TeacherGroupListPage from '../features/student-groups/pages/TeacherGroupListPage'
+import TeacherGroupDetailPage from '../features/student-groups/pages/TeacherGroupDetailPage'
 import QuestionBankPage from '../features/question-bank/pages/QuestionBankPage'
 import QuestionEditorPage from '../features/question-bank/pages/QuestionEditorPage'
 import ExamListPage from '../features/exams/pages/ExamListPage'
@@ -63,8 +65,9 @@ export default function App() {
         {/* Quản lý tài khoản học sinh thuộc quản trị viên; giáo viên chỉ xem chi tiết. */}
         <Route path="/giao-vien/hoc-sinh" element={<Navigate to="/giao-vien/nhom-lop" replace />} />
         <Route path="/giao-vien/hoc-sinh/:id" element={<StudentDetailPage />} />
-        <Route path="/giao-vien/nhom-lop" element={<StudentGroupPage />} />
-        <Route path="/giao-vien/nhom-lop/:id" element={<StudentGroupDetailPage />} />
+        {/* Lớp học do quản trị viên lập và phân công; giáo viên chỉ có bản chỉ đọc. */}
+        <Route path="/giao-vien/nhom-lop" element={<TeacherGroupListPage />} />
+        <Route path="/giao-vien/nhom-lop/:id" element={<TeacherGroupDetailPage />} />
         <Route path="/giao-vien/cau-hoi" element={<QuestionBankPage />} />
         <Route path="/giao-vien/cau-hoi/tao" element={<QuestionEditorPage />} />
         <Route path="/giao-vien/cau-hoi/:id/sua" element={<QuestionEditorPage />} />
@@ -88,6 +91,8 @@ export default function App() {
         }
       >
         <Route path="/quan-tri" element={<AdminDashboardPage />} />
+        <Route path="/quan-tri/nhom-lop" element={<AdminGroupListPage />} />
+        <Route path="/quan-tri/nhom-lop/:id" element={<AdminGroupDetailPage />} />
         <Route path="/quan-tri/hoc-sinh" element={<StudentListPage />} />
         <Route path="/quan-tri/hoc-sinh/tao" element={<StudentEditorPage />} />
         <Route path="/quan-tri/hoc-sinh/:id/sua" element={<StudentEditorPage />} />

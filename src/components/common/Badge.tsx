@@ -39,6 +39,18 @@ export function LifecycleBadge({ lifecycle }: { lifecycle: ExamLifecycle }) {
   return <span className={`${badgeBase} ${lifecycleToneClass[lifecycle]}`}>{lifecycleLabels[lifecycle]}</span>
 }
 
+/**
+ * Trạng thái công bố của một lớp học.
+ *
+ * Bản nháp mượn nguyên nhãn của đề kiểm tra chưa xuất bản thay vì có nhãn riêng: "bản nháp" là
+ * **một** khái niệm trong sản phẩm — thứ chỉ mình người tạo ra nó nhìn thấy — nên người dùng học
+ * một lần rồi nhận ra nó ở mọi nơi, thay vì học lại ở từng màn hình.
+ */
+export function PublishStateBadge({ isPublished }: { isPublished: boolean }) {
+  if (!isPublished) return <LifecycleBadge lifecycle="draft" />
+  return <span className={`${badgeBase} ${lifecycleToneClass.open}`}>Đã công bố</span>
+}
+
 export function TopicBadge({ topic }: { topic: string }) {
   const color = getTopicColor(topic)
   return (

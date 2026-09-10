@@ -5,9 +5,10 @@ import { useToast } from '../../../components/common/Toast'
 import { createGroup, updateGroup } from '../../../services/groupService'
 import type { StudentGroup } from '../../../types'
 
+/** Chỉ dùng ở khu quản trị: giáo viên không lập và không sửa lớp. */
 interface GroupFormModalProps {
   open: boolean
-  /** Bỏ trống nghĩa là đang tạo nhóm mới. */
+  /** Bỏ trống nghĩa là đang lập lớp mới. */
   group?: StudentGroup
   onClose: () => void
   onSaved: () => void
@@ -44,11 +45,11 @@ export default function GroupFormModal({ open, group, onClose, onSaved }: GroupF
 
     const trimmedName = name.trim()
     if (!trimmedName) {
-      setNameError('Vui lòng nhập tên nhóm lớp.')
+      setNameError('Vui lòng nhập tên lớp.')
       return
     }
     if (trimmedName.length < 2) {
-      setNameError('Tên nhóm lớp phải có ít nhất 2 ký tự.')
+      setNameError('Tên lớp phải có ít nhất 2 ký tự.')
       return
     }
 
@@ -60,11 +61,13 @@ export default function GroupFormModal({ open, group, onClose, onSaved }: GroupF
         ? await updateGroup(editingGroup.id, payload)
         : await createGroup(payload)
       toast.success(
-        editingGroup ? `Đã cập nhật nhóm ${saved.name}.` : `Đã tạo nhóm ${saved.name}.`,
+        editingGroup
+          ? `Đã cập nhật lớp ${saved.name}.`
+          : `Đã lập lớp ${saved.name} ở dạng bản nháp.`,
       )
       onSaved()
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : 'Không lưu được nhóm lớp.'
+      const message = caught instanceof Error ? caught.message : 'Không lưu được lớp.'
       setNameError(message)
       toast.error(message)
     } finally {
@@ -75,11 +78,11 @@ export default function GroupFormModal({ open, group, onClose, onSaved }: GroupF
   return (
     <Modal
       open={open}
-      title={editingGroup ? 'Sửa thông tin nhóm' : 'Tạo nhóm lớp mới'}
+      title={editingGroup ? 'Sửa thông tin lớp' : 'Lập lớp mới'}
       description={
         editingGroup
-          ? 'Đổi tên hoặc mô tả nhóm. Học sinh đang thuộc nhóm sẽ được cập nhật theo tên mới.'
-          : 'Nhóm lớp giúp bạn giao bài cho nhiều học sinh cùng lúc thay vì chọn từng người.'
+          ? 'Đổi tên hoặc mô tả lớp. Học sinh đang thuộc lớp sẽ được cập nhật theo tên mới.'
+          : 'Lớp mới được lưu ở dạng bản nháp — chỉ quản trị viên thấy cho tới khi bạn công bố. Xếp học sinh và phân công giáo viên ở trang chi tiết lớp.'
       }
       onClose={() => {
         if (!saving) onClose()
@@ -102,7 +105,7 @@ export default function GroupFormModal({ open, group, onClose, onSaved }: GroupF
             style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
           >
             {saving && <Loader2 size={15} className="animate-spin" />}
-            {editingGroup ? 'Lưu thay đổi' : 'Tạo nhóm'}
+            {editingGroup ? 'Lưu thay đổi' : 'Lập lớp'}
           </button>
         </>
       }
@@ -110,7 +113,7 @@ export default function GroupFormModal({ open, group, onClose, onSaved }: GroupF
       <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className={fieldLabelClass} htmlFor="group-name">
-            Tên nhóm lớp <span className="text-red-500">*</span>
+            Tên lớp <span className="text-red-500">*</span>
           </label>
           <input
             id="group-name"
@@ -138,7 +141,7 @@ export default function GroupFormModal({ open, group, onClose, onSaved }: GroupF
             onChange={event => setDescription(event.target.value)}
             maxLength={DESCRIPTION_MAX_LENGTH}
             rows={3}
-            placeholder="Ghi chú ngắn về chương trình học hoặc mục tiêu của nhóm"
+            placeholder="Ghi chú ngắn về chương trình học hoặc mục tiêu của lớp"
             className={`${fieldBaseClass} border-slate-200 focus:border-indigo-400 resize-none leading-relaxed`}
           />
           <p className="text-xs text-slate-400 mt-1.5 text-right">
