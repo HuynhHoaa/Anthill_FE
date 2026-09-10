@@ -23,6 +23,7 @@ const RECENT_STUDENT_COUNT = 5
 
 const studentListLink = '/quan-tri/hoc-sinh'
 const studentCreateLink = '/quan-tri/hoc-sinh/tao'
+const groupListLink = '/quan-tri/nhom-lop'
 const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
 const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500'
 
@@ -105,6 +106,13 @@ const quickActions: { label: string; description: string; to: string; icon: Luci
     icon: Users,
     gradient: 'linear-gradient(135deg,#3B82F6,#2563EB)',
   },
+  {
+    label: 'Quản lý nhóm lớp',
+    description: 'Xếp lớp và phân công giáo viên',
+    to: groupListLink,
+    icon: UsersRound,
+    gradient: 'linear-gradient(135deg,#8B5CF6,#6366F1)',
+  },
 ]
 
 export default function AdminDashboardPage() {
@@ -169,7 +177,7 @@ export default function AdminDashboardPage() {
         <EmptyState
           icon={UsersRound}
           title="Chưa có tài khoản học sinh nào"
-          description="Hãy tạo tài khoản đầu tiên để giáo viên có thể xếp lớp và giao bài kiểm tra."
+          description="Hãy tạo tài khoản đầu tiên để xếp học sinh vào lớp và giao bài kiểm tra."
           action={
             <NavLink
               to={studentCreateLink}
@@ -240,7 +248,7 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {quickActions.map(({ label, description, to, icon: Icon, gradient }, index) => (
           <NavLink
             key={to}

@@ -87,9 +87,9 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
       } else if (addedCount > 0) {
         toast.info(`Đã thêm ${addedCount} học sinh, bỏ qua ${skipped} em.`)
       } else if (result.skippedAlreadyMember > 0) {
-        toast.info('Những học sinh đã chọn đều đã thuộc nhóm này.')
+        toast.info('Những học sinh đã chọn đều đã thuộc lớp này.')
       } else {
-        toast.error('Không thêm được học sinh nào vào nhóm.')
+        toast.error('Không thêm được học sinh nào vào lớp.')
       }
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : 'Không thêm được học sinh.')
@@ -112,7 +112,7 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
       open
       size="lg"
       title={`Thêm học sinh vào ${groupName}`}
-      description="Học sinh đang thuộc nhóm khác sẽ được chuyển sang nhóm này."
+      description="Học sinh đang thuộc lớp khác sẽ được chuyển sang lớp này."
       onClose={() => {
         if (!submitting) onClose()
       }}
@@ -134,7 +134,7 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
             style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
           >
             {submitting ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
-            {selectedIds.length > 0 ? `Thêm ${selectedIds.length} học sinh` : 'Thêm vào nhóm'}
+            {selectedIds.length > 0 ? `Thêm ${selectedIds.length} học sinh` : 'Thêm vào lớp'}
           </button>
         </>
       }
@@ -160,8 +160,8 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
       {!loading && !error && !hasStudents && (
         <EmptyState
           icon={Users}
-          title="Mọi học sinh đã thuộc nhóm này"
-          description="Không còn học sinh nào bên ngoài nhóm để thêm vào."
+          title="Mọi học sinh đã thuộc lớp này"
+          description="Không còn học sinh nào bên ngoài lớp để thêm vào."
         />
       )}
 
@@ -197,7 +197,7 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 flex items-center gap-2.5">
               <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />
               <p className="text-sm font-semibold text-amber-700">
-                {transferredStudentCount} học sinh sẽ được chuyển khỏi nhóm hiện tại.
+                {transferredStudentCount} học sinh sẽ được chuyển khỏi lớp hiện tại.
               </p>
             </div>
           )}
