@@ -14,7 +14,7 @@ import { useToast } from '../../../components/common/Toast'
 import useAsync from '../../../hooks/useAsync'
 import useDebouncedValue from '../../../hooks/useDebouncedValue'
 import { formatDate, formatScore, getInitials, getScoreTone } from '../../../lib/format'
-import { UNASSIGNED_GROUP_NAME, listGroups } from '../../../services/groupService'
+import { UNASSIGNED_GROUP_ID, UNASSIGNED_GROUP_NAME, listGroups } from '../../../services/groupService'
 import { listStudents, setStudentStatus } from '../../../services/studentService'
 import StudentStatusPill from '../components/StudentStatusPill'
 import { studentStatusLabels, type Student, type StudentStatus } from '../../../types'
@@ -27,6 +27,7 @@ export default function StudentListPage() {
   const toast = useToast()
 
   const [searchInput, setSearchInput] = useState('')
+  // Giữ ID chứ không giữ tên: bộ lọc phải sống sót qua việc giáo viên đổi tên nhóm lớp.
   const [group, setGroup] = useState('all')
   const [status, setStatus] = useState<'all' | StudentStatus>('all')
   const [page, setPage] = useState(1)
@@ -46,7 +47,13 @@ export default function StudentListPage() {
   }, [])
 
   const studentsQuery = useAsync(
-    () => listStudents({ search: debouncedSearch, group, status, page, pageSize: PAGE_SIZE }),
+    () => listStudents({
+      search: debouncedSearch,
+      groupId: group === 'all' ? undefined : Number(group),
+      status,
+      page,
+      pageSize: PAGE_SIZE,
+    }),
     [debouncedSearch, group, status, page],
   )
 
@@ -124,10 +131,10 @@ export default function StudentListPage() {
             >
               <option value="all">Tất cả nhóm/lớp</option>
               {groupOptions.map(item => (
-                <option key={item.id} value={item.name}>{item.name}</option>
+                <option key={item.id} value={item.id}>{item.name}</option>
               ))}
               {/* Học sinh vừa bị gỡ khỏi nhóm vẫn phải lọc ra được. */}
-              <option value={UNASSIGNED_GROUP_NAME}>{UNASSIGNED_GROUP_NAME}</option>
+              <option value={UNASSIGNED_GROUP_ID}>{UNASSIGNED_GROUP_NAME}</option>
             </select>
             <select
               value={status}

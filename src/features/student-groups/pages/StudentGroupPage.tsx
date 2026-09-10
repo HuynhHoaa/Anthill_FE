@@ -28,13 +28,13 @@ export default function StudentGroupPage() {
   const hasSearch = trimmedSearch.length > 0
 
   const { data: groups, loading, error, reload } = useAsync(
-    () => listGroups({ search: trimmedSearch }),
+    () => listGroups(trimmedSearch),
     [trimmedSearch],
   )
 
   // Phụ đề phải mô tả toàn bộ dữ liệu nên dùng truy vấn riêng không kèm từ khóa,
   // tránh cảnh gõ tìm kiếm là tổng học sinh tụt theo kết quả lọc.
-  const { data: allGroups, reload: reloadSummary } = useAsync(() => listGroups({}), [])
+  const { data: allGroups, reload: reloadSummary } = useAsync(() => listGroups(), [])
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<StudentGroup | undefined>(undefined)

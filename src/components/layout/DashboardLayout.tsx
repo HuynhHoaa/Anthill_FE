@@ -7,13 +7,11 @@ import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { getInitials } from '../../lib/format'
 import { getCurrentUser, logout } from '../../services/authService'
 import { getUnreadCount } from '../../services/notificationService'
-import type { UserRole } from '../../types'
 
 interface DashboardLayoutProps {
   children: ReactNode
   pageTitle: string
   pageSubtitle?: string
-  role: UserRole
   /** Gốc đường dẫn của vai trò, ví dụ '/giao-vien'. Không có dấu gạch chéo cuối. */
   basePath: string
   roleLabel: string
@@ -23,7 +21,7 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({
-  children, pageTitle, pageSubtitle, role, basePath, roleLabel, roleDetail, menuItems,
+  children, pageTitle, pageSubtitle, basePath, roleLabel, roleDetail, menuItems,
 }: DashboardLayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -36,7 +34,7 @@ export default function DashboardLayout({
   // Dưới 1024px sidebar đã là drawer, thu gọn ở đó sẽ giấu mất nhãn và nút đóng.
   const isCollapsed = isDesktop && canHover
   const isPeeking = isCollapsed && peeking
-  const { data: unreadCount } = useAsync(() => getUnreadCount(role), [role, location.pathname])
+  const { data: unreadCount } = useAsync(() => getUnreadCount(), [location.pathname])
 
   const handlePeekChange = (next: boolean) => {
     if (!isCollapsed) return

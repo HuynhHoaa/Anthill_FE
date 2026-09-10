@@ -15,7 +15,7 @@ import { StatusBadge } from '../../../components/common/Badge'
 import { SkeletonBlock, SkeletonTable } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import {
-  formatDate, formatDateTime, formatScore, getInitials, getScoreTone, roundToOneDecimal,
+  formatDate, formatDateTime, formatScore, getInitials, getScoreTone, NO_VALUE, roundToOneDecimal,
 } from '../../../lib/format'
 import { getStudent } from '../../../services/studentService'
 import { listResults } from '../../../services/resultService'
@@ -82,10 +82,16 @@ export default function StudentDetailPage() {
   // Số liệu lấy từ chính bảng lịch sử bên dưới, không lấy từ hai trường tĩnh của học sinh,
   // để ô số liệu không bao giờ mâu thuẫn với số dòng đang hiển thị.
   const averageScore = useMemo(() => {
-    const gradedResults = historyItems.filter(result => result.status === 'graded')
-    if (gradedResults.length === 0) return null
+    // Bài đã chấm nhưng bị giấu điểm không mang con số nào; tính chúng như 0 sẽ kéo trung bình
+    // xuống mà giáo viên không thấy dấu hiệu gì trên bảng bên dưới.
+    const visibleScores = historyItems
+      .filter(result => result.status === 'graded')
+      .map(result => result.score)
+      .filter((score): score is number => score !== null)
+
+    if (visibleScores.length === 0) return null
     return roundToOneDecimal(
-      gradedResults.reduce((total, result) => total + result.score, 0) / gradedResults.length,
+      visibleScores.reduce((total, score) => total + score, 0) / visibleScores.length,
     )
   }, [historyItems])
 
@@ -156,7 +162,8 @@ export default function StudentDetailPage() {
             </thead>
             <tbody>
               {historyItems.map(result => {
-                const scoreTone = getScoreTone(result.score)
+                // Chưa được phép xem điểm thì cũng chưa có xếp loại nào để tô màu.
+                const scoreTone = result.score === null ? null : getScoreTone(result.score)
                 const isGraded = result.status === 'graded'
 
                 return (
@@ -179,19 +186,23 @@ export default function StudentDetailPage() {
                     <td className="px-5 py-4">
                       {isGraded ? (
                         <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-lg font-bold ${scoreTone.bg} ${scoreTone.color}`}
+                          className={`inline-flex items-center px-2.5 py-1 rounded-lg font-bold ${scoreTone ? `${scoreTone.bg} ${scoreTone.color}` : 'bg-slate-50 text-slate-400'}`}
                         >
                           {formatScore(result.score)}
-                          <span className="text-xs font-medium text-slate-400">
-                            &nbsp;/ {formatScore(result.maxScore)}
-                          </span>
+                          {result.maxScore !== null && (
+                            <span className="text-xs font-medium text-slate-400">
+                              &nbsp;/ {formatScore(result.maxScore)}
+                            </span>
+                          )}
                         </span>
                       ) : (
                         <span className="text-sm font-semibold text-slate-400">Chờ chấm</span>
                       )}
                     </td>
                     <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
-                      {result.correctCount}/{result.totalQuestions} câu
+                      {result.correctCount === null
+                        ? NO_VALUE
+                        : `${result.correctCount}/${result.totalQuestions} câu`}
                     </td>
                     <td className="px-5 py-4">
                       <StatusBadge status={result.status} />

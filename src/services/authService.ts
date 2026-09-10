@@ -1,6 +1,17 @@
-import { mockAdminProfile, mockStudentProfile, mockTeacherProfile } from '../data/mockEduQuiz'
-import { TOKEN_STORAGE_KEY } from '../lib/apiClient'
-import { simulate } from '../lib/delay'
+/**
+ * Xác thực và hồ sơ người dùng — nối vào API thật (§4.1).
+ *
+ * Phiên được giữ ở hai chỗ với hai mục đích khác nhau:
+ * - `eduquiz.token` là JWT, do apiClient đọc để gắn vào mỗi request.
+ * - `eduquiz.session` là bản sao hồ sơ, để `getCurrentUser()` trả lời được **ngay lập tức** khi
+ *   `RequireRole` render. Không có nó thì mỗi lần tải trang mọi route đều nháy qua màn hình đăng
+ *   nhập trong lúc chờ `/api/auth/me`.
+ *
+ * Bản sao đó chỉ dùng để dựng giao diện. Mọi quyết định về quyền đều do server đưa ra: vai trò
+ * thật đọc từ cột `Role` trong database, nên sửa `eduquiz.session` trong DevTools chỉ đổi được
+ * hình dạng menu, còn gọi API vẫn nhận 403 (§3 quy tắc ⑤).
+ */
+import { apiClient, clearStoredToken, setStoredToken } from '../lib/apiClient'
 import type { UserProfile, UserRole } from '../types'
 
 const SESSION_STORAGE_KEY = 'eduquiz.session'
@@ -28,42 +39,42 @@ export interface DemoAccount {
 }
 
 /**
- * Ba tài khoản demo, lấy thẳng từ hồ sơ mẫu để không bao giờ lệch với dữ liệu giả lập.
- * Trang đăng nhập in nguyên bộ này ra màn hình cho người xem thử.
+ * Ba tài khoản demo, khớp với `DbSeeder` của backend.
+ *
+ * Viết cứng ở đây thay vì đọc từ dữ liệu giả lập như trước: sau khi nối API thật, dữ liệu giả lập
+ * không còn là nguồn sự thật nào cả, và một trang đăng nhập in ra tài khoản không đăng nhập được
+ * là thứ tệ nhất người xem thử có thể gặp. Đổi bên `DbSeeder` thì phải đổi cả ở đây.
  */
 export const demoAccounts: Record<UserRole, DemoAccount> = {
   teacher: {
     role: 'teacher',
-    username: mockTeacherProfile.email,
+    username: 'an.nv@eduquiz.vn',
     password: DEMO_PASSWORD,
-    fullName: mockTeacherProfile.fullName,
+    fullName: 'Nguyễn Văn An',
   },
   student: {
     role: 'student',
-    username: mockStudentProfile.username,
+    username: 'lan.tt',
     password: DEMO_PASSWORD,
-    fullName: mockStudentProfile.fullName,
+    fullName: 'Trần Thị Lan',
   },
   admin: {
     role: 'admin',
-    username: mockAdminProfile.email,
+    username: 'huy.pq@eduquiz.vn',
     password: DEMO_PASSWORD,
-    fullName: mockAdminProfile.fullName,
+    fullName: 'Phạm Quốc Huy',
   },
 }
 
-/**
- * Hồ sơ gốc theo vai trò, dùng khi chưa có phiên nào được lưu. Viết dưới dạng Record để
- * thêm vai trò mà quên hồ sơ trở thành lỗi biên dịch, thay vì lặng lẽ đăng nhập nhầm khu vực.
- */
-const defaultProfiles: Record<UserRole, UserProfile> = {
-  teacher: mockTeacherProfile,
-  student: mockStudentProfile,
-  admin: mockAdminProfile,
-}
+const roles: Record<UserRole, true> = { teacher: true, student: true, admin: true }
 
-function getDefaultProfile(role: UserRole): UserProfile {
-  return { ...defaultProfiles[role] }
+interface LoginResponse {
+  accessToken: string
+  tokenType: string
+  expiresAt: string
+  refreshToken?: string
+  user: UserProfile
+  mustChangePassword: boolean
 }
 
 function readStorage(key: string): string | null {
@@ -90,13 +101,17 @@ function removeStorage(key: string): void {
   }
 }
 
+/**
+ * Bản ghi cũ sau khi đổi cấu trúc hồ sơ phải bị loại thay vì hydrate ra `undefined`.
+ * Nếu bản sao hỏng, `getCurrentUser()` trả null và người dùng chỉ phải đăng nhập lại.
+ */
 function parseProfile(raw: string): UserProfile | null {
   try {
     const parsed: unknown = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object') return null
     const candidate = parsed as Partial<UserProfile>
     if (typeof candidate.id !== 'number') return null
-    if (typeof candidate.role !== 'string' || !(candidate.role in defaultProfiles)) return null
+    if (typeof candidate.role !== 'string' || !(candidate.role in roles)) return null
     if (typeof candidate.fullName !== 'string') return null
     return candidate as UserProfile
   } catch {
@@ -111,9 +126,16 @@ export function getCurrentUser(): UserProfile | null {
   return parseProfile(raw)
 }
 
+/**
+ * Xoá phiên khỏi máy.
+ *
+ * Cố ý **không** gọi `POST /api/auth/logout`: token JWT không thu hồi được ở phía server, endpoint
+ * đó chỉ ghi log, và nếu chờ nó thì mất mạng lúc đăng xuất sẽ giữ người dùng ở lại trong một phiên
+ * họ vừa bảo là muốn thoát. Xoá cục bộ là dứt khoát và luôn thành công.
+ */
 export function logout(): void {
   removeStorage(SESSION_STORAGE_KEY)
-  removeStorage(TOKEN_STORAGE_KEY)
+  clearStoredToken()
 }
 
 function saveSession(profile: UserProfile): void {
@@ -121,96 +143,75 @@ function saveSession(profile: UserProfile): void {
 }
 
 /**
- * Đăng nhập bản demo. Chấp nhận DEMO_PASSWORD của ba tài khoản mẫu, đồng thời vẫn nhận
- * mọi mật khẩu không rỗng khác: bản demo không có backend nên khoá cứng mật khẩu chỉ làm
- * người xem bị kẹt ngoài cửa. Khi có backend thật, chỉ phần thân hàm này đổi, chữ ký giữ nguyên.
+ * Đăng nhập thật.
+ *
+ * Trường `role` gửi lên **chỉ để đối chiếu**: chọn nhầm vai trò trên giao diện thì server trả 403
+ * kèm câu giải thích, chứ không phải cứ khai là được (§3 quy tắc ⑤).
  */
-export function login(payload: LoginPayload): Promise<UserProfile> {
-  return simulate(() => {
-    const username = payload.username.trim()
-    if (!username) {
-      throw new Error('Vui lòng nhập tên đăng nhập.')
-    }
-    const password = payload.password.trim()
-    if (!password) {
-      throw new Error('Vui lòng nhập mật khẩu.')
-    }
+export async function login(payload: LoginPayload): Promise<UserProfile> {
+  const username = payload.username.trim()
+  if (!username) {
+    throw new Error('Vui lòng nhập tên đăng nhập.')
+  }
+  if (!payload.password) {
+    throw new Error('Vui lòng nhập mật khẩu.')
+  }
 
-    const defaults = getDefaultProfile(payload.role)
-    // Gõ đúng email hoặc tên đăng nhập của tài khoản demo thì giữ nguyên tên đăng nhập thật
-    // trong hồ sơ, để thẻ hồ sơ không hiển thị email ở dòng "Tên đăng nhập".
-    const normalized = username.toLowerCase()
-    const isDemoIdentity =
-      normalized === defaults.username.toLowerCase() || normalized === defaults.email.toLowerCase()
-
-    const profile: UserProfile = {
-      ...defaults,
-      username: isDemoIdentity ? defaults.username : username,
-    }
-    saveSession(profile)
-    writeStorage(TOKEN_STORAGE_KEY, `demo-token.${payload.role}.${Date.now()}`)
-    return profile
+  const response = await apiClient.post<LoginResponse>('/api/auth/login', {
+    username,
+    password: payload.password,
+    role: payload.role,
   })
+
+  // Lưu token TRƯỚC hồ sơ: apiClient đọc token cho mọi lời gọi sau, và một phiên có hồ sơ mà
+  // không có token sẽ trông như đã đăng nhập trong khi mọi thao tác đều nhận 401.
+  setStoredToken(response.accessToken)
+  saveSession(response.user)
+
+  return response.user
 }
 
-export function fetchProfile(): Promise<UserProfile> {
-  return simulate(() => {
-    const profile = getCurrentUser()
-    if (!profile) {
-      throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
-    }
-    return { ...profile }
-  })
+/** Hồ sơ mới nhất từ server, đồng thời làm tươi bản sao cục bộ. */
+export async function fetchProfile(): Promise<UserProfile> {
+  const profile = await apiClient.get<UserProfile>('/api/auth/me')
+  saveSession(profile)
+  return profile
 }
 
-export function updateProfile(payload: Partial<UserProfile>): Promise<UserProfile> {
-  return simulate(() => {
-    const profile = getCurrentUser()
-    if (!profile) {
-      throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
-    }
+/**
+ * Cập nhật hồ sơ.
+ *
+ * Server chỉ nhận bốn trường; id, vai trò, mã học sinh và nhóm lớp không đổi được từ đây — đó là
+ * việc của quản trị viên qua `/api/students`. Gửi thừa cũng vô hại vì binder bỏ qua, nhưng gửi
+ * đúng những gì hợp đồng nói giúp người đọc code biết ranh giới nằm ở đâu.
+ */
+export async function updateProfile(payload: Partial<UserProfile>): Promise<UserProfile> {
+  const current = getCurrentUser()
 
-    const fullName = (payload.fullName ?? profile.fullName).trim()
-    if (!fullName) {
-      throw new Error('Họ và tên không được để trống.')
-    }
-
-    const email = (payload.email ?? profile.email).trim()
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new Error('Email không đúng định dạng.')
-    }
-
-    const phone = (payload.phone ?? profile.phone ?? '').trim()
-    if (phone && !/^[0-9\s.+-]{9,15}$/.test(phone)) {
-      throw new Error('Số điện thoại không hợp lệ.')
-    }
-
-    // Không cho đổi id và vai trò từ phía giao diện.
-    const updated: UserProfile = {
-      ...profile,
-      ...payload,
-      id: profile.id,
-      role: profile.role,
-      fullName,
-      email,
-      phone,
-    }
-    saveSession(updated)
-    return updated
+  const updated = await apiClient.put<UserProfile>('/api/auth/me', {
+    fullName: (payload.fullName ?? current?.fullName ?? '').trim(),
+    email: (payload.email ?? current?.email ?? '').trim(),
+    phone: (payload.phone ?? current?.phone ?? '').trim() || undefined,
+    school: (payload.school ?? current?.school ?? '').trim() || undefined,
   })
+
+  saveSession(updated)
+  return updated
 }
 
-export function changePassword(payload: ChangePasswordPayload): Promise<void> {
-  return simulate(() => {
-    if (!payload.currentPassword.trim()) {
-      throw new Error('Vui lòng nhập mật khẩu hiện tại.')
-    }
-    if (payload.newPassword.trim().length < 6) {
-      throw new Error('Mật khẩu mới phải có ít nhất 6 ký tự.')
-    }
-    if (payload.newPassword === payload.currentPassword) {
-      throw new Error('Mật khẩu mới phải khác mật khẩu hiện tại.')
-    }
-    writeStorage(TOKEN_STORAGE_KEY, `demo-token.${Date.now()}`)
+/**
+ * Đổi mật khẩu.
+ *
+ * Đổi xong, server xoay `SecurityStamp` nên **token hiện tại chết ngay lập tức** — đó là chủ đích,
+ * để mật khẩu bị lộ không còn dùng được ở nơi khác. Vì vậy hàm này xoá phiên: mọi lời gọi tiếp theo
+ * đều sẽ nhận 401, và đưa người dùng về trang đăng nhập ngay còn tử tế hơn để họ bấm vào một giao
+ * diện đã chết.
+ */
+export async function changePassword(payload: ChangePasswordPayload): Promise<void> {
+  await apiClient.post('/api/auth/change-password', {
+    currentPassword: payload.currentPassword,
+    newPassword: payload.newPassword,
   })
+
+  logout()
 }

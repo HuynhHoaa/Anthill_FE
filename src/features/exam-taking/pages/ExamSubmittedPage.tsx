@@ -161,7 +161,9 @@ export default function ExamSubmittedPage() {
     )
   }
 
-  const tone = getScoreTone(detail.score)
+  // Vắng điểm (`null`) là "chưa được phép xem", không phải 0 — và nó tách rời với quyền xem đáp án,
+  // nên vòng tròn điểm bám vào chính sự có mặt của điểm chứ không bám vào `showAnswers`.
+  const scoreTone = detail.score === null ? null : getScoreTone(detail.score)
 
   return (
     <StudentLayout>
@@ -197,13 +199,13 @@ export default function ExamSubmittedPage() {
             <StatusBadge status={detail.status} />
           </div>
 
-          {detail.showAnswers ? (
+          {scoreTone && detail.score !== null && detail.maxScore !== null ? (
             <div className="mt-8">
               <ScoreRing score={detail.score} maxScore={detail.maxScore} />
               <span
-                className={`inline-flex items-center gap-1.5 mt-4 px-3.5 py-1.5 rounded-full text-sm font-semibold ${tone.bg} ${tone.color}`}
+                className={`inline-flex items-center gap-1.5 mt-4 px-3.5 py-1.5 rounded-full text-sm font-semibold ${scoreTone.bg} ${scoreTone.color}`}
               >
-                <Trophy size={15} /> Xếp loại: {tone.label}
+                <Trophy size={15} /> Xếp loại: {scoreTone.label}
               </span>
             </div>
           ) : (
@@ -220,7 +222,7 @@ export default function ExamSubmittedPage() {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-8">
-            {detail.showAnswers ? (
+            {detail.correctCount !== null ? (
               <SummaryTile
                 icon={CheckCircle2}
                 iconClass="text-emerald-600"

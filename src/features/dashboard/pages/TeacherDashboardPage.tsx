@@ -10,7 +10,7 @@ import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { getTeacherDashboard } from '../../../services/dashboardService'
-import { countByDifficulty } from '../../../services/questionService'
+import { getQuestionBankSummary } from '../../../services/questionService'
 import { formatDateTime, formatDuration, formatRelativeTime, formatScore } from '../../../lib/format'
 import { getTopicLabel } from '../../../lib/topicTheme'
 import { difficultyLabels } from '../../../types'
@@ -23,9 +23,10 @@ interface TeacherDashboardBundle {
 
 /** Gộp hai lời gọi service thành một để trang chỉ có duy nhất một trạng thái tải. */
 function loadTeacherDashboard(): Promise<TeacherDashboardBundle> {
-  return Promise.all([getTeacherDashboard(), countByDifficulty()]).then(
-    ([dashboard, difficultyCounts]) => ({ dashboard, difficultyCounts }),
-  )
+  return Promise.all([getTeacherDashboard(), getQuestionBankSummary()]).then(([dashboard, summary]) => ({
+    dashboard,
+    difficultyCounts: { easy: summary.easy, medium: summary.medium, hard: summary.hard },
+  }))
 }
 
 const activityToneClass: Record<ActivityTone, string> = {

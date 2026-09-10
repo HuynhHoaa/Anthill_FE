@@ -71,8 +71,11 @@ function Countdown({ deadline }: { deadline: Date }) {
   return <span>{timeLeft}</span>
 }
 
-function ScoreRing({ score }: { score: number }) {
+function ScoreRing({ score }: { score: number | null }) {
+  // score null nghĩa là đề đang giấu điểm chứ không phải được 0 — vẽ vòng xám trung tính, vì một
+  // vòng đỏ ghi 0.0 sẽ khiến học sinh tưởng mình làm sai hết.
   const { color, label } =
+    score === null ? { color: '#94A3B8', label: 'Chưa hiện' } :
     score >= 8   ? { color: '#10B981', label: 'Giỏi' } :
     score >= 6.5 ? { color: '#F59E0B', label: 'Khá' } :
     score >= 5   ? { color: '#F97316', label: 'TB' } :
@@ -158,6 +161,11 @@ function OpenExamCard({ exam, index, now }: { exam: StudentExamItem; index: numb
 
 function ResultRow({ result }: { result: ResultSummary }) {
   const isGraded = result.status === 'graded'
+  // Bài đã chấm nhưng bị giấu kết quả thì không có số câu đúng để nói, chỉ còn mốc nộp bài.
+  const gradedNote =
+    result.correctCount === null
+      ? `Nộp ${formatDateTime(result.submittedAt)}`
+      : `${result.correctCount}/${result.totalQuestions} câu đúng · Nộp ${formatDateTime(result.submittedAt)}`
 
   return (
     <div className="flex flex-wrap items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
@@ -166,7 +174,7 @@ function ResultRow({ result }: { result: ResultSummary }) {
         <p className="text-sm font-semibold text-slate-800 truncate">{result.examTitle}</p>
         <p className="text-xs text-slate-400 mt-0.5">
           {isGraded
-            ? `${result.correctCount}/${result.totalQuestions} câu đúng · Nộp ${formatDateTime(result.submittedAt)}`
+            ? gradedNote
             : `Đã nộp lúc ${formatDateTime(result.submittedAt)} · Chờ giáo viên chấm`}
         </p>
       </div>
@@ -262,8 +270,8 @@ export default function StudentDashboardPage() {
   const heroPills = [
     { icon: FileText,    value: String(stats?.assignedCount ?? 0),      label: 'Được giao', background: 'rgba(255,255,255,0.15)' },
     { icon: CheckSquare, value: String(stats?.completedCount ?? 0),     label: 'Đã xong',   background: 'rgba(16,185,129,0.3)' },
-    { icon: Trophy,      value: formatScore(stats?.averageScore ?? 0),  label: 'Điểm TB',   background: 'rgba(245,158,11,0.3)' },
-    { icon: Award,       value: formatScore(stats?.bestScore ?? 0),     label: 'Cao nhất',  background: 'rgba(59,130,246,0.35)' },
+    { icon: Trophy,      value: formatScore(stats?.averageScore),     label: 'Điểm TB',   background: 'rgba(245,158,11,0.3)' },
+    { icon: Award,       value: formatScore(stats?.bestScore),        label: 'Cao nhất',  background: 'rgba(59,130,246,0.35)' },
   ]
 
   return (

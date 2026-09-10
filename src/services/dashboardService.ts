@@ -1,96 +1,124 @@
-import {
-  demoStudentId,
-  mockExams,
-  mockQuestions,
-  mockResults,
-  mockStudentExamItems,
-  mockStudents,
-  mockTeacherActivities,
-} from '../data/mockEduQuiz'
-import { simulate } from '../lib/delay'
-import { parseDateTime, roundToOneDecimal } from '../lib/format'
-import type { ResultSummary, StudentDashboardData, TeacherDashboardData } from '../types'
+/**
+ * Hai trang tổng quan — nối vào API thật (§4.8).
+ *
+ * Mỗi trang là **một** lời gọi: server gộp sẵn số liệu và các danh sách. Đây là chỗ khác biệt rõ
+ * nhất so với bản giả lập, vốn tự tính mọi con số từ dữ liệu trong bộ nhớ trình duyệt.
+ *
+ * Một chỗ phải nói rõ: **backend không có dòng "hoạt động gần đây"**. Nó không lưu nhật ký hành
+ * động, và dựng một bảng như vậy chỉ để lấp một ô trên màn hình là việc lớn hơn giá trị nó mang
+ * lại. Thay vì bịa, phần đó được dựng từ dữ liệu thật đang có — những lượt nộp bài gần nhất.
+ */
+import { apiClient } from '../lib/apiClient'
+import type {
+  ActivityItem,
+  StudentDashboardData,
+  TeacherDashboardData,
+} from '../types'
+import { toResultSummary, toStudentExamItem } from './mappers'
+import type { PagedResponse, ResultSummaryDto, StudentExamItemDto } from './mappers'
+import type { Exam } from '../types'
 
-const WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000
-
-function averageOf(values: number[]): number {
-  if (values.length === 0) return 0
-  return roundToOneDecimal(values.reduce((total, value) => total + value, 0) / values.length)
+interface TeacherDashboardDto {
+  stats: {
+    totalStudents: number
+    totalQuestions: number
+    totalExams: number
+    assignedExams: number
+    openExams: number
+    submissionsThisWeek: number
+    averageScore?: number
+  }
+  recentExams: Exam[]
 }
 
-function sortByNewest(left: ResultSummary, right: ResultSummary): number {
-  const leftTime = parseDateTime(left.submittedAt)?.getTime() ?? 0
-  const rightTime = parseDateTime(right.submittedAt)?.getTime() ?? 0
-  if (leftTime !== rightTime) return rightTime - leftTime
-  return right.attemptId - left.attemptId
+interface StudentDashboardDto {
+  stats: {
+    assignedExams: number
+    completedExams: number
+    averageScore?: number
+    highestScore?: number
+  }
+  openExams: StudentExamItemDto[]
+  upcomingExams: StudentExamItemDto[]
+  recentResults: ResultSummaryDto[]
 }
 
-export function getTeacherDashboard(): Promise<TeacherDashboardData> {
-  return simulate(() => {
-    const gradedResults = mockResults.filter(result => result.status === 'graded')
-    const weekAgo = Date.now() - WEEK_IN_MS
-    const submittedThisWeek = mockResults.filter(result => {
-      const submittedTime = parseDateTime(result.submittedAt)?.getTime()
-      return submittedTime !== undefined && submittedTime >= weekAgo
-    }).length
+/** Khoảng thời gian tương đối, đủ dùng cho một dòng nhật ký ngắn. */
+function relativeTime(iso: string): string {
+  const time = Date.parse(iso)
+  if (!Number.isFinite(time)) return ''
 
-    const recentExams = [...mockExams]
-      .sort((left, right) => {
-        const leftTime = parseDateTime(left.createdAt)?.getTime() ?? 0
-        const rightTime = parseDateTime(right.createdAt)?.getTime() ?? 0
-        if (leftTime !== rightTime) return rightTime - leftTime
-        return right.id - left.id
-      })
-      .slice(0, 5)
-      .map(exam => ({ ...exam }))
+  const minutes = Math.round((Date.now() - time) / 60_000)
+  if (minutes < 1) return 'vừa xong'
+  if (minutes < 60) return `${minutes} phút trước`
 
-    return {
-      stats: {
-        totalStudents: mockStudents.length,
-        totalQuestions: mockQuestions.length,
-        totalExams: mockExams.length,
-        assignedExams: mockExams.filter(exam => exam.assignedCount > 0).length,
-        openExams: mockExams.filter(exam => exam.lifecycle === 'open').length,
-        submittedThisWeek,
-        averageScore: averageOf(gradedResults.map(result => result.score)),
-      },
-      recentExams,
-      activities: mockTeacherActivities.map(activity => ({ ...activity })),
-    }
-  })
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} giờ trước`
+
+  return `${Math.round(hours / 24)} ngày trước`
 }
 
-export function getStudentDashboard(): Promise<StudentDashboardData> {
-  return simulate(() => {
-    const myResults = mockResults.filter(result => result.studentId === demoStudentId)
-    const myGradedResults = myResults.filter(result => result.status === 'graded')
-    const gradedScores = myGradedResults.map(result => result.score)
+/**
+ * Dựng dòng "hoạt động gần đây" từ những lượt nộp bài gần nhất.
+ *
+ * Không phải nhật ký hành động đầy đủ — nó chỉ biết về việc nộp bài. Nhưng đó là dữ liệu **thật**,
+ * và một danh sách ngắn nói đúng vẫn hơn một danh sách dài bịa ra cho đủ chỗ.
+ */
+async function buildActivities(): Promise<ActivityItem[]> {
+  try {
+    const recent = await apiClient.get<PagedResponse<ResultSummaryDto>>('/api/results', {
+      status: 'graded',
+      pageSize: 6,
+    })
 
-    const byDeadline = (left: { deadline: Date }, right: { deadline: Date }) =>
-      left.deadline.getTime() - right.deadline.getTime()
+    return recent.items.map(item => ({
+      id: item.attemptId,
+      time: relativeTime(item.submittedAt ?? item.startedAt),
+      text: item.autoSubmitted
+        ? `${item.studentName} được nộp bài tự động khi hết giờ — ${item.examTitle}`
+        : `${item.studentName} vừa nộp bài ${item.examTitle}`,
+      tone: item.autoSubmitted ? 'warning' : 'success',
+    }))
+  } catch {
+    // Trang tổng quan vẫn phải hiện được khi riêng phần này hỏng: sáu ô số liệu và danh sách đề
+    // mới là nội dung chính, còn dòng nhật ký chỉ là phần thêm.
+    return []
+  }
+}
 
-    return {
-      stats: {
-        assignedCount: mockStudentExamItems.length,
-        completedCount: mockStudentExamItems.filter(
-          item => item.status === 'submitted' || item.status === 'graded',
-        ).length,
-        averageScore: averageOf(gradedScores),
-        // Math.max không nhận mảng rỗng nên phải chặn trước khi trải mảng.
-        bestScore: gradedScores.length > 0 ? roundToOneDecimal(Math.max(...gradedScores)) : 0,
-      },
-      openExams: mockStudentExamItems
-        .filter(item => item.status === 'open')
-        .map(item => ({ ...item }))
-        .sort(byDeadline),
-      upcomingExams: mockStudentExamItems
-        .filter(item => item.status === 'upcoming')
-        .map(item => ({ ...item }))
-        .sort(byDeadline),
-      recentResults: [...myResults]
-        .sort(sortByNewest)
-        .slice(0, 5)
-        .map(result => ({ ...result })),
-    }
-  })
+export async function getTeacherDashboard(): Promise<TeacherDashboardData> {
+  const [dto, activities] = await Promise.all([
+    apiClient.get<TeacherDashboardDto>('/api/dashboard/teacher'),
+    buildActivities(),
+  ])
+
+  return {
+    stats: {
+      totalStudents: dto.stats.totalStudents,
+      totalQuestions: dto.stats.totalQuestions,
+      totalExams: dto.stats.totalExams,
+      assignedExams: dto.stats.assignedExams,
+      openExams: dto.stats.openExams,
+      submittedThisWeek: dto.stats.submissionsThisWeek,
+      averageScore: dto.stats.averageScore ?? null,
+    },
+    recentExams: dto.recentExams,
+    activities,
+  }
+}
+
+export async function getStudentDashboard(): Promise<StudentDashboardData> {
+  const dto = await apiClient.get<StudentDashboardDto>('/api/dashboard/student')
+
+  return {
+    stats: {
+      assignedCount: dto.stats.assignedExams,
+      completedCount: dto.stats.completedExams,
+      averageScore: dto.stats.averageScore ?? null,
+      bestScore: dto.stats.highestScore ?? null,
+    },
+    openExams: dto.openExams.map(toStudentExamItem),
+    upcomingExams: dto.upcomingExams.map(toStudentExamItem),
+    recentResults: dto.recentResults.map(toResultSummary),
+  }
 }

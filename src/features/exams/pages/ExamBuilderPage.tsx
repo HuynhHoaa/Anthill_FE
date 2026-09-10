@@ -11,7 +11,7 @@ import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import {
-  createExam, getExam, previewBlueprint, updateExam,
+  createExam, getExam, previewBlueprint, publishExam, updateExam,
   type BlueprintPreview, type ExamPayload,
 } from '../../../services/examService'
 import { listTopics } from '../../../services/questionService'
@@ -468,6 +468,14 @@ export default function ExamBuilderPage() {
       openAt: toServiceDateTime(form.openAtLocal),
       closeAt: toServiceDateTime(form.closeAtLocal),
       showResultAfterSubmit: form.showResultAfterSubmit,
+      // Sửa đề là ghi đè cả payload, nên phải chép lại lựa chọn sinh đề riêng của đề đang sửa —
+      // bỏ trống là âm thầm tắt nó đi. Đề mới bật sẵn vì đó chính là cách blueprint được thiết kế.
+      randomizePerStudent: loadedExam?.randomizePerStudent ?? true,
+
+      // Bỏ trống trường này nghĩa là đề CÓ HIỆU LỰC THẬT — server nói rõ như vậy. Nên nút "Lưu
+      // nháp" bắt buộc phải gửi cờ 'draft', nếu không giáo viên cất tạm một cấu hình đang dở lại
+      // hoá ra phát đề cho cả lớp. Bản nháp cũng được miễn hai điều kiện nặng nhất (tổng tỷ lệ
+      // bằng 100 và ngân hàng đủ câu), đúng bằng mục đích của việc lưu dở.
       lifecycle: mode === 'draft' ? 'draft' : undefined,
     }
 
@@ -477,16 +485,23 @@ export default function ExamBuilderPage() {
         ? await createExam(payload)
         : await updateExam(examId, payload)
 
+      // Rời khỏi nháp là một HÀNH ĐỘNG riêng, không phải một trường dữ liệu: server kiểm lại đầy
+      // đủ những điều kiện mà bản nháp vừa được miễn. Chỉ gọi khi đề thật sự còn là nháp — gọi
+      // trên một đề đã xuất bản sẽ nhận 409.
+      const published = mode !== 'draft' && saved.lifecycle === 'draft'
+        ? await publishExam(saved.id)
+        : saved
+
       if (mode === 'draft') {
-        toast.success('Đã lưu bản nháp bài kiểm tra.')
+        toast.success('Đã lưu bản nháp. Đề chưa phát cho học sinh.')
       } else {
         toast.success(isEditing ? 'Đã cập nhật bài kiểm tra.' : 'Đã tạo bài kiểm tra thành công.')
       }
 
       navigate(
         mode === 'assign'
-          ? `/giao-vien/bai-kiem-tra/${saved.id}/giao-bai`
-          : `/giao-vien/bai-kiem-tra/${saved.id}`,
+          ? `/giao-vien/bai-kiem-tra/${published.id}/giao-bai`
+          : `/giao-vien/bai-kiem-tra/${published.id}`,
       )
     } catch (caught) {
       toast.error(toErrorMessage(caught, 'Không lưu được bài kiểm tra. Vui lòng thử lại.'))

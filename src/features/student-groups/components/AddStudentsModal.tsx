@@ -7,7 +7,7 @@ import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { getInitials, normalizeText } from '../../../lib/format'
-import { UNASSIGNED_GROUP_ID, addStudentToGroup, listAssignableStudents } from '../../../services/groupService'
+import { UNASSIGNED_GROUP_ID, addStudentsToGroup, listAssignableStudents } from '../../../services/groupService'
 import { getAvatarTone } from './groupTheme'
 
 interface AddStudentsModalProps {
@@ -72,29 +72,29 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
 
     setSubmitting(true)
     let addedCount = 0
-    let firstErrorMessage: string | undefined
 
-    // Thêm lần lượt để một học sinh lỗi không làm hỏng cả lượt thêm
-    for (const studentId of selectedIds) {
-      try {
-        await addStudentToGroup(groupId, studentId)
-        addedCount += 1
-      } catch (caught) {
-        if (!firstErrorMessage) {
-          firstErrorMessage = caught instanceof Error ? caught.message : 'Không thêm được học sinh.'
-        }
+    // MỘT request cho cả danh sách, không phải mỗi em một request. Server nhận cả mảng, khử id
+    // trùng, bỏ qua id lạ và vẫn thêm những em hợp lệ — nên thêm ba mươi em là một lượt đi mạng
+    // thay vì ba mươi lượt, và kết quả trả về nói rõ em nào bị bỏ qua vì lý do gì.
+    try {
+      const result = await addStudentsToGroup(groupId, selectedIds)
+      addedCount = result.added
+
+      const skipped = result.skippedAlreadyMember + result.skippedNotFound
+
+      if (addedCount > 0 && skipped === 0) {
+        toast.success(`Đã thêm ${addedCount} học sinh vào ${groupName}.`)
+      } else if (addedCount > 0) {
+        toast.info(`Đã thêm ${addedCount} học sinh, bỏ qua ${skipped} em.`)
+      } else if (result.skippedAlreadyMember > 0) {
+        toast.info('Những học sinh đã chọn đều đã thuộc nhóm này.')
+      } else {
+        toast.error('Không thêm được học sinh nào vào nhóm.')
       }
-    }
-
-    setSubmitting(false)
-    const failedCount = selectedIds.length - addedCount
-
-    if (addedCount > 0 && failedCount === 0) {
-      toast.success(`Đã thêm ${addedCount} học sinh vào ${groupName}.`)
-    } else if (addedCount > 0) {
-      toast.info(`Đã thêm ${addedCount} học sinh, ${failedCount} học sinh không thêm được.`)
-    } else {
-      toast.error(firstErrorMessage ?? 'Không thêm được học sinh nào vào nhóm.')
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : 'Không thêm được học sinh.')
+    } finally {
+      setSubmitting(false)
     }
 
     if (addedCount > 0) {

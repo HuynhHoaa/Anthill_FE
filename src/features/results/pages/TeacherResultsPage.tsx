@@ -119,27 +119,37 @@ export default function TeacherResultsPage() {
     syncSearchToUrlRef.current(search)
   }, [search])
 
+  /**
+   * Một bộ lọc duy nhất dùng chung cho cả bảng và dòng số liệu.
+   *
+   * Lọc nhóm lớp đi bằng **id** chứ không bằng tên: đổi tên một nhóm là mọi liên kết lọc theo tên
+   * lập tức trả về 0 dòng, mà không có gì trên màn hình nói cho người dùng biết vì sao.
+   */
+  const resultFilters = useMemo(
+    () => ({
+      search,
+      status: statusFilter,
+      // Id không có thật cho ra NaN, nghĩa là không khớp dòng nào — đúng ý người gõ URL.
+      examId: examFilter === null ? undefined : Number(examFilter),
+      studentId: studentFilter === null ? undefined : Number(studentFilter),
+      groupId: groupFilter === 'all' ? undefined : Number(groupFilter),
+    }),
+    [search, statusFilter, examFilter, studentFilter, groupFilter],
+  )
+
   const {
     data: results,
     loading: resultsLoading,
     error: resultsError,
     reload: reloadResults,
   } = useAsync(
-    () =>
-      listResults({
-        search,
-        status: statusFilter,
-        // Id không có thật cho ra NaN, nghĩa là không khớp dòng nào — đúng ý người gõ URL.
-        examId: examFilter === null ? undefined : Number(examFilter),
-        studentId: studentFilter === null ? undefined : Number(studentFilter),
-        group: groupFilter,
-        page,
-        pageSize: PAGE_SIZE,
-      }),
-    [search, statusFilter, examFilter, groupFilter, studentFilter, page],
+    () => listResults({ ...resultFilters, page, pageSize: PAGE_SIZE }),
+    [resultFilters, page],
   )
 
-  const { data: stats } = useAsync(() => getResultStats(), [])
+  // Số liệu nhận đúng bộ lọc của bảng: bốn con số nói về toàn hệ thống trong khi bảng ngay dưới đã
+  // lọc là hai phần nói về hai chuyện khác nhau mà người xem không có cách nào nhận ra.
+  const { data: stats } = useAsync(() => getResultStats(resultFilters), [resultFilters])
   const { data: exams } = useAsync(() => listExams({ page: 1, pageSize: 100 }), [])
   const { data: groups } = useAsync(() => listGroups(), [])
 
@@ -173,6 +183,12 @@ export default function TeacherResultsPage() {
     return fromResults ? fromResults.studentName : `Học sinh #${studentFilter}`
   }, [studentFilter, filteredStudent, items])
 
+  const groupFilterLabel = useMemo(() => {
+    if (groupFilter === 'all') return ''
+    const found = groupOptions.find(group => String(group.id) === groupFilter)
+    return found ? found.name : `Nhóm #${groupFilter}`
+  }, [groupFilter, groupOptions])
+
   // Giá trị đang lọc luôn phải có mặt trong select, nếu không giáo viên thấy bảng ít dòng
   // trong khi ô lọc lại ghi "Tất cả".
   const examSelectOptions = useMemo<SelectOption[]>(() => {
@@ -181,11 +197,18 @@ export default function TeacherResultsPage() {
     return [{ value: examFilter, label: examFilterLabel }, ...options]
   }, [examOptions, examFilter, examFilterLabel])
 
-  const groupSelectOptions = useMemo(() => {
-    const names = groupOptions.map(group => group.name)
-    if (groupFilter !== 'all' && !names.includes(groupFilter)) return [groupFilter, ...names]
-    return names
-  }, [groupOptions, groupFilter])
+  const groupSelectOptions = useMemo<SelectOption[]>(() => {
+    const options = groupOptions.map(group => ({ value: String(group.id), label: group.name }))
+    if (groupFilter === 'all' || options.some(option => option.value === groupFilter)) return options
+    return [{ value: groupFilter, label: groupFilterLabel }, ...options]
+  }, [groupOptions, groupFilter, groupFilterLabel])
+
+  /** Dòng kết quả chỉ mang tên nhóm, nên cần bảng tra ngược để nút lọc gửi đi đúng id. */
+  const groupIdByName = useMemo(() => {
+    const map = new Map<string, number>()
+    groupOptions.forEach(group => map.set(group.name, group.id))
+    return map
+  }, [groupOptions])
 
   const hasActiveFilters =
     search.trim() !== '' ||
@@ -231,7 +254,7 @@ export default function TeacherResultsPage() {
   if (groupFilter !== 'all') {
     activeFilterChips.push({
       key: 'group',
-      label: `Nhóm lớp: ${groupFilter}`,
+      label: `Nhóm lớp: ${groupFilterLabel}`,
       onRemove: () => updateFilters({ [GROUP_PARAM]: undefined }),
     })
   }
@@ -244,22 +267,23 @@ export default function TeacherResultsPage() {
     })
   }
 
-  /**
-   * getResultStats() không nhận bộ lọc nên số liệu này là của toàn hệ thống,
-   * không đổi theo bộ lọc của bảng bên dưới — phụ đề phải nói rõ điều đó.
-   */
+  /** Số liệu tính trên đúng tập dữ liệu đang hiển thị, nên phụ đề nói theo bộ lọc đang bật. */
   const summaryText = useMemo(() => {
     if (!stats) return null
 
-    const hasGraded = stats.gradedCount > 0
     const parts = [`${stats.totalAttempts} bài làm`, `${stats.gradedCount} đã chấm`]
 
-    if (hasGraded) {
-      parts.push(`TB ${formatScore(stats.averageScore)}`, `đạt ${stats.passRate}%`)
-    }
+    // null nghĩa là chưa bài nào được chấm, không phải cả lớp 0 điểm — nên bỏ hẳn phần này đi
+    // thay vì hiện một con số không có thật.
+    if (stats.averageScore !== null) parts.push(`TB ${formatScore(stats.averageScore)}`)
+    if (stats.highestScore !== null) parts.push(`cao nhất ${formatScore(stats.highestScore)}`)
 
-    return `Toàn hệ thống: ${parts.join(' · ')}`
-  }, [stats])
+    // Tỷ lệ **hoàn thành**: phần trăm bài đã giao đã được nộp. Không phải tỷ lệ đạt điểm sàn —
+    // backend không có khái niệm điểm sàn, nên giữ nhãn cũ là nói sai về con số mới.
+    parts.push(`hoàn thành ${stats.completionRate}%`)
+
+    return `${hasActiveFilters ? 'Theo bộ lọc đang chọn' : 'Tất cả kết quả'}: ${parts.join(' · ')}`
+  }, [stats, hasActiveFilters])
 
   const renderTable = () => {
     if (resultsError) {
@@ -326,8 +350,10 @@ export default function TeacherResultsPage() {
               </thead>
               <tbody>
                 {items.map(result => {
-                  const tone = getScoreTone(result.score)
+                  // Điểm vắng mặt nghĩa là đề đang giấu kết quả, chưa có gì để tô màu xếp loại.
+                  const scoreTone = result.score === null ? null : getScoreTone(result.score)
                   const isGraded = result.status === 'graded'
+                  const groupId = groupIdByName.get(result.group)
 
                   return (
                     <tr key={result.attemptId} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -348,25 +374,37 @@ export default function TeacherResultsPage() {
                         </button>
                       </td>
                       <td className="px-5 py-4">
-                        <button
-                          type="button"
-                          onClick={() => updateFilters({ [GROUP_PARAM]: result.group })}
-                          title={`Chỉ xem kết quả của nhóm ${result.group}`}
-                          className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 whitespace-nowrap transition-colors"
-                        >
-                          {result.group}
-                        </button>
+                        {/* Không tra ra id thì nhóm chỉ hiện ra chứ không bấm lọc được, vì lọc theo
+                            tên sẽ trả về bảng rỗng ngay khi nhóm được đổi tên. */}
+                        {groupId === undefined ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 whitespace-nowrap">
+                            {result.group}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => updateFilters({ [GROUP_PARAM]: String(groupId) })}
+                            title={`Chỉ xem kết quả của nhóm ${result.group}`}
+                            className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 whitespace-nowrap transition-colors"
+                          >
+                            {result.group}
+                          </button>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         {isGraded ? (
                           <>
-                            <p className={`font-bold ${tone.color}`}>
+                            <p className={`font-bold ${scoreTone?.color ?? 'text-slate-400'}`}>
                               {formatScore(result.score)}
-                              <span className="text-xs font-medium text-slate-400"> / {formatScore(result.maxScore)}</span>
+                              {result.maxScore !== null && (
+                                <span className="text-xs font-medium text-slate-400"> / {formatScore(result.maxScore)}</span>
+                              )}
                             </p>
-                            <p className="text-xs text-slate-400 mt-0.5 whitespace-nowrap">
-                              {result.correctCount}/{result.totalQuestions} câu đúng
-                            </p>
+                            {result.correctCount !== null && (
+                              <p className="text-xs text-slate-400 mt-0.5 whitespace-nowrap">
+                                {result.correctCount}/{result.totalQuestions} câu đúng
+                              </p>
+                            )}
                           </>
                         ) : (
                           <span className="text-sm font-semibold text-slate-400">Chờ chấm</span>
@@ -446,9 +484,9 @@ export default function TeacherResultsPage() {
             aria-label="Lọc theo nhóm lớp"
           >
             <option value="all">Tất cả nhóm lớp</option>
-            {groupSelectOptions.map(name => (
-              <option key={name} value={name}>
-                {name}
+            {groupSelectOptions.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>

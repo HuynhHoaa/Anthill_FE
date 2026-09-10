@@ -14,7 +14,7 @@ import { SkeletonTable } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
-import { calculateRequiredCounts, deleteExam, listExams } from '../../../services/examService'
+import { deleteExam, listExams } from '../../../services/examService'
 import { formatDateTime, formatDuration, parseDateTime, roundToOneDecimal } from '../../../lib/format'
 import { lifecycleLabels } from '../../../types'
 import type { Exam, ExamLifecycle } from '../../../types'
@@ -203,12 +203,6 @@ interface ExamRowProps {
 }
 
 function ExamRow({ exam, onRequestDelete }: ExamRowProps) {
-  const requiredCounts = calculateRequiredCounts({
-    totalQuestions: exam.totalQuestions,
-    easyPercentage: exam.easyPercentage,
-    mediumPercentage: exam.mediumPercentage,
-    hardPercentage: exam.hardPercentage,
-  })
   const hasAssignment = exam.assignedCount > 0
   const hasSubmission = exam.submittedCount > 0
   const submittedRatio = hasAssignment
@@ -248,9 +242,14 @@ function ExamRow({ exam, onRequestDelete }: ExamRowProps) {
       </td>
 
       <td className="px-5 py-4">
+        {/*
+          Nói tỷ lệ chứ không nói số câu: phép làm tròn từ tỷ lệ ra số câu do server giữ, nên một
+          con số tự tính lại ở đây có thể lệch với đề thật sự được sinh ra. Cần số câu chính xác
+          thì mở trang sửa đề, nơi có sẵn kết quả xem trước từ server.
+        */}
         <div
           className="w-28"
-          title={`Dễ ${requiredCounts.easy} câu · Trung bình ${requiredCounts.medium} câu · Khó ${requiredCounts.hard} câu`}
+          title={`Dễ ${exam.easyPercentage}% · Trung bình ${exam.mediumPercentage}% · Khó ${exam.hardPercentage}%`}
         >
           <div className="flex h-1.5 rounded-full bg-slate-100 overflow-hidden">
             <div className="bg-emerald-500" style={{ width: `${exam.easyPercentage}%` }} />

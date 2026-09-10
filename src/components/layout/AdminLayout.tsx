@@ -19,7 +19,6 @@ export default function AdminLayout({ children, pageTitle, pageSubtitle }: Admin
     <DashboardLayout
       pageTitle={pageTitle}
       pageSubtitle={pageSubtitle}
-      role="admin"
       basePath="/quan-tri"
       roleLabel="Quản trị viên"
       menuItems={adminMenuItems}

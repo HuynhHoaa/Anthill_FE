@@ -167,7 +167,6 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
   // Chỉ giáo viên mới đi ngược về được các trang quản lý; học sinh giữ nguyên text thuần.
   const examDetailLink = `/giao-vien/bai-kiem-tra/${detail.examId}`
   const studentDetailLink = `/giao-vien/hoc-sinh/${detail.studentId}`
-  const groupResultsLink = `/giao-vien/ket-qua?nhom=${encodeURIComponent(detail.group)}`
   // Giáo viên luôn xem được đáp án học sinh đã chọn; học sinh chỉ xem khi bài đã chấm và được cho phép.
   const canSeeAnswers = audience === 'teacher' || (isGraded && detail.showAnswers)
   const correctPercent = counts.total > 0 ? (counts.correct / counts.total) * 100 : 0
@@ -415,14 +414,12 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                     {detail.studentName}
                   </NavLink>
                   {detail.studentCode ? ` · ${detail.studentCode}` : ''}
-                  {' · '}
-                  <NavLink
-                    to={groupResultsLink}
-                    title={`Xem kết quả của nhóm ${detail.group}`}
-                    className={inlineLinkClass}
-                  >
-                    {detail.group}
-                  </NavLink>
+                  {/*
+                    Tên nhóm để nguyên chữ, không còn là liên kết lọc: trang kết quả lọc theo id
+                    nhóm, mà chi tiết bài làm chỉ mang tên nhóm nên không dựng được liên kết đúng.
+                    Một liên kết luôn trả về bảng rỗng còn tệ hơn là không có liên kết.
+                  */}
+                  {` · ${detail.group}`}
                 </p>
               ) : (
                 <p className="text-sm text-slate-500 mt-1.5">Nộp lúc {formatDateTime(detail.submittedAt)}</p>
@@ -490,7 +487,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                     <span className="text-emerald-600 font-bold">
                       {counts.correct}/{counts.total}
                     </span>
-                  ) : isGraded ? (
+                  ) : detail.correctCount !== null ? (
                     <span className="text-emerald-600 font-bold">
                       {detail.correctCount}/{detail.totalQuestions}
                     </span>
