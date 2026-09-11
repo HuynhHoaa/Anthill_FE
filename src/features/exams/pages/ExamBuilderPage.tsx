@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
-  AlertCircle, ArrowLeft, CalendarClock, CheckCircle2, Clock, FileText,
-  Layers, Loader2, Plus, Save, Send, Target,
+  AlertCircle, ArrowLeft, CalendarClock, CheckCircle2, Clock, Copy, FileText,
+  Layers, Loader2, Lock, Plus, Save, Send, Target,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import ErrorState from '../../../components/common/ErrorState'
@@ -12,7 +12,7 @@ import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import {
-  createExam, getExam, previewBlueprint, publishExam, updateExam,
+  createExam, duplicateExam, getExam, previewBlueprint, publishExam, updateExam,
   type BlueprintPreview, type ExamPayload,
 } from '../../../services/examService'
 import { listTopics } from '../../../services/questionService'
@@ -27,7 +27,9 @@ import {
   clearExamBuilderDraft, readExamBuilderDraft, saveExamBuilderDraft,
   type ExamFormState,
 } from '../utils/examDraftStorage'
-import { examPublishConfirmCopy, publishedExamEditConfirmCopy } from '../utils/examConfirmations'
+import {
+  examDuplicateConfirmCopy, examPublishConfirmCopy, publishedExamEditConfirmCopy,
+} from '../utils/examConfirmations'
 import {
   buildDefaultSchedule, isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
 } from '../utils/examScheduleFormat'
@@ -188,6 +190,26 @@ function validateForm(state: ExamFormState, mode: SaveMode): FormErrors {
   }
 
   return nextErrors
+}
+
+/**
+ * Form có đổi thứ gì mà bộ sinh đề đọc không.
+ *
+ * Chỉ dùng để hộp xác nhận nói đúng việc server sắp làm: sinh lại đề của các em, hay giữ nguyên bộ câu.
+ * Danh sách khớp từng trường với `ExamEditPolicy.ChangesGeneratedPaper` ở server — thời lượng, lịch,
+ * tên và cờ hiện điểm không có mặt vì chúng không đổi bộ câu nào.
+ */
+function blueprintDiffers(state: ExamFormState, exam: Exam): boolean {
+  return (
+    state.totalQuestions !== exam.totalQuestions ||
+    state.easyPercentage !== exam.easyPercentage ||
+    state.mediumPercentage !== exam.mediumPercentage ||
+    state.hardPercentage !== exam.hardPercentage ||
+    state.pointPerQuestion !== exam.pointPerQuestion ||
+    state.topic.trim() !== exam.topic.trim() ||
+    state.shuffleQuestions !== exam.shuffleQuestions ||
+    state.shuffleAnswers !== exam.shuffleAnswers
+  )
 }
 
 interface BlueprintPreviewCardProps {
@@ -440,8 +462,15 @@ export default function ExamBuilderPage() {
   const scheduleWindowMinutes = minutesBetween(form.openAtLocal, form.closeAtLocal)
   const isDurationTooLong = scheduleWindowMinutes > 0 && form.durationMinutes > scheduleWindowMinutes
   const isSaving = savingMode !== null
+  // Server khoá cấu hình đề khi đã có em bắt đầu làm. Đọc thẳng cờ của server thay vì tự suy từ số
+  // liệu, để luật khoá chỉ nằm ở một nơi.
+  const isFrozen = isEditing && loadedExam?.blueprintFrozen === true
+  // Cấu hình đã khoá thì không đổi được, nên cũng không có gì để chặn: ngân hàng có vơi đi sau lúc sinh
+  // đề thì bộ câu các em đang cầm vẫn nguyên, và server không kiểm lại ngân hàng khi cấu hình giữ
+  // nguyên. Chặn ở đây là khoá luôn cả việc sửa tên hay dời lịch.
   const isBlueprintBlocked =
-    ratioTotal !== 100 || (blueprintQuery.data !== undefined && !blueprintQuery.data.isValid)
+    !isFrozen &&
+    (ratioTotal !== 100 || (blueprintQuery.data !== undefined && !blueprintQuery.data.isValid))
   // Đề đã xuất bản mà lưu nháp lại thì học sinh đang được giao sẽ mất quyền vào làm,
   // nên chỉ cho lưu nháp khi tạo mới hoặc khi đề vẫn còn là bản nháp.
   const canSaveDraft = !isEditing || loadedExam?.lifecycle === 'draft'
@@ -495,6 +524,28 @@ export default function ExamBuilderPage() {
 
   const goToQuestionBank = () => {
     saveDraftAndNavigate('/giao-vien/cau-hoi')
+  }
+
+  // Lối ra khi cấu hình đã khoá: tạo bản nháp cùng cấu hình rồi sang sửa ngay bản đó.
+  const handleDuplicate = async () => {
+    if (!loadedExam) return
+    const source = loadedExam
+    const outcome: { copy?: Exam } = {}
+    const confirmed = await confirm({
+      ...examDuplicateConfirmCopy(source, true),
+      onConfirm: async () => {
+        outcome.copy = await duplicateExam(source.id)
+      },
+    })
+    const copy = outcome.copy
+    if (!confirmed || !copy) return
+
+    toast.success(`Đã tạo bản sao "${copy.title}". Bản sao đang là bản nháp, chưa giao cho ai.`)
+    // Trang này được dùng lại cho bản sao (cùng route, khác id) nên state không tự làm mới. Bỏ cờ
+    // "vừa khôi phục nháp" để cấu hình của bản sao được nạp vào form, và xoá lỗi của đề cũ.
+    restoredRef.current = false
+    setErrors({})
+    navigate(`/giao-vien/bai-kiem-tra/${copy.id}/sua`)
   }
 
   const handleSave = async (mode: SaveMode) => {
@@ -562,7 +613,7 @@ export default function ExamBuilderPage() {
       mode === 'draft'
         ? undefined
         : loadedExam && loadedExam.lifecycle !== 'draft'
-          ? publishedExamEditConfirmCopy(loadedExam, goingToAssign)
+          ? publishedExamEditConfirmCopy(loadedExam, goingToAssign, blueprintDiffers(form, loadedExam))
           : examPublishConfirmCopy(
               {
                 title: form.title,
@@ -682,6 +733,31 @@ export default function ExamBuilderPage() {
         className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start animate-fade-in-up"
       >
         <div className="space-y-6 min-w-0">
+          {/* Đặt trên dải tab để nhìn thấy ở cả hai tab: giáo viên mở tab "Cấu hình đề" thấy mọi ô bị
+              mờ thì phải biết ngay vì sao, và lối ra nằm ngay cạnh lời giải thích. */}
+          {isFrozen && loadedExam && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-3">
+              <Lock size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-amber-800">Cấu hình đề đã khoá</p>
+                <p className="text-sm text-amber-700 mt-1 leading-relaxed">
+                  Đã có {loadedExam.startedCount} học sinh bắt đầu làm bài, nên số câu, tỷ lệ độ khó, chủ đề, điểm
+                  mỗi câu, thời gian làm bài và tuỳ chọn trộn không đổi được nữa — đổi lúc này thì các em trong
+                  cùng lớp làm hai đề khác nhau. Tên, mô tả, lịch mở bài và tuỳ chọn hiện kết quả vẫn sửa được.
+                  Muốn dùng cấu hình khác, hãy nhân bản đề rồi sửa trên bản sao.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleDuplicate()}
+                disabled={isSaving}
+                className="self-start inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-amber-800 bg-white border border-amber-200 hover:bg-amber-100 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Copy size={15} /> Nhân bản đề
+              </button>
+            </div>
+          )}
+
           {/* Chia form dài thành hai tab thay vì một trang cuộn: mỗi tab vừa một màn hình nên
               không phải kéo lên kéo xuống để đối chiếu hai ô liên quan nhau. Dấu chấm đỏ trên
               nhãn tab là thứ khiến việc ẩn bớt nội dung không giấu mất lỗi. */}
@@ -744,7 +820,9 @@ export default function ExamBuilderPage() {
                     id="exam-topic"
                     value={form.topic}
                     onChange={event => updateField('topic', event.target.value)}
-                    className={`${inputNormalClass} bg-white`}
+                    disabled={isFrozen}
+                    title={isFrozen ? 'Đã khoá vì có học sinh bắt đầu làm bài' : undefined}
+                    className={`${inputNormalClass} bg-white disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed`}
                   >
                     <option value="">Tổng hợp (mọi chủ đề)</option>
                     {topicChoices.map(topic => (
@@ -840,8 +918,14 @@ export default function ExamBuilderPage() {
             </>
           )}
 
+          {/* Một fieldset tắt được mọi ô bên trong, kể cả thanh trượt và nút mẫu nhanh của khối tỷ lệ,
+              mà không phải luồn cờ khoá xuống từng component. */}
           {activeTab === 'blueprint' && (
-            <>
+            <fieldset
+              disabled={isFrozen}
+              title={isFrozen ? 'Đã khoá vì có học sinh bắt đầu làm bài' : undefined}
+              className="space-y-6 min-w-0 border-0 p-0 m-0 disabled:opacity-60"
+            >
             <section className={`${cardClass} p-6`}>
               <div className="flex items-center gap-2 mb-5">
                 <Target size={18} className="text-indigo-600" />
@@ -908,7 +992,7 @@ export default function ExamBuilderPage() {
               errorMessage={errors.ratio}
               onChange={changeRatios}
             />
-            </>
+            </fieldset>
           )}
         </div>
 
@@ -932,6 +1016,7 @@ export default function ExamBuilderPage() {
                 type="checkbox"
                 checked={form.shuffleQuestions}
                 onChange={event => updateField('shuffleQuestions', event.target.checked)}
+                disabled={isFrozen}
                 className="w-4 h-4 accent-indigo-600"
               />
             </label>
@@ -941,6 +1026,7 @@ export default function ExamBuilderPage() {
                 type="checkbox"
                 checked={form.shuffleAnswers}
                 onChange={event => updateField('shuffleAnswers', event.target.checked)}
+                disabled={isFrozen}
                 className="w-4 h-4 accent-indigo-600"
               />
             </label>

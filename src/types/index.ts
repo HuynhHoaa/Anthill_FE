@@ -180,6 +180,17 @@ export interface Exam {
 
   assignedCount: number
   submittedCount: number
+
+  /** Số lượt giao đã có học sinh bắt đầu làm — đang làm, đã nộp hay hết giờ đều tính. */
+  startedCount: number
+
+  /**
+   * Server tính sẵn: `true` khi đã có em bắt đầu làm bài. Từ lúc đó số câu, ba tỷ lệ, chủ đề, điểm
+   * mỗi câu, thời lượng và hai tuỳ chọn trộn không đổi được nữa — muốn khác thì nhân bản đề. Đọc cờ
+   * này thay vì tự suy từ `startedCount`, để luật khoá chỉ nằm ở một nơi.
+   */
+  blueprintFrozen: boolean
+
   lifecycle: ExamLifecycle
   openAt: string
   closeAt: string

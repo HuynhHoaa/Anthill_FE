@@ -73,17 +73,28 @@ export function examPublishConfirmCopy(summary: PublishSummary, goingToAssign: b
  * Lưu thay đổi trên một đề đã xuất bản.
  *
  * Chỉ khẳng định điều chắc chắn đúng: bài đã nộp được chấm trên bản đề đã chụp lúc sinh đề, nên
- * sửa gì cũng không đổi được điểm đã có. Còn phần áp dụng cho các em chưa làm thì nói ở mức "hiện
- * ngay với các em" — đủ để giáo viên hiểu đây không phải một bản nháp riêng của mình.
+ * sửa gì cũng không đổi được điểm đã có.
+ *
+ * Phần áp dụng cho các em chưa làm tách ba trường hợp, vì server làm ba việc khác nhau. Chưa em nào
+ * bắt đầu mà cấu hình đề đổi thì bản đề đã sinh lúc giao bài bị **sinh lại** — giáo viên phải biết
+ * các em sẽ nhận một bộ câu khác, không phải bộ họ có thể đã xem trước. Cấu hình không đổi thì bộ câu
+ * giữ nguyên. Đã có em làm thì cấu hình bị khoá, chỉ tên, lịch và tuỳ chọn hiện điểm được lưu.
+ *
+ * `blueprintChanged` do trang gọi tự so: nói "sẽ sinh lại" khi chỉ đổi tên là hứa một điều không xảy ra.
  */
 export function publishedExamEditConfirmCopy(
-  exam: Pick<Exam, 'title' | 'assignedCount' | 'submittedCount'>,
+  exam: Pick<Exam, 'title' | 'assignedCount' | 'submittedCount' | 'startedCount' | 'blueprintFrozen'>,
   goingToAssign: boolean,
+  blueprintChanged: boolean,
 ) {
   const audience =
-    exam.assignedCount > 0
-      ? `Đề "${exam.title}" đang được giao cho ${exam.assignedCount} học sinh: tên, mô tả, lịch mở/đóng và các tuỳ chọn mới sẽ hiện ngay với các em.`
-      : `Đề "${exam.title}" đã xuất bản nhưng chưa giao cho ai: thay đổi áp dụng cho những lượt giao bài từ giờ.`
+    exam.assignedCount === 0
+      ? `Đề "${exam.title}" đã xuất bản nhưng chưa giao cho ai: thay đổi áp dụng cho những lượt giao bài từ giờ.`
+      : exam.blueprintFrozen
+        ? `Đề "${exam.title}" đã có ${exam.startedCount} học sinh bắt đầu làm nên cấu hình đề giữ nguyên: chỉ tên, mô tả, lịch mở/đóng và tuỳ chọn hiện kết quả được lưu, và hiện ngay với các em.`
+        : blueprintChanged
+          ? `Đề "${exam.title}" đang được giao cho ${exam.assignedCount} học sinh và chưa em nào bắt đầu làm. Cấu hình đề đã đổi nên đề của các em sẽ được sinh lại theo cấu hình mới: khi vào thi, các em nhận bộ câu hỏi mới thay cho bộ đã sinh lúc giao bài.`
+          : `Đề "${exam.title}" đang được giao cho ${exam.assignedCount} học sinh: tên, mô tả, lịch mở/đóng và tuỳ chọn mới sẽ hiện ngay với các em. Cấu hình đề không đổi nên bộ câu hỏi của các em giữ nguyên.`
   const graded =
     exam.submittedCount > 0
       ? ` ${exam.submittedCount} bài đã nộp và điểm đã chấm giữ nguyên, vì hệ thống chấm trên đúng bộ câu hỏi từng em đã làm.`
@@ -93,6 +104,26 @@ export function publishedExamEditConfirmCopy(
     title: 'Lưu thay đổi cho đề đã xuất bản',
     message: `${audience}${graded}`,
     confirmLabel: goingToAssign ? 'Lưu và giao bài' : 'Lưu thay đổi',
+    tone: 'primary' as const,
+  }
+}
+
+/**
+ * Nhân bản một đề.
+ *
+ * Hỏi trước dù không phá gì, vì hai điều người dùng hay đoán sai: bản sao là **bản nháp chưa giao cho
+ * ai** (không phải đề thứ hai cả lớp nhận ngay), và trên trang sửa thì những gì đang gõ dở không được
+ * chép sang — bản sao lấy từ cấu hình đã lưu.
+ */
+export function examDuplicateConfirmCopy(exam: Pick<Exam, 'title'>, hasUnsavedEdits = false) {
+  const unsaved = hasUnsavedEdits
+    ? ' Những thay đổi chưa lưu trên trang này không được chép sang bản sao.'
+    : ''
+
+  return {
+    title: 'Nhân bản bài kiểm tra',
+    message: `Hệ thống tạo một bản nháp mới từ "${exam.title}" với cùng cấu hình và tuỳ chọn, tên thêm "(bản sao)". Bản sao chưa giao cho ai, đề gốc và bài làm của học sinh giữ nguyên.${unsaved} Sau đó bạn được chuyển sang trang sửa bản sao.`,
+    confirmLabel: 'Nhân bản',
     tone: 'primary' as const,
   }
 }

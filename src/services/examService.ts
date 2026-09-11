@@ -121,6 +121,17 @@ export function publishExam(id: number): Promise<Exam> {
   return apiClient.post<Exam>(`/api/exams/${id}/publish`)
 }
 
+/**
+ * Nhân bản đề thành một **bản nháp mới**: cùng cấu hình và tuỳ chọn, tên thêm " (bản sao)", chưa giao
+ * cho ai.
+ *
+ * Đây là lối ra khi cấu hình đề đã bị khoá vì có học sinh bắt đầu làm: muốn đổi số câu hay tỷ lệ thì
+ * sửa trên bản sao rồi giao lại, thay vì để nửa lớp làm một đề và nửa còn lại làm một đề khác.
+ */
+export function duplicateExam(id: number): Promise<Exam> {
+  return apiClient.post<Exam>(`/api/exams/${id}/duplicate`)
+}
+
 /** Dòng theo dõi như server gửi. `studentStatus` vắng mặt khi server cũ hơn trường này. */
 type ExamAssignmentDto = Omit<ExamAssignment, 'studentStatus'> & { studentStatus?: StudentStatus }
 

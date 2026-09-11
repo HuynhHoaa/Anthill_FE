@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, Award, BarChart3, CalendarClock, CheckCircle2, Clock, Eye, FileText,
-  Hourglass, Layers, Pencil, RefreshCw, Search, Send, Shuffle, Target, Trash2, Users,
+  ArrowLeft, Award, BarChart3, CalendarClock, CheckCircle2, Clock, Copy, Eye, FileText,
+  Hourglass, Layers, Lock, Pencil, RefreshCw, Search, Send, Shuffle, Target, Trash2, Users,
   XCircle, type LucideIcon,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
@@ -16,7 +16,7 @@ import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import {
-  deleteExam, getExam, listExamAssignments, previewBlueprint,
+  deleteExam, duplicateExam, getExam, listExamAssignments, previewBlueprint,
 } from '../../../services/examService'
 import {
   formatDate, formatDateTime, formatDuration, formatScore, getScoreTone, normalizeText,
@@ -24,8 +24,8 @@ import {
 } from '../../../lib/format'
 import { getTopicLabel } from '../../../lib/topicTheme'
 import { difficultyLabels, examStatusLabels } from '../../../types'
-import type { DifficultyLevel, ExamAssignment, ExamStatus } from '../../../types'
-import { examDeleteConfirmCopy } from '../utils/examConfirmations'
+import type { DifficultyLevel, Exam, ExamAssignment, ExamStatus } from '../../../types'
+import { examDeleteConfirmCopy, examDuplicateConfirmCopy } from '../utils/examConfirmations'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
 
 const ROWS_PER_PAGE = 10
@@ -241,6 +241,24 @@ export default function ExamDetailPage() {
     navigate('/giao-vien/bai-kiem-tra')
   }
 
+  // Mở luôn trang sửa của bản sao: người ta nhân bản gần như chỉ để đổi cấu hình, nhất là khi đề
+  // gốc đã khoá vì có em bắt đầu làm.
+  const handleDuplicate = async () => {
+    if (!data) return
+    const source = data.exam
+    const outcome: { copy?: Exam } = {}
+    const confirmed = await confirm({
+      ...examDuplicateConfirmCopy(source),
+      onConfirm: async () => {
+        outcome.copy = await duplicateExam(source.id)
+      },
+    })
+    const copy = outcome.copy
+    if (!confirmed || !copy) return
+    toast.success(`Đã tạo bản sao "${copy.title}". Bản sao đang là bản nháp, chưa giao cho ai.`)
+    navigate(`/giao-vien/bai-kiem-tra/${copy.id}/sua`)
+  }
+
   const exam = data?.exam
   const hasSubmission = exam !== undefined && exam.submittedCount > 0
   const submittedRatio =
@@ -336,6 +354,14 @@ export default function ExamDetailPage() {
                   >
                     <Pencil size={16} /> Sửa
                   </NavLink>
+                  <button
+                    type="button"
+                    onClick={() => void handleDuplicate()}
+                    title="Tạo một bản nháp mới cùng cấu hình, chưa giao cho ai"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                  >
+                    <Copy size={16} /> Nhân bản
+                  </button>
                   <button
                     type="button"
                     onClick={() => void handleDelete()}
@@ -591,6 +617,14 @@ export default function ExamDetailPage() {
               <InfoRow label="Trộn câu hỏi" value={exam.shuffleQuestions ? 'Có' : 'Không'} />
               <InfoRow label="Trộn đáp án" value={exam.shuffleAnswers ? 'Có' : 'Không'} />
               <InfoRow label="Hiện kết quả sau khi nộp" value={exam.showResultAfterSubmit ? 'Có' : 'Không'} />
+              {exam.blueprintFrozen && (
+                <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-700 leading-relaxed">
+                  <Lock size={14} className="flex-shrink-0 mt-0.5" />
+                  <span>
+                    Đã khoá vì {exam.startedCount} học sinh đã bắt đầu làm bài. Muốn đổi cấu hình, hãy nhân bản đề.
+                  </span>
+                </p>
+              )}
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
@@ -607,7 +641,7 @@ export default function ExamDetailPage() {
               to={`/giao-vien/bai-kiem-tra/${exam.id}/sua`}
               className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
             >
-              <Pencil size={16} /> Chỉnh sửa ma trận đề
+              <Pencil size={16} /> {exam.blueprintFrozen ? 'Sửa tên, mô tả và lịch' : 'Chỉnh sửa ma trận đề'}
             </NavLink>
           </aside>
         </div>
