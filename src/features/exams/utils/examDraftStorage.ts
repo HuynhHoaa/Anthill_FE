@@ -27,7 +27,7 @@ export interface ExamBuilderDraft {
   savedAt: number
 }
 
-const DRAFT_STORAGE_PREFIX = 'eduquiz.exam-builder-draft:'
+const DRAFT_STORAGE_PREFIX = 'anthill.exam-builder-draft:'
 const DRAFT_MAX_AGE_MS = 2 * 3600_000
 
 /**

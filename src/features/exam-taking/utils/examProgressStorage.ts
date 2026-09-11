@@ -10,7 +10,7 @@
  * quay về câu 1 và mất sạch cờ, phải tự nhớ mình định quay lại câu nào. Đúng vào lúc căng nhất.
  */
 
-const PROGRESS_STORAGE_PREFIX = 'eduquiz.attempt-progress:'
+const PROGRESS_STORAGE_PREFIX = 'anthill.attempt-progress:'
 
 export interface AttemptProgress {
   /** Chỉ số câu đang xem, tính từ 0. */

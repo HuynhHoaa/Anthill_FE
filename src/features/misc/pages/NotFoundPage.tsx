@@ -81,7 +81,7 @@ export default function NotFoundPage() {
           >
             <GraduationCap size={22} className="text-white" />
           </div>
-          <span className="font-bold text-2xl gradient-text">EduQuiz</span>
+          <span className="font-bold text-2xl gradient-text">Anthill</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-6 sm:px-10 py-10 text-center">

@@ -67,7 +67,7 @@ export default function Sidebar({
         </div>
         {!collapsed && (
           <>
-            <span className="text-white font-bold text-xl tracking-tight flex-1">EduQuiz</span>
+            <span className="text-white font-bold text-xl tracking-tight flex-1">Anthill</span>
             <button
               type="button"
               onClick={onClose}

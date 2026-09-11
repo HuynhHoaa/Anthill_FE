@@ -1,4 +1,4 @@
-# EduQuiz — Workflow Phát Triển & Chiến Lược Deploy
+# Anthill — Workflow Phát Triển & Chiến Lược Deploy
 
 Tài liệu này ghi lại quy trình làm việc đã chốt và phương án deploy tối ưu cho trải nghiệm người dùng, với ràng buộc **chi phí = 0đ**.
 
@@ -35,7 +35,7 @@ Làm đầy đủ toàn bộ page trong `FRONTEND_INVENTORY.md`, chạy bằng m
 
 ### Giai đoạn 2 — Chốt API Contract
 
-Từ các page đã xong, liệt kê ra file `EduQuiz_API_Contract.md`:
+Từ các page đã xong, liệt kê ra file `Anthill_API_Contract.md`:
 
 | Cần ghi | Chi tiết |
 |---|---|
@@ -50,7 +50,7 @@ Chốt luôn một số quy ước dùng chung: format response bọc ngoài (`{
 
 ### Giai đoạn 3 — Build Backend
 
-Theo `EduQuiz_BE_Tech_Structure.md`. Làm theo thứ tự ưu tiên của contract: Auth → Question Bank → Exam → Assign → Take Exam → Result → SignalR.
+Theo `Anthill_BE_Tech_Structure.md`. Làm theo thứ tự ưu tiên của contract: Auth → Question Bank → Exam → Assign → Take Exam → Result → SignalR.
 
 > **Quyết định đã chốt: dùng PostgreSQL, không dùng SQL Server.**
 > Lý do: hosting SQL Server miễn phí gần như không có (trừ Azure), còn PostgreSQL thì nhiều lựa chọn free tốt. Provider EF Core dùng `Npgsql.EntityFrameworkCore.PostgreSQL`. Phải chốt trước khi viết migration đầu tiên, đổi về sau rất tốn công.
@@ -155,8 +155,8 @@ Khuyến nghị: **làm Render trước cho có demo chạy sớm**, khi rảnh 
 
 ## 5. Trạng Thái Hiện Tại
 
-- FE: đang ở **Giai đoạn 1**, các page chạy mock, xem `EduQuiz.Frontend/FRONTEND_INVENTORY.md`.
-- BE: **chưa viết code**, mới có thiết kế ở `EduQuiz_BE_Tech_Structure.md`.
+- FE: đã nối API thật, không còn tầng mock.
+- BE: **chưa viết code**, mới có thiết kế ở `Anthill_BE_Tech_Structure.md`.
 - Deploy: chưa bắt đầu, phương án đã chốt ở mục 2.
 
 **Việc tiếp theo:** hoàn thiện nốt UI các page còn thiếu, đồng thời refactor mock hiện tại sang tầng service có delay giả lập (mục Giai đoạn 1).

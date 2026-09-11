@@ -1,8 +1,8 @@
-# EduQuiz Requirement
+# Anthill Requirement
 
 ## 1. Context
 
-EduQuiz là hệ thống hỗ trợ giáo viên tạo và quản lý bài kiểm tra trực tuyến. Hệ thống tập trung vào 2 nhóm người dùng chính: **Teacher** và **Student**.
+Anthill là hệ thống hỗ trợ giáo viên tạo và quản lý bài kiểm tra trực tuyến. Hệ thống tập trung vào 2 nhóm người dùng chính: **Teacher** và **Student**.
 
 Teacher có thể tạo ngân hàng câu hỏi, phân loại câu hỏi theo mức độ khó, tạo bài kiểm tra theo tỷ lệ câu dễ / trung bình / khó, giao bài kiểm tra cho Student và theo dõi kết quả làm bài. Student đăng nhập vào hệ thống để xem bài kiểm tra được giao, làm bài và xem kết quả sau khi nộp.
 

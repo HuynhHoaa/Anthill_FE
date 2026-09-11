@@ -8,7 +8,11 @@ interface ImageUploaderProps {
   compact?: boolean
 }
 
-const MAX_FILE_SIZE = 2 * 1024 * 1024
+// Khớp đúng danh sách server nhận (LocalFileStorageService, FileStorage:MaxBytes): để người dùng chọn
+// một tệp mà server chắc chắn từ chối thì họ phải làm lại hai lần. SVG cố ý không có — nó chứa được
+// thẻ <script>.
+const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+const MAX_FILE_SIZE = 4 * 1024 * 1024
 
 export default function ImageUploader({ value, onChange, label, compact = false }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -16,12 +20,12 @@ export default function ImageUploader({ value, onChange, label, compact = false 
   const [isDragging, setIsDragging] = useState(false)
 
   const readImageFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setErrorMessage('Chỉ chấp nhận tệp ảnh (PNG, JPG, SVG…).')
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      setErrorMessage('Chỉ nhận ảnh PNG, JPG, GIF hoặc WEBP.')
       return
     }
     if (file.size > MAX_FILE_SIZE) {
-      setErrorMessage('Ảnh vượt quá 2MB. Vui lòng chọn ảnh có dung lượng nhỏ hơn.')
+      setErrorMessage('Ảnh vượt quá 4MB. Vui lòng chọn ảnh có dung lượng nhỏ hơn.')
       return
     }
 
@@ -59,7 +63,7 @@ export default function ImageUploader({ value, onChange, label, compact = false 
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={ACCEPTED_TYPES.join(',')}
         className="hidden"
         onChange={handleInputChange}
       />
@@ -107,7 +111,7 @@ export default function ImageUploader({ value, onChange, label, compact = false 
           <p className={`font-semibold text-slate-600 ${compact ? 'text-xs' : 'text-sm'}`}>
             {compact ? 'Thêm ảnh' : 'Kéo thả ảnh vào đây hoặc bấm để chọn'}
           </p>
-          {!compact && <p className="text-xs text-slate-400">Định dạng PNG, JPG, SVG — tối đa 2MB</p>}
+          {!compact && <p className="text-xs text-slate-400">Định dạng PNG, JPG, GIF, WEBP — tối đa 4MB</p>}
         </div>
       )}
 
