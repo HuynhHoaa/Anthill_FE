@@ -9,7 +9,8 @@
  * 3. **`randomizePerStudent` là thật.** Trước đây là ô tích không có tác dụng gì.
  */
 import { apiClient } from '../lib/apiClient'
-import type { Exam, ExamAssignment, Paged } from '../types'
+import type { Exam, ExamAssignment, Paged, StudentStatus } from '../types'
+import { toDisplayStudentCode } from './mappers'
 
 export interface ExamPayload {
   title: string
@@ -120,14 +121,39 @@ export function publishExam(id: number): Promise<Exam> {
   return apiClient.post<Exam>(`/api/exams/${id}/publish`)
 }
 
-export function listExamAssignments(examId: number): Promise<ExamAssignment[]> {
-  return apiClient.get<ExamAssignment[]>(`/api/exams/${examId}/assignments`)
+/**
+ * Nhân bản đề thành một **bản nháp mới**: cùng cấu hình và tuỳ chọn, tên thêm " (bản sao)", chưa giao
+ * cho ai.
+ *
+ * Đây là lối ra khi cấu hình đề đã bị khoá vì có học sinh bắt đầu làm: muốn đổi số câu hay tỷ lệ thì
+ * sửa trên bản sao rồi giao lại, thay vì để nửa lớp làm một đề và nửa còn lại làm một đề khác.
+ */
+export function duplicateExam(id: number): Promise<Exam> {
+  return apiClient.post<Exam>(`/api/exams/${id}/duplicate`)
+}
+
+/** Dòng theo dõi như server gửi. `studentStatus` vắng mặt khi server cũ hơn trường này. */
+type ExamAssignmentDto = Omit<ExamAssignment, 'studentStatus'> & { studentStatus?: StudentStatus }
+
+export async function listExamAssignments(examId: number): Promise<ExamAssignment[]> {
+  const rows = await apiClient.get<ExamAssignmentDto[]>(`/api/exams/${examId}/assignments`)
+
+  return rows.map(row => {
+    const studentStatus = row.studentStatus ?? 'active'
+    return { ...row, studentStatus, studentCode: toDisplayStudentCode(row.studentCode, studentStatus) }
+  })
 }
 
 export interface AssignExamResult {
   assignedCount: number
   skippedAlreadyAssigned: number
   skippedLocked: number
+  /**
+   * Tài khoản đang chờ xoá — tài khoản đã xoá hẳn không còn lớp nên server tính vào `skippedOutOfScope`. Tách khỏi `skippedLocked` vì em bị khoá thì nhờ mở khoá rồi giao
+   * lại được, còn tài khoản chờ xoá thì chỉ quản trị viên khôi phục được. Hệ thống không biết vì sao
+   * tài khoản bị xoá, nên câu chữ chỉ nói trạng thái tài khoản.
+   */
+  skippedRetired: number
   skippedNotFound: number
   /** Học sinh không thuộc lớp nào của giáo viên này. */
   skippedOutOfScope: number

@@ -70,6 +70,22 @@ function validateLoginForm(role: UserRole, username: string, password: string): 
   return errors
 }
 
+/**
+ * Trang đích sau khi đăng nhập: quay lại đúng trang người dùng định vào (RequireRole gửi kèm), hoặc
+ * trang đang đứng lúc phiên chết giữa chừng (App gửi kèm), nếu nó thuộc khu vực của vai trò vừa đăng
+ * nhập; không thì về trang tổng quan.
+ *
+ * Kiểm theo đoạn đường dẫn chứ không theo tiền tố chuỗi trần: một liên kết của giáo viên mở bằng tài
+ * khoản học sinh thì RequireRole đá ngược ra ngay, người dùng thấy màn hình nhấp nháy rồi về chỗ cũ mà
+ * không hiểu vì sao. Cũng vì luôn phải nằm dưới khu vực của một vai trò nên `/dang-nhap` không bao giờ
+ * là đích — không có vòng lặp quay về chính trang này.
+ */
+function resolveReturnPath(returnTo: string | undefined, home: string): string {
+  if (!returnTo) return home
+  const insideHome = returnTo === home || returnTo.startsWith(`${home}/`) || returnTo.startsWith(`${home}?`)
+  return insideHome ? returnTo : home
+}
+
 const baseInputClass =
   'w-full px-4 py-3 rounded-xl border text-sm font-medium outline-none transition-all bg-white placeholder:text-slate-400 placeholder:font-normal'
 
@@ -84,9 +100,12 @@ export default function LoginPage() {
   const location = useLocation()
 
   // RequireRole gửi kèm địa chỉ đang muốn vào; luồng 401 giữa phiên thì gửi cờ sessionExpired.
-  const routeState = location.state as { from?: string; sessionExpired?: boolean } | null
+  const routeState = location.state as { from?: string; sessionExpired?: boolean; reason?: string } | null
   const returnTo = typeof routeState?.from === 'string' ? routeState.from : undefined
   const sessionExpired = routeState?.sessionExpired === true
+  // Lý do server gửi kèm 401 ("tài khoản đã bị khoá, liên hệ quản trị viên"...). Có thì nói đúng lý
+  // do: một em bị khoá mà chỉ đọc "hãy đăng nhập lại" sẽ đăng nhập lại và gặp thêm một lỗi khó hiểu.
+  const sessionReason = typeof routeState?.reason === 'string' && routeState.reason ? routeState.reason : undefined
   const toast = useToast()
   const [showPassword, setShowPassword] = useState(false)
   const [role, setRole] = useState<UserRole>('teacher')
@@ -132,13 +151,7 @@ export default function LoginPage() {
     try {
       const profile = await login({ username: form.username.trim(), password: form.password, role })
 
-      // Quay lại đúng trang người dùng định vào, nếu nó thuộc khu vực của vai trò vừa đăng nhập.
-      // Kiểm tiền tố là bắt buộc: một liên kết của giáo viên mà mở bằng tài khoản học sinh thì
-      // RequireRole sẽ đá ngược ra ngay, và người dùng thấy màn hình nhấp nháy một cái rồi về
-      // chỗ cũ mà không hiểu vì sao.
-      const home = dashboardPath[profile.role]
-      const target = returnTo && returnTo.startsWith(home) ? returnTo : home
-      navigate(target, { replace: true })
+      navigate(resolveReturnPath(returnTo, dashboardPath[profile.role]), { replace: true })
     } catch (caught) {
       setServerError(caught instanceof Error ? caught.message : 'Đăng nhập không thành công. Vui lòng thử lại.')
       setLoading(false)
@@ -242,8 +255,8 @@ export default function LoginPage() {
             >
               <AlertCircle size={17} className="text-amber-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700 leading-relaxed">
-                Phiên đăng nhập đã kết thúc. Việc này xảy ra khi tài khoản bị khoá hoặc mật khẩu
-                vừa được đổi. Hãy đăng nhập lại để tiếp tục.
+                {sessionReason ??
+                  'Phiên đăng nhập đã kết thúc. Việc này xảy ra khi tài khoản bị khoá hoặc mật khẩu vừa được đổi. Hãy đăng nhập lại để tiếp tục.'}
               </p>
             </div>
           )}

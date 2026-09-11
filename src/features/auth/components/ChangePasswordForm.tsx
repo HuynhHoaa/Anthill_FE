@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react'
 import { useToast } from '../../../components/common/Toast'
+import type { ApiError } from '../../../lib/apiClient'
 import { changePassword } from '../../../services/authService'
 
 interface PasswordFormValues {
@@ -41,6 +42,22 @@ function validatePasswordForm(values: PasswordFormValues): PasswordFieldErrors {
   }
 
   return errors
+}
+
+const passwordFields: (keyof PasswordFormValues)[] = ['currentPassword', 'newPassword', 'confirmPassword']
+
+/** Lỗi theo ô mà server gửi kèm (`errors` của body 400), lấy câu đầu tiên của mỗi ô form này có. */
+function readPasswordFieldErrors(caught: unknown): PasswordFieldErrors | undefined {
+  const fieldErrors = caught instanceof Error ? (caught as ApiError).fieldErrors : undefined
+  if (!fieldErrors) return undefined
+
+  const errors: PasswordFieldErrors = {}
+  for (const field of passwordFields) {
+    const message = fieldErrors[field]?.[0]
+    if (message) errors[field] = message
+  }
+
+  return Object.keys(errors).length > 0 ? errors : undefined
 }
 
 interface PasswordFieldProps {
@@ -116,7 +133,14 @@ export default function ChangePasswordForm() {
       setValues(emptyValues)
       toast.success('Đổi mật khẩu thành công.')
     } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : 'Không đổi được mật khẩu. Vui lòng thử lại.')
+      // Sai mật khẩu hiện tại, hay mật khẩu mới không đạt: server trả 400 kèm lỗi theo từng ô, nên hiện
+      // ngay dưới ô đó như lỗi kiểm ở trình duyệt. Chỉ lỗi không gắn với ô nào mới lên toast.
+      const serverErrors = readPasswordFieldErrors(caught)
+      if (serverErrors) {
+        setFieldErrors(serverErrors)
+      } else {
+        toast.error(caught instanceof Error ? caught.message : 'Không đổi được mật khẩu. Vui lòng thử lại.')
+      }
     } finally {
       setSaving(false)
     }

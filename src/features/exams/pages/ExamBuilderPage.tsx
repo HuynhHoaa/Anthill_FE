@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
-  AlertCircle, ArrowLeft, CalendarClock, CheckCircle2, Clock, FileText,
-  Layers, Loader2, Plus, Save, Send, Target,
+  AlertCircle, ArrowLeft, CalendarClock, CheckCircle2, Clock, Copy, FileText,
+  Info, Layers, Loader2, Lock, Plus, Save, Send, Target,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import ErrorState from '../../../components/common/ErrorState'
@@ -12,7 +12,7 @@ import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import {
-  createExam, getExam, previewBlueprint, publishExam, updateExam,
+  createExam, duplicateExam, getExam, previewBlueprint, publishExam, updateExam,
   type BlueprintPreview, type ExamPayload,
 } from '../../../services/examService'
 import { listTopics } from '../../../services/questionService'
@@ -27,11 +27,14 @@ import {
   clearExamBuilderDraft, readExamBuilderDraft, saveExamBuilderDraft,
   type ExamFormState,
 } from '../utils/examDraftStorage'
-import { examPublishConfirmCopy, publishedExamEditConfirmCopy } from '../utils/examConfirmations'
+import {
+  examDuplicateConfirmCopy, examPublishConfirmCopy, publishedExamEditConfirmCopy,
+} from '../utils/examConfirmations'
 import {
   buildDefaultSchedule, isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
 } from '../utils/examScheduleFormat'
-import { formatDateTime } from '../../../lib/format'
+import { formatDateTime, parseDateTime } from '../../../lib/format'
+import type { ApiError } from '../../../lib/apiClient'
 
 type SaveMode = 'draft' | 'publish' | 'assign'
 
@@ -190,12 +193,70 @@ function validateForm(state: ExamFormState, mode: SaveMode): FormErrors {
   return nextErrors
 }
 
+/**
+ * Form có đổi thứ gì mà bộ sinh đề đọc không.
+ *
+ * Chỉ dùng để hộp xác nhận nói đúng việc server sắp làm: sinh lại đề của các em, hay giữ nguyên bộ câu.
+ * Danh sách khớp từng trường với `ExamEditPolicy.ChangesGeneratedPaper` ở server — thời lượng, lịch,
+ * tên và cờ hiện điểm không có mặt vì chúng không đổi bộ câu nào.
+ */
+function blueprintDiffers(state: ExamFormState, exam: Exam): boolean {
+  return (
+    state.totalQuestions !== exam.totalQuestions ||
+    state.easyPercentage !== exam.easyPercentage ||
+    state.mediumPercentage !== exam.mediumPercentage ||
+    state.hardPercentage !== exam.hardPercentage ||
+    state.pointPerQuestion !== exam.pointPerQuestion ||
+    state.topic.trim() !== exam.topic.trim() ||
+    state.shuffleQuestions !== exam.shuffleQuestions ||
+    state.shuffleAnswers !== exam.shuffleAnswers
+  )
+}
+
+/**
+ * Form có đổi trường nào mà server khoá khi đã có em bắt đầu làm không.
+ *
+ * Rộng hơn `blueprintDiffers` đúng một trường là thời lượng, khớp `ExamEditPolicy.ChangedFrozenFields`:
+ * bộ sinh đề không đọc thời lượng, nhưng em đã vào thi có hạn nộp chốt theo thời lượng cũ.
+ */
+function frozenFieldsDiffer(state: ExamFormState, exam: Exam): boolean {
+  return blueprintDiffers(state, exam) || state.durationMinutes !== exam.durationMinutes
+}
+
+/**
+ * Lấy lại các trường bị khoá từ đề đã lưu, giữ nguyên phần còn sửa được (tên, mô tả, lịch, hiện kết quả).
+ *
+ * Dùng khi form đang giữ những gì giáo viên soạn mà chưa lưu, trên một đề vừa bị khoá. Gửi nguyên form
+ * thì server trả 409 mãi, còn các ô bị khoá đã tắt nên giáo viên không tự chỉnh về được — nạp lại cả
+ * form từ server thì mất luôn tên và lịch họ vừa gõ, là những thứ vẫn lưu được.
+ */
+function withFrozenFieldsFrom(state: ExamFormState, exam: Exam): ExamFormState {
+  return {
+    ...state,
+    totalQuestions: exam.totalQuestions,
+    durationMinutes: exam.durationMinutes,
+    pointPerQuestion: exam.pointPerQuestion,
+    topic: exam.topic,
+    easyPercentage: exam.easyPercentage,
+    mediumPercentage: exam.mediumPercentage,
+    hardPercentage: exam.hardPercentage,
+    shuffleQuestions: exam.shuffleQuestions,
+    shuffleAnswers: exam.shuffleAnswers,
+  }
+}
+
+function isConflictError(caught: unknown): boolean {
+  return typeof caught === 'object' && caught !== null && (caught as Partial<ApiError>).status === 409
+}
+
 interface BlueprintPreviewCardProps {
   preview: BlueprintPreview | undefined
   loading: boolean
   error: string | undefined
   totalQuestions: number
   pointPerQuestion: number
+  /** Cấu hình đề đã khoá vì có em bắt đầu làm — thiếu câu lúc này không phải lỗi cần sửa. */
+  frozen: boolean
   onRetry: () => void
   onAddQuestion: () => void
   onOpenQuestionBank: () => void
@@ -203,7 +264,7 @@ interface BlueprintPreviewCardProps {
 
 /** Kết quả sinh đề luôn lấy từ examService.previewBlueprint để logic nằm đúng tầng nghiệp vụ. */
 function BlueprintPreviewCard({
-  preview, loading, error, totalQuestions, pointPerQuestion, onRetry, onAddQuestion, onOpenQuestionBank,
+  preview, loading, error, totalQuestions, pointPerQuestion, frozen, onRetry, onAddQuestion, onOpenQuestionBank,
 }: BlueprintPreviewCardProps) {
   if (error) {
     return <ErrorState message={error} onRetry={onRetry} />
@@ -254,7 +315,9 @@ function BlueprintPreviewCard({
         {orderedDifficultyLevels.map(level => {
           const requiredCount = preview.required[level]
           const availableCount = preview.available[level]
-          const isEnough = requiredCount <= availableCount
+          // Đề đã khoá thì không tô đỏ: giáo viên không đổi được cấu hình, và bộ câu các em đang cầm
+          // đã sinh xong từ trước nên ngân hàng vơi đi không làm hỏng gì.
+          const isEnough = frozen || requiredCount <= availableCount
           const usage =
             availableCount > 0
               ? Math.min(100, (requiredCount / availableCount) * 100)
@@ -288,9 +351,11 @@ function BlueprintPreviewCard({
                 />
               </div>
               <p className={`text-xs mt-1.5 ${isEnough ? 'text-slate-400' : 'text-red-500 font-medium'}`}>
-                {isEnough
+                {requiredCount <= availableCount
                   ? `Ngân hàng còn dư ${availableCount - requiredCount} câu`
-                  : `Còn thiếu ${requiredCount - availableCount} câu trong ngân hàng`}
+                  : frozen
+                    ? `Ngân hàng hiện ít hơn cấu hình ${requiredCount - availableCount} câu`
+                    : `Còn thiếu ${requiredCount - availableCount} câu trong ngân hàng`}
               </p>
             </div>
           )
@@ -302,6 +367,18 @@ function BlueprintPreviewCard({
           <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm font-semibold text-emerald-700 leading-relaxed">
             Ngân hàng đủ câu hỏi, hệ thống có thể sinh đề tự động cho từng học sinh.
+          </p>
+        </div>
+      ) : frozen ? (
+        // Thay khối đỏ "Ma trận đề chưa hợp lệ": với đề đã khoá thì không có gì để sửa, và nút thêm câu
+        // hỏi đặt ở đây khiến giáo viên tưởng bài của các em đang hỏng. Vẫn nói rõ lúc nào ngân hàng
+        // còn quan trọng — giao thêm cho em mới thì server rút câu từ ngân hàng hiện tại.
+        <div className="mt-4 flex items-start gap-2 rounded-xl bg-slate-50 px-4 py-3">
+          <Info size={16} className="text-slate-500 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Đề của các em đã được giao được sinh từ trước, nên ngân hàng câu hỏi thay đổi không ảnh hưởng tới
+            bài các em đang có. Chỉ khi giao thêm cho học sinh mới, hệ thống mới rút câu từ ngân hàng hiện tại
+            — lúc đó ngân hàng cần đủ câu.
           </p>
         </div>
       ) : (
@@ -361,9 +438,17 @@ export default function ExamBuilderPage() {
   // Nháp chỉ được đọc đúng một lần lúc gắn trang: hàm xoá chạy ngay sau đó nên các
   // render sau không còn đọc lại được nữa.
   const [restoredForm] = useState(() => readExamBuilderDraft(examId ?? null)?.form)
-  const restoredRef = useRef(restoredForm !== undefined)
+  // Bật khi form đang giữ những gì giáo viên soạn mà chưa lưu — nháp vừa khôi phục, hoặc lần lưu vừa bị
+  // từ chối vì đề bị khoá giữa chừng. Khi đó dữ liệu nạp từ server không được đè cả form.
+  const keepFormEditsRef = useRef(restoredForm !== undefined)
+  // Lý do form phải bỏ phần cấu hình đang soạn, để ghi chú nói đúng chuyện vừa xảy ra.
+  const frozenMergeReasonRef = useRef<'draft' | 'conflict'>('draft')
+  const [frozenNotice, setFrozenNotice] = useState<string | null>(null)
 
   const [form, setForm] = useState<ExamFormState>(() => restoredForm ?? createInitialForm())
+  // Effect nạp đề chỉ chạy lại khi đề đổi, nhưng cần so với form mới nhất chứ không phải bản lúc gắn trang.
+  const formRef = useRef(form)
+  formRef.current = form
   const [errors, setErrors] = useState<FormErrors>({})
   const [activeTab, setActiveTab] = useState<BuilderTab>('general')
   const [anchorLevel, setAnchorLevel] = useState<DifficultyLevel>('easy')
@@ -385,8 +470,23 @@ export default function ExamBuilderPage() {
 
   useEffect(() => {
     if (!loadedExam) return
-    // Bản nháp vừa khôi phục phải thắng dữ liệu nạp từ service, nếu không form bị đè ngay.
-    if (restoredRef.current) return
+    // Những gì giáo viên soạn mà chưa lưu phải thắng dữ liệu nạp từ service, nếu không form bị đè ngay.
+    // Trừ các trường server đã khoá: giữ bản đang soạn của chúng thì lần lưu nào cũng nhận 409, mà ô đã
+    // tắt nên giáo viên không tự chỉnh về được.
+    if (keepFormEditsRef.current) {
+      if (!loadedExam.blueprintFrozen || !frozenFieldsDiffer(formRef.current, loadedExam)) return
+
+      setForm(current => withFrozenFieldsFrom(current, loadedExam))
+      const lockedPart =
+        'số câu, tỷ lệ độ khó, chủ đề, điểm mỗi câu, thời gian làm bài và tuỳ chọn trộn đã trở về cấu hình đang áp dụng'
+      const keptPart = 'Tên, mô tả, lịch mở bài và tuỳ chọn hiện kết quả vẫn giữ bản bạn đang soạn.'
+      setFrozenNotice(
+        frozenMergeReasonRef.current === 'conflict'
+          ? `Chưa lưu được: trong lúc bạn sửa, đã có học sinh bắt đầu làm bài nên cấu hình đề vừa bị khoá. Vì vậy ${lockedPart}. ${keptPart} Kiểm tra lại rồi bấm lưu lần nữa, hoặc nhân bản đề nếu cần cấu hình khác.`
+          : `Bản nháp chưa lưu đã được khôi phục, trừ phần cấu hình đề: đã có ${loadedExam.startedCount} học sinh bắt đầu làm bài nên ${lockedPart}. ${keptPart}`,
+      )
+      return
+    }
     setForm({
       title: loadedExam.title,
       description: loadedExam.description,
@@ -439,9 +539,20 @@ export default function ExamBuilderPage() {
 
   const scheduleWindowMinutes = minutesBetween(form.openAtLocal, form.closeAtLocal)
   const isDurationTooLong = scheduleWindowMinutes > 0 && form.durationMinutes > scheduleWindowMinutes
+  // Chỉ cảnh báo, không chặn: sửa tên một đề đã đóng là việc hợp lệ. Nhưng bản sao chép nguyên lịch của
+  // đề gốc, nên giao một bản sao của đề cũ mà quên dời lịch là giao một bài các em không vào được.
+  const closeAtDate = parseDateTime(form.closeAtLocal)
+  const isCloseInPast = closeAtDate !== null && closeAtDate.getTime() <= Date.now()
   const isSaving = savingMode !== null
+  // Server khoá cấu hình đề khi đã có em bắt đầu làm. Đọc thẳng cờ của server thay vì tự suy từ số
+  // liệu, để luật khoá chỉ nằm ở một nơi.
+  const isFrozen = isEditing && loadedExam?.blueprintFrozen === true
+  // Cấu hình đã khoá thì không đổi được, nên cũng không có gì để chặn: ngân hàng có vơi đi sau lúc sinh
+  // đề thì bộ câu các em đang cầm vẫn nguyên, và server không kiểm lại ngân hàng khi cấu hình giữ
+  // nguyên. Chặn ở đây là khoá luôn cả việc sửa tên hay dời lịch.
   const isBlueprintBlocked =
-    ratioTotal !== 100 || (blueprintQuery.data !== undefined && !blueprintQuery.data.isValid)
+    !isFrozen &&
+    (ratioTotal !== 100 || (blueprintQuery.data !== undefined && !blueprintQuery.data.isValid))
   // Đề đã xuất bản mà lưu nháp lại thì học sinh đang được giao sẽ mất quyền vào làm,
   // nên chỉ cho lưu nháp khi tạo mới hoặc khi đề vẫn còn là bản nháp.
   const canSaveDraft = !isEditing || loadedExam?.lifecycle === 'draft'
@@ -497,6 +608,29 @@ export default function ExamBuilderPage() {
     saveDraftAndNavigate('/giao-vien/cau-hoi')
   }
 
+  // Lối ra khi cấu hình đã khoá: tạo bản nháp cùng cấu hình rồi sang sửa ngay bản đó.
+  const handleDuplicate = async () => {
+    if (!loadedExam) return
+    const source = loadedExam
+    const outcome: { copy?: Exam } = {}
+    const confirmed = await confirm({
+      ...examDuplicateConfirmCopy(source, true),
+      onConfirm: async () => {
+        outcome.copy = await duplicateExam(source.id)
+      },
+    })
+    const copy = outcome.copy
+    if (!confirmed || !copy) return
+
+    toast.success(`Đã tạo bản sao "${copy.title}". Bản sao đang là bản nháp, chưa giao cho ai.`)
+    // Trang này được dùng lại cho bản sao (cùng route, khác id) nên state không tự làm mới. Bỏ cờ
+    // "giữ phần đang soạn" để cấu hình của bản sao được nạp vào form, và xoá lỗi, ghi chú của đề cũ.
+    keepFormEditsRef.current = false
+    setErrors({})
+    setFrozenNotice(null)
+    navigate(`/giao-vien/bai-kiem-tra/${copy.id}/sua`)
+  }
+
   const handleSave = async (mode: SaveMode) => {
     const nextErrors = validateForm(form, mode)
     setErrors(nextErrors)
@@ -536,14 +670,27 @@ export default function ExamBuilderPage() {
       lifecycle: mode === 'draft' ? 'draft' : undefined,
     }
 
-    const outcome: { saved?: Exam; final?: Exam } = {}
+    const outcome: { saved?: Exam; final?: Exam; conflict?: string } = {}
     const persist = async () => {
       // Lần thử lại trong hộp xác nhận sau khi tạo đề xong mà bước xuất bản hỏng thì không được
       // tạo thêm một đề nữa — dùng lại bản vừa lưu và chỉ thử lại bước còn thiếu.
       if (!outcome.saved) {
-        outcome.saved = examId === undefined
-          ? await createExam(payload)
-          : await updateExam(examId, payload)
+        try {
+          outcome.saved = examId === undefined
+            ? await createExam(payload)
+            : await updateExam(examId, payload)
+        } catch (caught) {
+          // 409 khi sửa nghĩa là đề vừa đổi trạng thái ở phía server — thường là có em vừa bắt đầu làm nên
+          // cấu hình bị khoá. Hộp xác nhận vừa hiện đã nói sai chuyện sẽ xảy ra, nên không để nó mở cho thử
+          // lại: đóng hộp, nạp lại đề để hiện dải khoá và nút nhân bản, rồi báo cho giáo viên. Cờ giữ phần
+          // đang soạn khiến lần nạp này chỉ lấy lại các trường bị khoá, tên và lịch vừa gõ không mất.
+          if (examId === undefined || !isConflictError(caught)) throw caught
+          outcome.conflict = toErrorMessage(caught, 'Đề vừa thay đổi ở phía máy chủ nên chưa lưu được.')
+          keepFormEditsRef.current = true
+          frozenMergeReasonRef.current = 'conflict'
+          examQuery.reload()
+          return
+        }
       }
       const saved = outcome.saved
 
@@ -562,7 +709,7 @@ export default function ExamBuilderPage() {
       mode === 'draft'
         ? undefined
         : loadedExam && loadedExam.lifecycle !== 'draft'
-          ? publishedExamEditConfirmCopy(loadedExam, goingToAssign)
+          ? publishedExamEditConfirmCopy(loadedExam, goingToAssign, blueprintDiffers(form, loadedExam))
           : examPublishConfirmCopy(
               {
                 title: form.title,
@@ -589,6 +736,11 @@ export default function ExamBuilderPage() {
       } finally {
         setSavingMode(null)
       }
+    }
+
+    if (outcome.conflict) {
+      toast.error(`${outcome.conflict} Trang đã tải lại đề để bạn xem lại trước khi lưu.`)
+      return
     }
 
     const published = outcome.final
@@ -682,6 +834,47 @@ export default function ExamBuilderPage() {
         className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start animate-fade-in-up"
       >
         <div className="space-y-6 min-w-0">
+          {/* Nói rõ phần cấu hình đang soạn đã bị bỏ: các ô tự đổi số dưới tay mà không một lời giải thích
+              thì giáo viên sẽ tưởng trang hỏng, hoặc lưu mà không biết mình vừa mất gì. */}
+          {frozenNotice && (
+            <div className="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-3">
+              <Info size={18} className="text-sky-600 flex-shrink-0 mt-0.5" />
+              <p className="flex-1 min-w-0 text-sm text-sky-800 leading-relaxed">{frozenNotice}</p>
+              <button
+                type="button"
+                onClick={() => setFrozenNotice(null)}
+                className="self-start px-3 py-1.5 rounded-lg text-sm font-semibold text-sky-700 hover:bg-sky-100 transition-colors whitespace-nowrap"
+              >
+                Đã hiểu
+              </button>
+            </div>
+          )}
+
+          {/* Đặt trên dải tab để nhìn thấy ở cả hai tab: giáo viên mở tab "Cấu hình đề" thấy mọi ô bị
+              mờ thì phải biết ngay vì sao, và lối ra nằm ngay cạnh lời giải thích. */}
+          {isFrozen && loadedExam && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-3">
+              <Lock size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-amber-800">Cấu hình đề đã khoá</p>
+                <p className="text-sm text-amber-700 mt-1 leading-relaxed">
+                  Đã có {loadedExam.startedCount} học sinh bắt đầu làm bài, nên số câu, tỷ lệ độ khó, chủ đề, điểm
+                  mỗi câu, thời gian làm bài và tuỳ chọn trộn không đổi được nữa — đổi lúc này thì các em trong
+                  cùng lớp làm hai đề khác nhau. Tên, mô tả, lịch mở bài và tuỳ chọn hiện kết quả vẫn sửa được.
+                  Muốn dùng cấu hình khác, hãy nhân bản đề rồi sửa trên bản sao.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleDuplicate()}
+                disabled={isSaving}
+                className="self-start inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-amber-800 bg-white border border-amber-200 hover:bg-amber-100 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Copy size={15} /> Nhân bản đề
+              </button>
+            </div>
+          )}
+
           {/* Chia form dài thành hai tab thay vì một trang cuộn: mỗi tab vừa một màn hình nên
               không phải kéo lên kéo xuống để đối chiếu hai ô liên quan nhau. Dấu chấm đỏ trên
               nhãn tab là thứ khiến việc ẩn bớt nội dung không giấu mất lỗi. */}
@@ -744,7 +937,9 @@ export default function ExamBuilderPage() {
                     id="exam-topic"
                     value={form.topic}
                     onChange={event => updateField('topic', event.target.value)}
-                    className={`${inputNormalClass} bg-white`}
+                    disabled={isFrozen}
+                    title={isFrozen ? 'Đã khoá vì có học sinh bắt đầu làm bài' : undefined}
+                    className={`${inputNormalClass} bg-white disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed`}
                   >
                     <option value="">Tổng hợp (mọi chủ đề)</option>
                     {topicChoices.map(topic => (
@@ -836,12 +1031,28 @@ export default function ExamBuilderPage() {
                   </span>
                 </div>
               )}
+
+              {isCloseInPast && (
+                <div className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-start gap-2">
+                  <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">
+                    Thời gian đóng bài đã qua nên học sinh không vào làm được. Muốn các em làm bài thì hãy dời
+                    giờ đóng (và giờ mở nếu cần) sang sau thời điểm hiện tại.
+                  </span>
+                </div>
+              )}
             </section>
             </>
           )}
 
+          {/* Một fieldset tắt được mọi ô bên trong, kể cả thanh trượt và nút mẫu nhanh của khối tỷ lệ,
+              mà không phải luồn cờ khoá xuống từng component. */}
           {activeTab === 'blueprint' && (
-            <>
+            <fieldset
+              disabled={isFrozen}
+              title={isFrozen ? 'Đã khoá vì có học sinh bắt đầu làm bài' : undefined}
+              className="space-y-6 min-w-0 border-0 p-0 m-0 disabled:opacity-60"
+            >
             <section className={`${cardClass} p-6`}>
               <div className="flex items-center gap-2 mb-5">
                 <Target size={18} className="text-indigo-600" />
@@ -908,7 +1119,7 @@ export default function ExamBuilderPage() {
               errorMessage={errors.ratio}
               onChange={changeRatios}
             />
-            </>
+            </fieldset>
           )}
         </div>
 
@@ -919,6 +1130,7 @@ export default function ExamBuilderPage() {
             error={blueprintQuery.error}
             totalQuestions={form.totalQuestions}
             pointPerQuestion={form.pointPerQuestion}
+            frozen={isFrozen}
             onRetry={blueprintQuery.reload}
             onAddQuestion={goToQuestionEditor}
             onOpenQuestionBank={goToQuestionBank}
@@ -932,6 +1144,7 @@ export default function ExamBuilderPage() {
                 type="checkbox"
                 checked={form.shuffleQuestions}
                 onChange={event => updateField('shuffleQuestions', event.target.checked)}
+                disabled={isFrozen}
                 className="w-4 h-4 accent-indigo-600"
               />
             </label>
@@ -941,6 +1154,7 @@ export default function ExamBuilderPage() {
                 type="checkbox"
                 checked={form.shuffleAnswers}
                 onChange={event => updateField('shuffleAnswers', event.target.checked)}
+                disabled={isFrozen}
                 className="w-4 h-4 accent-indigo-600"
               />
             </label>

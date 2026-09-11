@@ -40,9 +40,21 @@ export default function App() {
   //
   // Đăng ký ở đây vì đây là nơi đầu tiên có router; apiClient cố ý không biết gì về react-router.
   useEffect(() => {
-    setUnauthorizedHandler(() => {
+    setUnauthorizedHandler(message => {
       logout()
-      navigate('/dang-nhap', { replace: true, state: { sessionExpired: true } })
+
+      // Vài request đang bay cùng lúc có thể cùng nhận 401. Lần đầu đã đưa người dùng về trang đăng
+      // nhập; điều hướng thêm lần nữa thì `from` bị ghi đè bằng chính /dang-nhap và mất đường quay lại.
+      const { pathname, search } = window.location
+      if (pathname === '/dang-nhap') return
+
+      // Kèm địa chỉ đang đứng để đăng nhập lại xong về đúng chỗ đó: học sinh bị văng ra giữa giờ làm
+      // bài cần quay lại bài đang làm, không phải trang tổng quan rồi tự tìm đường. LoginPage chỉ nhận
+      // địa chỉ nằm trong khu vực của vai trò vừa đăng nhập.
+      navigate('/dang-nhap', {
+        replace: true,
+        state: { sessionExpired: true, reason: message, from: pathname + search },
+      })
     })
 
     return () => setUnauthorizedHandler(null)

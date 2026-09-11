@@ -1,8 +1,7 @@
 /**
  * Hàm tiện ích thuần tuý dùng chung cho toàn bộ giao diện và tầng service.
- * Không phụ thuộc React, không phụ thuộc dữ liệu mock.
+ * Không phụ thuộc React.
  */
-import type { Paged } from '../types'
 
 // ===== Định dạng hiển thị =====
 
@@ -27,8 +26,8 @@ export function formatScore(score: number | null | undefined): string {
 }
 
 /**
- * Đọc chuỗi thời gian ở cả hai dạng dự án đang dùng:
- * 'DD/MM/YYYY', 'DD/MM/YYYY HH:mm' (dữ liệu mock) và chuỗi ISO (API thật sau này).
+ * Đọc chuỗi thời gian ở cả hai dạng: chuỗi ISO từ API và dạng hiển thị 'DD/MM/YYYY',
+ * 'DD/MM/YYYY HH:mm'.
  */
 export function parseDateTime(value: string): Date | null {
   const trimmed = value.trim()
@@ -61,18 +60,6 @@ export function formatDate(value: string): string {
   const parsed = parseDateTime(value)
   if (!parsed) return value
   return `${padNumber(parsed.getDate())}/${padNumber(parsed.getMonth() + 1)}/${parsed.getFullYear()}`
-}
-
-/** Ngày hôm nay dạng 'DD/MM/YYYY', khớp định dạng của dữ liệu mock. */
-export function todayLabel(): string {
-  const now = new Date()
-  return `${padNumber(now.getDate())}/${padNumber(now.getMonth() + 1)}/${now.getFullYear()}`
-}
-
-/** Thời điểm hiện tại dạng 'DD/MM/YYYY HH:mm'. */
-export function nowLabel(): string {
-  const now = new Date()
-  return `${todayLabel()} ${padNumber(now.getHours())}:${padNumber(now.getMinutes())}`
 }
 
 /** 45 -> '45 phút', 60 -> '1 giờ', 90 -> '1 giờ 30 phút'. */
@@ -162,29 +149,6 @@ export function matchesSearch(search: string | undefined, fields: Array<string |
   const normalizedSearch = normalizeText(search ?? '')
   if (!normalizedSearch) return true
   return fields.some(field => (field ? normalizeText(field).includes(normalizedSearch) : false))
-}
-
-export const DEFAULT_PAGE_SIZE = 10
-
-/** Cắt trang trên mảng đã lọc, tự kẹp số trang về khoảng hợp lệ. */
-export function paginate<T>(items: T[], page?: number, pageSize?: number): Paged<T> {
-  const safePageSize = pageSize && pageSize > 0 ? Math.floor(pageSize) : DEFAULT_PAGE_SIZE
-  const totalPages = Math.max(1, Math.ceil(items.length / safePageSize))
-  const requestedPage = page && page > 0 ? Math.floor(page) : 1
-  const safePage = Math.min(requestedPage, totalPages)
-  const start = (safePage - 1) * safePageSize
-
-  return {
-    items: items.slice(start, start + safePageSize),
-    total: items.length,
-    page: safePage,
-    pageSize: safePageSize,
-  }
-}
-
-/** Cấp id mới cho bản ghi mock: max(id) + 1, an toàn với mảng rỗng. */
-export function nextId(items: Array<{ id: number }>): number {
-  return items.reduce((largest, item) => (item.id > largest ? item.id : largest), 0) + 1
 }
 
 /** Làm tròn một chữ số thập phân, dùng cho điểm số. */

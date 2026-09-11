@@ -4,12 +4,13 @@
  * HTTP thành thông điệp tiếng Việt, và báo cho App khi token mất hiệu lực giữa phiên (401) để App
  * đưa người dùng về trang đăng nhập.
  */
-import { NETWORK_ERROR_MESSAGE } from './delay'
-
 /** Token do authService lưu lại sau khi đăng nhập. */
 export const TOKEN_STORAGE_KEY = 'anthill.token'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+
+/** fetch ném lỗi (mất mạng, sai địa chỉ, CORS chặn) nghĩa là không có mã HTTP nào để tra bảng dưới. */
+const NETWORK_ERROR_MESSAGE = 'Không kết nối được máy chủ.'
 
 const statusMessages: Record<number, string> = {
   400: 'Dữ liệu gửi lên không hợp lệ.',
@@ -91,7 +92,8 @@ export function createApiError(
  * Đăng ký từ tầng ứng dụng (nơi có router) thay vì gọi thẳng: lớp này không được biết gì về
  * react-router, nếu không nó thành thứ chỉ chạy được trong đúng một app.
  */
-type UnauthorizedHandler = () => void
+/** Nhận thông điệp server gửi kèm 401 — ví dụ "tài khoản đã bị khoá" — để trang đăng nhập nói đúng lý do. */
+type UnauthorizedHandler = (message: string) => void
 
 let onUnauthorized: UnauthorizedHandler | null = null
 
@@ -184,7 +186,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     // Chỉ đá về đăng nhập khi request CÓ mang token: 401 trên một lời gọi vốn không có token là
     // chuyện bình thường (sai mật khẩu ở màn đăng nhập), gọi handler ở đó chỉ tạo vòng lặp.
     if (response.status === 401 && token) {
-      onUnauthorized?.()
+      onUnauthorized?.(message)
     }
 
     throw createApiError(response.status, message, fieldErrors)

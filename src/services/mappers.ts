@@ -15,7 +15,9 @@
  *    đã nộp là hiệu của hai mốc; tính ở đây một lần thay vì để mỗi trang tự trừ.
  */
 import { getTopicColor } from '../lib/topicTheme'
-import type { ExamStatus, ResultSummary, StudentExamItem, StudentExamItemStatus } from '../types'
+import type {
+  ExamStatus, ResultSummary, StudentExamItem, StudentExamItemStatus, StudentStatus,
+} from '../types'
 
 /** Trang dữ liệu chuẩn của backend. */
 export interface PagedResponse<T> {
@@ -34,6 +36,8 @@ export interface ResultSummaryDto {
   studentId: number
   studentName: string
   studentCode: string
+  /** Vắng mặt khi server cũ hơn trường này. */
+  studentStatus?: StudentStatus
   group: string
   status: ExamStatus
   startedAt: string
@@ -86,7 +90,22 @@ function minutesBetween(from: string, to?: string): number {
   return Math.round((end - start) / 60_000)
 }
 
+/**
+ * Mã học sinh để hiển thị.
+ *
+ * Tài khoản đã xoá mang mã giữ chỗ `deleted-N`: server cần nó vì cột mã có chỉ mục duy nhất, nhưng
+ * nó không nói gì về người cũ. Hiện nó lên như mã thật là mời giáo viên đi tra một mã không tồn
+ * tại — nên quy về chuỗi rỗng ngay ở tầng service, mọi trang nhận cùng một quy tắc.
+ */
+export function toDisplayStudentCode(code: string, status: StudentStatus): string {
+  return status === 'deleted' ? '' : code
+}
+
 export function toResultSummary(dto: ResultSummaryDto): ResultSummary {
+  // Server cũ hơn trường này không gửi nó; coi là đang hoạt động thì không nhãn nào hiện ra —
+  // đúng như giao diện trước khi có trường.
+  const studentStatus = dto.studentStatus ?? 'active'
+
   return {
     attemptId: dto.attemptId,
     examId: dto.examId,
@@ -95,7 +114,8 @@ export function toResultSummary(dto: ResultSummaryDto): ResultSummary {
     topicColor: getTopicColor(dto.topic),
     studentId: dto.studentId,
     studentName: dto.studentName,
-    studentCode: dto.studentCode,
+    studentCode: toDisplayStudentCode(dto.studentCode, studentStatus),
+    studentStatus,
     group: dto.group,
     status: dto.status,
     autoSubmitted: dto.autoSubmitted,

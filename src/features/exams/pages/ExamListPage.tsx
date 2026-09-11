@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  BarChart3, FileText, FilterX, MoreVertical, Pencil, Plus, Search, Trash2,
+  BarChart3, Copy, FileText, FilterX, MoreVertical, Pencil, Plus, Search, Trash2,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import { LifecycleBadge, TopicBadge } from '../../../components/common/Badge'
@@ -14,11 +14,11 @@ import { SkeletonTable } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
-import { deleteExam, listExams } from '../../../services/examService'
+import { deleteExam, duplicateExam, listExams } from '../../../services/examService'
 import { formatDateTime, formatDuration, parseDateTime, roundToOneDecimal } from '../../../lib/format'
 import { lifecycleLabels } from '../../../types'
 import type { Exam, ExamLifecycle } from '../../../types'
-import { examDeleteConfirmCopy } from '../utils/examConfirmations'
+import { examDeleteConfirmCopy, examDuplicateConfirmCopy } from '../utils/examConfirmations'
 
 const PAGE_SIZE = 9
 
@@ -67,13 +67,14 @@ function formatScheduleMoment(value: string): string {
 interface ExamRowMenuProps {
   exam: Exam
   onRequestDelete: (exam: Exam) => void
+  onRequestDuplicate: (exam: Exam) => void
 }
 
 const MENU_WIDTH = 224
 const MENU_ITEM_HEIGHT = 44
 const MENU_VERTICAL_PADDING = 12
 
-/** Menu có 2 hay 3 mục tuỳ bài đã có người nộp hay chưa, nên chiều cao phải tính lại. */
+/** Menu có 3 hay 4 mục tuỳ bài đã có người nộp hay chưa, nên chiều cao phải tính lại. */
 function estimateMenuHeight(itemCount: number): number {
   return itemCount * MENU_ITEM_HEIGHT + MENU_VERTICAL_PADDING
 }
@@ -82,7 +83,7 @@ function estimateMenuHeight(itemCount: number): number {
  * Menu phụ của mỗi dòng. Bảng nằm trong vùng cuộn ngang nên menu phải được
  * đưa ra ngoài body và neo theo toạ độ màn hình, nếu không sẽ bị cắt mất.
  */
-function ExamRowMenu({ exam, onRequestDelete }: ExamRowMenuProps) {
+function ExamRowMenu({ exam, onRequestDelete, onRequestDuplicate }: ExamRowMenuProps) {
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -94,7 +95,7 @@ function ExamRowMenu({ exam, onRequestDelete }: ExamRowMenuProps) {
     if (!trigger) return
 
     const rect = trigger.getBoundingClientRect()
-    const menuHeight = estimateMenuHeight(hasSubmission ? 3 : 2)
+    const menuHeight = estimateMenuHeight(hasSubmission ? 4 : 3)
     // Gần đáy màn hình thì lật menu lên trên để không bị khuất.
     const openUpward = rect.bottom + menuHeight + 16 > window.innerHeight
     const top = openUpward ? rect.top - menuHeight - 8 : rect.bottom + 8
@@ -179,6 +180,17 @@ function ExamRowMenu({ exam, onRequestDelete }: ExamRowMenuProps) {
             <button
               type="button"
               role="menuitem"
+              onClick={() => {
+                setAnchor(null)
+                onRequestDuplicate(exam)
+              }}
+              className={`w-full text-left ${menuItemClass}`}
+            >
+              <Copy size={15} /> Nhân bản
+            </button>
+            <button
+              type="button"
+              role="menuitem"
               disabled={hasSubmission}
               title={hasSubmission ? 'Không thể xoá bài đã có học sinh nộp' : undefined}
               onClick={() => {
@@ -201,9 +213,10 @@ function ExamRowMenu({ exam, onRequestDelete }: ExamRowMenuProps) {
 interface ExamRowProps {
   exam: Exam
   onRequestDelete: (exam: Exam) => void
+  onRequestDuplicate: (exam: Exam) => void
 }
 
-function ExamRow({ exam, onRequestDelete }: ExamRowProps) {
+function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
   const hasAssignment = exam.assignedCount > 0
   const hasSubmission = exam.submittedCount > 0
   const submittedRatio = hasAssignment
@@ -316,7 +329,7 @@ function ExamRow({ exam, onRequestDelete }: ExamRowProps) {
               Giao bài
             </NavLink>
           )}
-          <ExamRowMenu exam={exam} onRequestDelete={onRequestDelete} />
+          <ExamRowMenu exam={exam} onRequestDelete={onRequestDelete} onRequestDuplicate={onRequestDuplicate} />
         </div>
       </td>
     </tr>
@@ -326,6 +339,7 @@ function ExamRow({ exam, onRequestDelete }: ExamRowProps) {
 export default function ExamListPage() {
   const toast = useToast()
   const confirm = useConfirm()
+  const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
   const [lifecycle, setLifecycle] = useState<LifecycleFilter>('all')
   const [page, setPage] = useState(1)
@@ -355,6 +369,21 @@ export default function ExamListPage() {
     // Về trang đầu để không mắc kẹt ở trang vừa trống sau khi xoá
     if (page === 1) reload()
     else setPage(1)
+  }
+
+  // Sang thẳng trang sửa bản sao, cùng hành vi với trang chi tiết: nhân bản là để đổi cấu hình.
+  const requestDuplicate = async (exam: Exam) => {
+    const outcome: { copy?: Exam } = {}
+    const confirmed = await confirm({
+      ...examDuplicateConfirmCopy(exam),
+      onConfirm: async () => {
+        outcome.copy = await duplicateExam(exam.id)
+      },
+    })
+    const copy = outcome.copy
+    if (!confirmed || !copy) return
+    toast.success(`Đã tạo bản sao "${copy.title}". Bản sao đang là bản nháp, chưa giao cho ai.`)
+    navigate(`/giao-vien/bai-kiem-tra/${copy.id}/sua`)
   }
 
   return (
@@ -483,7 +512,12 @@ export default function ExamListPage() {
                 </thead>
                 <tbody>
                   {exams.map(exam => (
-                    <ExamRow key={exam.id} exam={exam} onRequestDelete={target => void requestDelete(target)} />
+                    <ExamRow
+                      key={exam.id}
+                      exam={exam}
+                      onRequestDelete={target => void requestDelete(target)}
+                      onRequestDuplicate={target => void requestDuplicate(target)}
+                    />
                   ))}
                 </tbody>
               </table>
