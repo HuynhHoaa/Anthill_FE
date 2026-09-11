@@ -26,6 +26,19 @@ function toSafeIndex(value: number, length: number): number {
   return Math.abs(Math.trunc(value)) % length
 }
 
+/**
+ * Số đếm cạnh tiêu đề danh sách thành viên.
+ *
+ * Tài khoản chờ xoá vẫn nằm trong danh sách — quản trị viên cần thấy để còn khôi phục — nhưng không
+ * tính vào sĩ số. Đếm riêng để con số ở đây khớp với sĩ số ở đầu trang, thay vì "30 học sinh" nằm
+ * cạnh "Học sinh (31)".
+ */
+export function memberCountLabel(students: Array<{ status: string }>): string {
+  const retired = students.filter(student => student.status === 'pendingDeletion' || student.status === 'deleted').length
+  const enrolled = students.length - retired
+  return retired > 0 ? `${enrolled} · ${retired} chờ xoá` : `${enrolled}`
+}
+
 export function getAvatarTone(studentId: number): AvatarTone {
   return avatarTones[toSafeIndex(studentId, avatarTones.length)]
 }

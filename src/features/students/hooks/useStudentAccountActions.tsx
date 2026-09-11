@@ -28,12 +28,12 @@ export function lockConsequences(fullName: string, locking: boolean): string[] {
     ? [
         `${fullName} bị đăng xuất ngay khỏi mọi thiết bị, kể cả khi đang làm bài dở — đồng hồ của bài đó vẫn chạy, câu trả lời đã lưu còn nguyên nhưng em không vào tiếp được.`,
         'Em ấy không đăng nhập hay làm bài được cho tới khi được mở khoá.',
-        'Bài giáo viên giao trong thời gian này sẽ bỏ qua em, và mở khoá xong em cũng không tự nhận lại những bài đó.',
+        'Nếu giáo viên giao bài trong thời gian này, hệ thống sẽ bỏ qua em — mở khoá xong em cũng không có những bài đó, giáo viên cần giao lại.',
         'Bài đã nộp và điểm vẫn giữ nguyên.',
       ]
     : [
         `${fullName} đăng nhập lại được bằng mật khẩu hiện tại và tiếp tục làm những bài đang được giao.`,
-        'Bài được giao trong lúc em bị khoá không tự đến với em — giáo viên cần giao lại nếu muốn em làm.',
+        'Những bài được giao trong lúc em bị khoá, em sẽ không có — giáo viên cần giao lại nếu muốn em làm.',
       ]
 }
 
@@ -60,7 +60,7 @@ export interface StudentAccountActions {
   /**
    * Mỗi hàm trả `true` khi dữ liệu trên màn hình có thể đã đổi và nên tải lại.
    *
-   * Tính cả trường hợp server từ chối rồi người dùng bấm Hủy: lỗi hay gặp nhất ở đây là 409 — ai
+   * Tính cả trường hợp server từ chối rồi người dùng bấm Huỷ: lỗi hay gặp nhất ở đây là 409 — ai
    * đó vừa khôi phục, hoặc hạn 60 ngày vừa qua — nghĩa là thứ đang hiện trên màn hình đã cũ, và để
    * nguyên nó chỉ mời người dùng bấm lại vào một thao tác chắc chắn hỏng lần nữa.
    */
@@ -150,7 +150,7 @@ export function useStudentAccountActions(): StudentAccountActions {
       const ok = await confirm({
         title: 'Khôi phục tài khoản học sinh',
         message: `${student.fullName} sẽ trở lại trạng thái Đang hoạt động và đăng nhập lại được bằng mật khẩu cũ. Lý do xoá đã ghi bị huỷ, hệ thống ngừng đếm ngược ${DELETION_RETENTION_DAYS} ngày và dữ liệu của em ấy được giữ nguyên.`,
-        details: 'Nếu trước khi bị xoá tài khoản đang bị khoá, trạng thái khoá không được giữ lại — hãy khoá lại sau khi khôi phục nếu cần. Bài giáo viên giao trong lúc em chờ xoá không tự đến với em.',
+        details: 'Nếu trước khi bị xoá tài khoản đang bị khoá, trạng thái khoá không được giữ lại — hãy khoá lại sau khi khôi phục nếu cần. Những bài được giao trong lúc em chờ xoá, em sẽ không có — giáo viên cần giao lại nếu muốn em làm.',
         confirmLabel: 'Khôi phục',
         onConfirm: () => recordFailure(state, () => restoreStudent(student.id)),
       })

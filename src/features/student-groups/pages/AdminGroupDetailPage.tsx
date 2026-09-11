@@ -10,6 +10,7 @@ import {
   AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, Edit3, Eye, EyeOff, GraduationCap,
   Send, UserPlus, Users, UsersRound,
 } from 'lucide-react'
+import { memberCountLabel } from '../components/groupTheme'
 import AdminLayout from '../../../components/layout/AdminLayout'
 import { PublishStateBadge } from '../../../components/common/Badge'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
@@ -320,7 +321,7 @@ export default function AdminGroupDetailPage() {
           <div className="mt-8 mb-4">
             <h2 className="text-base font-bold text-slate-800">
               Học sinh trong lớp
-              {students && <span className="text-slate-400 font-semibold"> ({students.length})</span>}
+              {students && <span className="text-slate-400 font-semibold"> ({memberCountLabel(students)})</span>}
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
               Gỡ học sinh khỏi lớp không xoá tài khoản, học sinh chỉ chuyển về trạng thái chưa phân lớp.

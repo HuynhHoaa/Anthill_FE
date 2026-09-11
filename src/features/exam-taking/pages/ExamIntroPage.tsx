@@ -119,7 +119,8 @@ export default function ExamIntroPage() {
     // nút, nhưng hộp thì vẫn nằm đó — kiểm lại lần cuối để không đưa học sinh vào một bài đã đóng,
     // nơi em chỉ gặp một trang báo lỗi.
     if (closeDate !== null && closeDate.getTime() <= Date.now()) {
-      toast.error('Bài kiểm tra vừa hết hạn làm bài nên không bắt đầu được nữa.')
+      const closedAt = assignment ? ` (${formatDateTime(assignment.closeAt)})` : ''
+      toast.error(`Đã quá giờ đóng bài${closedAt} nên bạn không bắt đầu được nữa. Nếu cần làm bài, hãy báo giáo viên.`)
       return
     }
     navigate(`/hoc-sinh/bai-kiem-tra/${numericAssignmentId}/lam-bai`)
@@ -162,7 +163,7 @@ export default function ExamIntroPage() {
       },
       {
         icon: ListChecks,
-        text: 'Bạn được chuyển qua lại giữa các câu hỏi và sửa đáp án bao nhiêu lần tùy ý trước khi nộp.',
+        text: 'Bạn được chuyển qua lại giữa các câu hỏi và sửa đáp án bao nhiêu lần tuỳ ý trước khi nộp.',
       },
       {
         icon: Save,

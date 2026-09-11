@@ -925,7 +925,7 @@ export default function ExamBuilderPage() {
           />
 
           <div className={`${cardClass} p-5`}>
-            <h2 className="text-base font-bold text-slate-800 mb-2">Tùy chọn</h2>
+            <h2 className="text-base font-bold text-slate-800 mb-2">Tuỳ chọn</h2>
             <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
               <span className="text-sm text-slate-600">Trộn thứ tự câu hỏi</span>
               <input

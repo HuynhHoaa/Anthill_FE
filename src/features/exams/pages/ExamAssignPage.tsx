@@ -646,7 +646,7 @@ export default function ExamAssignPage() {
             </div>
 
             <div className={`${cardClass} p-5`}>
-              <h2 className="text-base font-bold text-slate-800 mb-2">Tùy chọn giao bài</h2>
+              <h2 className="text-base font-bold text-slate-800 mb-2">Tuỳ chọn giao bài</h2>
 
               <label className="flex items-start justify-between gap-3 py-2.5 cursor-pointer">
                 <span className="min-w-0">

@@ -38,7 +38,7 @@ export default function ConfirmDialog({
   message,
   details,
   confirmLabel = 'Xác nhận',
-  cancelLabel = 'Hủy',
+  cancelLabel = 'Huỷ',
   tone = 'primary',
   loading = false,
   error = null,
@@ -83,7 +83,7 @@ export default function ConfirmDialog({
       // bước này thì Enter gõ ở một ô tìm kiếm phía sau lớp phủ cũng thành xác nhận.
       const dialog = bodyRef.current?.closest('[role="dialog"]')
       if (!dialog || !(target instanceof Node) || !dialog.contains(target)) return
-      // Nút và liên kết tự xử lý Enter theo cách của trình duyệt — Enter trên nút Hủy phải là Hủy.
+      // Nút và liên kết tự xử lý Enter theo cách của trình duyệt — Enter trên nút Huỷ phải là Huỷ.
       if (target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement) return
       event.preventDefault()
       if (latestRef.current.blocked) return

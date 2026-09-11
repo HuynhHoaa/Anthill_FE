@@ -73,7 +73,7 @@ const MENU_WIDTH = 224
 const MENU_ITEM_HEIGHT = 44
 const MENU_VERTICAL_PADDING = 12
 
-/** Menu có 2 hay 3 mục tùy bài đã có người nộp hay chưa, nên chiều cao phải tính lại. */
+/** Menu có 2 hay 3 mục tuỳ bài đã có người nộp hay chưa, nên chiều cao phải tính lại. */
 function estimateMenuHeight(itemCount: number): number {
   return itemCount * MENU_ITEM_HEIGHT + MENU_VERTICAL_PADDING
 }

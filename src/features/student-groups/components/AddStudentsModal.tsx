@@ -87,18 +87,22 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
       const result = await addStudentsToGroup(groupId, selectedIds)
       addedCount = result.added
 
+      // Mỗi lý do bỏ qua được nói riêng, như màn hình giao bài: gộp thành "bỏ qua N em" thì người bấm
+      // không biết phải làm gì tiếp với từng em. Tài khoản bị xoá chỉ lọt tới đây khi có người xoá
+      // nó trong lúc hộp này đang mở.
       const skippedRetired = result.skippedRetired ?? 0
-      const skipped = result.skippedAlreadyMember + result.skippedNotFound + skippedRetired
+      const reasons = [
+        result.skippedAlreadyMember > 0 ? `${result.skippedAlreadyMember} em đã ở trong lớp` : '',
+        skippedRetired > 0 ? `${skippedRetired} tài khoản đã bị xoá hoặc đang chờ xoá` : '',
+        result.skippedNotFound > 0 ? `${result.skippedNotFound} tài khoản không còn tồn tại` : '',
+      ].filter(Boolean)
 
-      if (addedCount > 0 && skipped === 0) {
+      if (addedCount > 0 && reasons.length === 0) {
         toast.success(`Đã thêm ${addedCount} học sinh vào ${groupName}.`)
       } else if (addedCount > 0) {
-        toast.info(`Đã thêm ${addedCount} học sinh, bỏ qua ${skipped} em.`)
-      } else if (result.skippedAlreadyMember > 0) {
-        toast.info('Những học sinh đã chọn đều đã thuộc lớp này.')
-      } else if (skippedRetired > 0) {
-        // Có người khác vừa xoá tài khoản trong lúc hộp này đang mở.
-        toast.info('Những tài khoản đã chọn đang chờ xoá nên không thêm vào lớp được.')
+        toast.info(`Đã thêm ${addedCount} học sinh. Bỏ qua ${reasons.join(', ')}.`)
+      } else if (reasons.length > 0) {
+        toast.info(`Không thêm được em nào: ${reasons.join(', ')}.`)
       } else {
         toast.error('Không thêm được học sinh nào vào lớp.')
       }
@@ -135,7 +139,7 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
             disabled={submitting}
             className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50"
           >
-            Hủy
+            Huỷ
           </button>
           <button
             type="button"

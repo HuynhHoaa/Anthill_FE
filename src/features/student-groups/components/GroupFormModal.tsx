@@ -95,7 +95,7 @@ export default function GroupFormModal({ open, group, onClose, onSaved }: GroupF
             disabled={saving}
             className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50"
           >
-            Hủy
+            Huỷ
           </button>
           <button
             type="submit"

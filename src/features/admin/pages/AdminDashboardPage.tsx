@@ -175,7 +175,7 @@ export default function AdminDashboardPage() {
             <Clock size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
             <span>
               <strong className="font-semibold">{overview.pendingDeletionStudents} tài khoản đang chờ xoá.</strong>{' '}
-              Mỗi tài khoản còn khôi phục được trong {DELETION_RETENTION_DAYS} ngày kể từ ngày yêu cầu; hết hạn, dữ
+              Mỗi tài khoản khôi phục được trong vòng {DELETION_RETENTION_DAYS} ngày kể từ ngày yêu cầu xoá; hết hạn, dữ
               liệu cá nhân bị xoá vĩnh viễn.
             </span>
           </span>

@@ -48,6 +48,23 @@ export default function Modal({
     }
   }, [open])
 
+  // Đưa tiêu điểm vào hộp khi mở. Để yên thì tiêu điểm vẫn nằm trên nút đã mở hộp phía sau lớp phủ,
+  // và người dùng bàn phím bấm Enter để đóng hộp lại bấm trúng nút đó lần nữa — với hộp mật khẩu
+  // là cấp thêm một mật khẩu mới. Chờ một nhịp vì hộp xác nhận vừa đóng cũng trả tiêu điểm về nút
+  // cũ bằng một nhịp như vậy; ô nhập đã tự nhận tiêu điểm thì giữ nguyên. Đóng hộp thì trả về chỗ cũ.
+  useEffect(() => {
+    if (!open) return
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const timer = window.setTimeout(() => {
+      const panel = panelRef.current
+      if (panel && !panel.contains(document.activeElement)) panel.focus()
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+      if (previous?.isConnected) previous.focus()
+    }
+  }, [open])
+
   useEffect(() => {
     if (!open) return
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -69,6 +86,12 @@ export default function Modal({
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
       const active = document.activeElement
+      // Tiêu điểm đang ở chính khung hộp (vừa mở): Shift+Tab mặc định sẽ nhảy ra sau lớp phủ.
+      if (active === panel) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first).focus()
+        return
+      }
       const outside = !(active instanceof Node) || !panel.contains(active)
       if (event.shiftKey && (outside || active === first)) {
         event.preventDefault()
@@ -94,10 +117,11 @@ export default function Modal({
     >
       <div
         ref={panelRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`w-full ${panelWidthClass[size]} max-h-[90vh] flex flex-col bg-white rounded-3xl border border-slate-100 shadow-xl animate-modal-in`}
+        className={`w-full ${panelWidthClass[size]} max-h-[90vh] flex flex-col bg-white rounded-3xl border border-slate-100 shadow-xl animate-modal-in outline-none`}
       >
         <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 border-b border-slate-100">
           <div className="min-w-0">

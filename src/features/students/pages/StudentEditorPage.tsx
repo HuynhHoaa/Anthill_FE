@@ -1,5 +1,5 @@
 // Trang thuộc vai trò quản trị viên: admin sở hữu tài khoản học sinh.
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertCircle, ArrowLeft, AtSign, CheckCircle2, Copy, Hash, KeyRound, Loader2, Lock, Mail,
@@ -27,17 +27,19 @@ import { studentStatusLabels, type Student, type StudentStatus } from '../../../
 
 /**
  * Hệ quả của việc đổi lớp khi sửa hồ sơ. Đây là cùng một việc với "Gỡ khỏi lớp" ở trang lớp, nên
- * phải nói cùng những điều: em rời lớp nào, đi đâu, và điều gì KHÔNG mất.
+ * phải nói cùng những điều: em rời lớp nào, đi đâu, và điều gì KHÔNG mất. Tên em đã nằm ở câu dẫn
+ * của hộp, nên từng dòng không nhắc lại.
  */
-function groupChangeConsequences(fullName: string, fromGroup: string, toGroup: string | null): string[] {
+function groupChangeConsequences(fromGroup: string, toGroup: string | null): string[] {
   return toGroup === null
     ? [
-        `${fullName} rời lớp ${fromGroup} và chuyển về trạng thái chưa phân lớp.`,
+        `Rời lớp ${fromGroup} và chuyển về trạng thái chưa phân lớp.`,
         'Giáo viên của lớp cũ không giao được bài mới cho em nữa. Bài đã giao, bài đã nộp và điểm vẫn giữ nguyên.',
       ]
     : [
-        `${fullName} chuyển từ lớp ${fromGroup} sang lớp ${toGroup}.`,
-        'Từ giờ em nhận bài được giao cho lớp mới. Bài đã giao, bài đã nộp và điểm vẫn giữ nguyên.',
+        `Chuyển từ lớp ${fromGroup} sang lớp ${toGroup}. Từ giờ em nhận những bài được giao cho lớp mới.`,
+        `Bài lớp ${toGroup} đã giao trước hôm nay không tự đến với em — giáo viên cần giao thêm nếu muốn em làm.`,
+        'Bài đã giao, bài đã nộp và điểm cũ vẫn giữ nguyên.',
       ]
 }
 
@@ -161,7 +163,22 @@ export default function StudentEditorPage() {
   const [submitting, setSubmitting] = useState(false)
   const [issuedPassword, setIssuedPassword] = useState<ResetPasswordResult | null>(null)
 
-  const loadedStudent = editorQuery.data?.student ?? null
+  // Mật khẩu vừa cấp chỉ nằm trong hộp của nó. Tải lại trang hay đóng tab lúc hộp còn mở là mất hẳn,
+  // nên trình duyệt hỏi lại một câu. Nút Back thì BrowserRouter không chặn được — hộp ghi rõ điều đó.
+  useEffect(() => {
+    if (issuedPassword === null) return
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [issuedPassword])
+
+  // Chỉ nhận bản ghi đúng id trên URL. Đi từ học sinh này sang học sinh khác, hay sang trang tạo mới,
+  // giữ nguyên component, và useAsync giữ dữ liệu cũ tới khi bản mới về: đổ bản cũ vào form lúc đó
+  // là mời người dùng bấm Lưu ghi dữ liệu của em A lên em B — và ở trang tạo mới thì còn lặp render.
+  const fetchedStudent = editorQuery.data?.student ?? null
+  const loadedStudent = isEditMode && fetchedStudent?.id === studentId ? fetchedStudent : null
 
   // Học sinh mà form đang phản ánh. Đổ lại form khi đó là học sinh khác, hoặc khi trạng thái vừa
   // đổi (xoá, khôi phục) — nếu không ô trạng thái vẫn nói "Đang hoạt động" cho một tài khoản vừa
@@ -229,7 +246,7 @@ export default function StudentEditorPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isReadOnly || submitting) return
+    if (isReadOnly || submitting || (isEditMode && !loadedStudent)) return
     setHasSubmitted(true)
 
     if (Object.keys(errors).length > 0) {
@@ -275,7 +292,7 @@ export default function StudentEditorPage() {
       const locking = values.status === 'locked'
       const movingTo = values.groupId === UNASSIGNED_GROUP_ID ? null : selectedGroupName
       const groupItems =
-        leavingGroup && loadedStudent ? groupChangeConsequences(payload.fullName, loadedStudent.group, movingTo) : []
+        leavingGroup && loadedStudent ? groupChangeConsequences(loadedStudent.group, movingTo) : []
 
       // Đổi cả hai thì gộp vào MỘT hộp: hai hộp liền nhau là mời người dùng bấm "Đồng ý" lần thứ
       // hai mà không đọc.
@@ -286,14 +303,16 @@ export default function StudentEditorPage() {
           }
         : {
             title: lockChanging ? 'Lưu thay đổi tài khoản' : movingTo ? 'Chuyển lớp cho học sinh' : 'Gỡ học sinh khỏi lớp',
-            message: `Khi lưu, thay đổi của ${payload.fullName} có hiệu lực ngay:`,
+            message: `Các thay đổi sau với tài khoản của ${payload.fullName} có hiệu lực ngay khi lưu:`,
             details: (
               <ConsequenceList
                 items={lockChanging ? [...groupItems, ...lockConsequences(payload.fullName, locking)] : groupItems}
               />
             ),
-            confirmLabel: 'Lưu thay đổi',
-            tone: 'danger' as const,
+            confirmLabel: lockChanging ? 'Lưu thay đổi' : movingTo ? 'Lưu và chuyển lớp' : 'Lưu và gỡ khỏi lớp',
+            // Chuyển lớp là việc thường ngày và làm lại được, nên không tô đỏ. Gỡ khỏi lớp hay khoá
+            // tài khoản thì em mất quyền nhận bài — giữ màu cảnh báo như ở trang lớp.
+            tone: (lockChanging && locking) || !movingTo ? ('danger' as const) : ('primary' as const),
           }
 
       const saved = await confirm({ ...copy, onConfirm: save })
@@ -689,7 +708,7 @@ export default function StudentEditorPage() {
                 disabled={submitting}
                 className="w-full px-5 py-3 rounded-2xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-60"
               >
-                {isReadOnly ? 'Quay lại danh sách' : 'Hủy'}
+                {isReadOnly ? 'Quay lại danh sách' : 'Huỷ'}
               </button>
             </div>
           </aside>
@@ -732,8 +751,8 @@ export default function StudentEditorPage() {
             </button>
           </div>
           <p className="text-sm text-slate-500 leading-relaxed">
-            Mật khẩu này chỉ hiện đúng một lần. Đóng hộp thoại là không xem lại được nữa — khi đó phải cấp
-            mật khẩu mới.
+            Mật khẩu này chỉ hiện đúng một lần. Đóng hộp thoại, bấm quay lại hay rời trang là không xem lại
+            được nữa — khi đó phải cấp mật khẩu mới.
           </p>
           {issuedPassword?.mustChangePassword && (
             <p className="text-sm text-slate-500 leading-relaxed">

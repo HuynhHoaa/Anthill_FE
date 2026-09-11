@@ -318,7 +318,7 @@ export default function StudentDetailPage() {
 
                 {isErased && (
                   <p className="text-sm text-slate-500 mt-4 leading-relaxed">
-                    Dữ liệu cá nhân của học sinh này đã bị xoá theo yêu cầu. Kết quả các bài em đã làm vẫn
+                    Dữ liệu cá nhân của học sinh này đã được xoá khỏi hệ thống. Kết quả các bài em đã làm vẫn
                     được giữ lại bên dưới.
                   </p>
                 )}

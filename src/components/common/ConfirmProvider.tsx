@@ -47,7 +47,7 @@ export interface ConfirmFn {
   /** Chuỗi đã bỏ khoảng trắng hai đầu, hoặc `null` khi người dùng huỷ. */
   withInput: (options: ConfirmInputOptions) => Promise<string | null>
   /**
-   * Đóng hộp đang mở như thể người dùng bấm Hủy.
+   * Đóng hộp đang mở như thể người dùng bấm Huỷ.
    *
    * Cho những lúc chính hệ thống cần giành lại màn hình — hết giờ làm bài thì phải nộp ngay, không
    * để hộp "Xác nhận nộp bài" nằm chồng lên lớp phủ nộp tự động. Không làm gì khi hộp đang chạy

@@ -612,7 +612,7 @@ export default function QuestionEditorPage() {
               to={backPath}
               className="w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
             >
-              Hủy
+              Huỷ
             </NavLink>
           </div>
         </aside>

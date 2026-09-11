@@ -12,8 +12,10 @@ import type { Exam } from '../../../types'
  * giao bài, kể cả lượt đang làm dở: em đang ngồi làm bị dừng ngay và mất phần bài chưa nộp. Trước
  * đây câu chữ nói "không kết quả nào bị mất" — đúng về điểm, sai với chính em đang làm bài.
  *
- * Trang chi tiết biết chính xác bao nhiêu em đang làm và truyền vào `inProgressCount`; danh sách
- * đề không có số đó, nên chỉ cảnh báo khi đề đang mở.
+ * Trang chi tiết biết bao nhiêu em đang làm và truyền vào `inProgressCount`. Số đó chụp lúc tải
+ * trang, nên khi nó bằng 0 mà đề còn mở thì vẫn cảnh báo chung — một em có thể vừa bắt đầu. Danh
+ * sách đề không có số đó, nên chỉ cảnh báo khi đề đang mở; đề đã đóng thì không còn lượt nào đang
+ * chạy, vì server chốt hạn nộp của mọi lượt làm bài không muộn hơn giờ đóng đề.
  */
 export function examDeleteConfirmCopy(
   exam: Pick<Exam, 'title' | 'assignedCount' | 'lifecycle'>,
@@ -25,10 +27,8 @@ export function examDeleteConfirmCopy(
       : ''
 
   const inProgressPart =
-    inProgressCount !== undefined
-      ? inProgressCount > 0
-        ? ` ${inProgressCount} học sinh đang làm bài sẽ bị dừng ngay và mất toàn bộ phần bài đang làm dở.`
-        : ''
+    inProgressCount !== undefined && inProgressCount > 0
+      ? ` ${inProgressCount} học sinh đang làm bài sẽ bị dừng ngay và mất toàn bộ phần bài đang làm dở.`
       : exam.lifecycle === 'open' && exam.assignedCount > 0
         ? ' Đề đang mở: học sinh nào đang làm bài sẽ bị dừng ngay và mất toàn bộ phần bài đang làm dở.'
         : ''

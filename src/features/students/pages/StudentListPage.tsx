@@ -34,13 +34,24 @@ export default function StudentListPage() {
   const [searchInput, setSearchInput] = useState('')
   // Giữ ID chứ không giữ tên: bộ lọc phải sống sót qua việc giáo viên đổi tên nhóm lớp.
   const [group, setGroup] = useState('all')
-  // Trang tổng quan dẫn thẳng tới đây bằng ?trang-thai=pendingDeletion. Chỉ nhận đúng các giá trị có
-  // trong ô lọc: một giá trị lạ trên URL mà lọt vào thì server trả 400 và cả trang thành trang lỗi.
-  const [searchParams] = useSearchParams()
-  const [status, setStatus] = useState<'all' | StudentStatus>(() => {
-    const requested = searchParams.get('trang-thai')
-    return statusFilterOptions.find(option => option === requested) ?? 'all'
-  })
+  // Ô lọc trạng thái sống trên URL (?trang-thai=...) chứ không trong state: trang tổng quan dẫn thẳng
+  // tới đây bằng đường đó, và giữ trong state thì đổi bộ lọc xong URL vẫn nói điều cũ — tải lại hay
+  // bấm Back là bộ lọc cũ quay về. Chỉ nhận đúng các giá trị có trong ô lọc: một giá trị lạ mà lọt
+  // vào thì server trả 400 và cả trang thành trang lỗi.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedStatus = searchParams.get('trang-thai')
+  const status: 'all' | StudentStatus = statusFilterOptions.find(option => option === requestedStatus) ?? 'all'
+  const setStatus = (next: 'all' | StudentStatus) => {
+    setSearchParams(
+      current => {
+        const nextParams = new URLSearchParams(current)
+        if (next === 'all') nextParams.delete('trang-thai')
+        else nextParams.set('trang-thai', next)
+        return nextParams
+      },
+      { replace: true },
+    )
+  }
   const [page, setPage] = useState(1)
 
   const debouncedSearch = useDebouncedValue(searchInput)
@@ -57,6 +68,7 @@ export default function StudentListPage() {
     return {
       totalStudents: activeOnly.total + lockedOnly.total,
       activeStudents: activeOnly.total,
+      lockedStudents: lockedOnly.total,
       pendingDeletionStudents: pendingOnly.total,
       groups,
     }
@@ -104,7 +116,11 @@ export default function StudentListPage() {
   }
 
   const summaryText = summary
-    ? `${summary.totalStudents} học sinh · ${summary.activeStudents} đang hoạt động${
+    // "Đang theo học" nói rõ con số này không gồm tài khoản chờ xoá hay đã xoá — ô lọc "Tất cả trạng
+    // thái" thì có, nên hai con số được phép khác nhau mà không ai tưởng một bên sai.
+    ? `${summary.totalStudents} học sinh đang theo học · ${summary.activeStudents} đang hoạt động · ${
+        summary.lockedStudents
+      } đã khoá${
         summary.pendingDeletionStudents > 0 ? ` · ${summary.pendingDeletionStudents} chờ xoá` : ''
       } · ${summary.groups.length} nhóm lớp`
     : null
@@ -297,6 +313,13 @@ export default function StudentListPage() {
                         </td>
                         <td className="px-5 py-4">
                           <StudentStatusPill status={student.status} deletionScheduledAt={student.deletionScheduledAt} />
+                          {/* Mốc xoá hẳn phải đọc được mà không cần rê chuột — điện thoại không có
+                              tooltip, và đây là trang mà lối "N tài khoản đang chờ xoá" dẫn tới. */}
+                          {student.status === 'pendingDeletion' && student.deletionScheduledAt && (
+                            <p className="text-xs text-slate-400 mt-1 whitespace-nowrap">
+                              Xoá hẳn ngày {formatDate(student.deletionScheduledAt)}
+                            </p>
+                          )}
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex items-center justify-end gap-2">
