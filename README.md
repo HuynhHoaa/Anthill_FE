@@ -131,6 +131,9 @@ kia theo tỷ lệ đang có. Sau 400ms kể từ lần chỉnh cuối, trang g�
 Tổng khác 100% hoặc ngân hàng không đủ câu thì nút "Lưu bài kiểm tra" ("Lưu thay đổi" khi sửa) và "Lưu
 và giao bài" bị khoá; đề mới hoặc đề nháp vẫn còn "Lưu nháp", còn đề đã xuất bản thì phải sửa ma trận
 cho hợp lệ mới lưu được. Form chia hai tab; lưu mà lỗi nằm ở tab kia thì trang tự chuyển sang tab đó.
+Từ lượt làm bài đầu tiên, số câu, tỷ lệ, chủ đề, điểm, thời lượng và tuỳ chọn trộn bị khoá (chỉ tên, mô tả,
+lịch và tuỳ chọn hiện kết quả còn sửa được), và trang có nút "Nhân bản đề" để dùng cấu hình khác trên một
+bản nháp mới.
 
 **Bộ lọc trang Kết quả nằm trên URL** ([TeacherResultsPage.tsx](src/features/results/pages/TeacherResultsPage.tsx)).
 Bài kiểm tra, học sinh, nhóm lớp, trạng thái và số trang đọc thẳng từ query string (`bai-kiem-tra`,
@@ -191,5 +194,6 @@ src/
 | [docs/Anthill_FE_Tech_Structure.md](docs/Anthill_FE_Tech_Structure.md) | Định hướng kiến trúc frontend |
 | [docs/Anthill_Workflow_Deploy.md](docs/Anthill_Workflow_Deploy.md) | Quy trình làm việc và phương án deploy |
 
-Tài liệu thiết kế viết trước khi nối API và trước khi có vai trò quản trị viên; chỗ nào khác code thì
-lấy code làm chuẩn.
+Hợp đồng API được lập trước khi viết backend nên có thể còn chỗ lệch với server; đặc tả nghiệp vụ và
+tài liệu cấu trúc frontend đã cập nhật theo code hiện tại, kể cả vai trò quản trị viên. Chỗ nào khác code
+thì lấy code làm chuẩn.

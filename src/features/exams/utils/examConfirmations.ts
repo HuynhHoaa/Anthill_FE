@@ -4,7 +4,7 @@
  * Tách ra vì cùng một câu "xoá đề" xuất hiện ở danh sách lẫn trang chi tiết, và hai bản sao sẽ
  * sớm nói hai điều khác nhau về cùng một hệ quả.
  */
-import { formatDuration } from '../../../lib/format'
+import { formatDateTime, formatDuration, parseDateTime } from '../../../lib/format'
 import type { Exam } from '../../../types'
 
 /**
@@ -114,15 +114,29 @@ export function publishedExamEditConfirmCopy(
  * Hỏi trước dù không phá gì, vì hai điều người dùng hay đoán sai: bản sao là **bản nháp chưa giao cho
  * ai** (không phải đề thứ hai cả lớp nhận ngay), và trên trang sửa thì những gì đang gõ dở không được
  * chép sang — bản sao lấy từ cấu hình đã lưu.
+ *
+ * Nói thêm rằng lịch mở/đóng cũng được chép nguyên. Người ta nhân bản thường là để dùng lại một đề cũ,
+ * mà giờ đóng của đề cũ đã qua: giao bản sao mà không dời lịch là giao một bài các em không vào được.
  */
-export function examDuplicateConfirmCopy(exam: Pick<Exam, 'title'>, hasUnsavedEdits = false) {
+export function examDuplicateConfirmCopy(
+  exam: Pick<Exam, 'title' | 'openAt' | 'closeAt'>,
+  hasUnsavedEdits = false,
+) {
   const unsaved = hasUnsavedEdits
     ? ' Những thay đổi chưa lưu trên trang này không được chép sang bản sao.'
     : ''
 
+  const closeDate = parseDateTime(exam.closeAt)
+  const scheduleWindow = `${formatDateTime(exam.openAt)} đến ${formatDateTime(exam.closeAt)}`
+  const schedule = !exam.openAt || !closeDate
+    ? ''
+    : closeDate.getTime() <= Date.now()
+      ? ` Lịch mở bài cũng được chép nguyên (${scheduleWindow}) — giờ đóng này đã qua, nhớ dời lịch trên bản sao trước khi giao bài.`
+      : ` Lịch mở bài cũng được chép nguyên (${scheduleWindow}); đổi trên bản sao nếu cần.`
+
   return {
     title: 'Nhân bản bài kiểm tra',
-    message: `Hệ thống tạo một bản nháp mới từ "${exam.title}" với cùng cấu hình và tuỳ chọn, tên thêm "(bản sao)". Bản sao chưa giao cho ai, đề gốc và bài làm của học sinh giữ nguyên.${unsaved} Sau đó bạn được chuyển sang trang sửa bản sao.`,
+    message: `Hệ thống tạo một bản nháp mới từ "${exam.title}" với cùng cấu hình và tuỳ chọn, tên thêm "(bản sao)".${schedule} Bản sao chưa giao cho ai, đề gốc và bài làm của học sinh giữ nguyên.${unsaved} Sau đó bạn được chuyển sang trang sửa bản sao.`,
     confirmLabel: 'Nhân bản',
     tone: 'primary' as const,
   }

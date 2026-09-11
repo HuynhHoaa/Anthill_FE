@@ -358,8 +358,10 @@ export default function ExamAssignPage() {
       const skipNotes = [
         result.skippedAlreadyAssigned > 0 ? `${result.skippedAlreadyAssigned} em đã có bài này từ trước` : '',
         result.skippedLocked > 0 ? `${result.skippedLocked} em đang bị khoá tài khoản` : '',
-        // Tách khỏi dòng "bị khoá": em đã rời trường thì không có tài khoản nào để nhờ mở khoá.
-        result.skippedRetired > 0 ? `${result.skippedRetired} em đã rời trường (tài khoản chờ xoá hoặc đã xoá)` : '',
+        // Tách khỏi dòng "bị khoá": tài khoản chờ xoá không mở khoá được, chỉ quản trị viên khôi phục được.
+        // Chỉ nói trạng thái tài khoản, không đoán lý do — hệ thống không biết em đã nghỉ học hay chỉ bị
+        // xoá nhầm, và "rời trường" không hợp với một trung tâm.
+        result.skippedRetired > 0 ? `${result.skippedRetired} em có tài khoản đang chờ xoá hoặc đã xoá` : '',
         result.skippedOutOfScope > 0 ? `${result.skippedOutOfScope} em ngoài phạm vi lớp bạn phụ trách` : '',
         result.skippedOutOfScopeGroups > 0 ? `${result.skippedOutOfScopeGroups} nhóm lớp không thuộc quyền bạn` : '',
         result.skippedNotFound > 0 ? `${result.skippedNotFound} em không còn trong hệ thống` : '',

@@ -149,8 +149,9 @@ export interface AssignExamResult {
   skippedAlreadyAssigned: number
   skippedLocked: number
   /**
-   * Tài khoản chờ xoá hoặc đã xoá — em đã rời trường. Tách khỏi `skippedLocked` vì em bị khoá thì
-   * nhờ mở khoá rồi giao lại được, còn em đã rời trường thì không có gì để làm.
+   * Tài khoản chờ xoá hoặc đã xoá. Tách khỏi `skippedLocked` vì em bị khoá thì nhờ mở khoá rồi giao
+   * lại được, còn tài khoản chờ xoá thì chỉ quản trị viên khôi phục được. Hệ thống không biết vì sao
+   * tài khoản bị xoá, nên câu chữ chỉ nói trạng thái tài khoản.
    */
   skippedRetired: number
   skippedNotFound: number
