@@ -2,19 +2,19 @@
  * Xác thực và hồ sơ người dùng — nối vào API thật (§4.1).
  *
  * Phiên được giữ ở hai chỗ với hai mục đích khác nhau:
- * - `eduquiz.token` là JWT, do apiClient đọc để gắn vào mỗi request.
- * - `eduquiz.session` là bản sao hồ sơ, để `getCurrentUser()` trả lời được **ngay lập tức** khi
+ * - `anthill.token` là JWT, do apiClient đọc để gắn vào mỗi request.
+ * - `anthill.session` là bản sao hồ sơ, để `getCurrentUser()` trả lời được **ngay lập tức** khi
  *   `RequireRole` render. Không có nó thì mỗi lần tải trang mọi route đều nháy qua màn hình đăng
  *   nhập trong lúc chờ `/api/auth/me`.
  *
  * Bản sao đó chỉ dùng để dựng giao diện. Mọi quyết định về quyền đều do server đưa ra: vai trò
- * thật đọc từ cột `Role` trong database, nên sửa `eduquiz.session` trong DevTools chỉ đổi được
+ * thật đọc từ cột `Role` trong database, nên sửa `anthill.session` trong DevTools chỉ đổi được
  * hình dạng menu, còn gọi API vẫn nhận 403 (§3 quy tắc ⑤).
  */
 import { apiClient, clearStoredToken, setStoredToken } from '../lib/apiClient'
 import type { UserProfile, UserRole } from '../types'
 
-const SESSION_STORAGE_KEY = 'eduquiz.session'
+const SESSION_STORAGE_KEY = 'anthill.session'
 
 export interface LoginPayload {
   username: string
@@ -28,7 +28,7 @@ export interface ChangePasswordPayload {
 }
 
 /** Mật khẩu dùng chung cho ba tài khoản demo được in sẵn trên trang đăng nhập. */
-export const DEMO_PASSWORD = 'eduquiz123'
+export const DEMO_PASSWORD = 'anthill123'
 
 export interface DemoAccount {
   role: UserRole
@@ -48,7 +48,7 @@ export interface DemoAccount {
 export const demoAccounts: Record<UserRole, DemoAccount> = {
   teacher: {
     role: 'teacher',
-    username: 'an.nv@eduquiz.vn',
+    username: 'an.nv@anthill.edu.vn',
     password: DEMO_PASSWORD,
     fullName: 'Nguyễn Văn An',
   },
@@ -60,7 +60,7 @@ export const demoAccounts: Record<UserRole, DemoAccount> = {
   },
   admin: {
     role: 'admin',
-    username: 'huy.pq@eduquiz.vn',
+    username: 'huy.pq@anthill.edu.vn',
     password: DEMO_PASSWORD,
     fullName: 'Phạm Quốc Huy',
   },

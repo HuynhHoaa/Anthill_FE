@@ -1,8 +1,8 @@
-# EduQuiz Frontend Technology & Structure
+# Anthill Frontend Technology & Structure
 
 ## 1. Frontend Context
 
-Frontend của EduQuiz là web application phục vụ 2 role chính: **Teacher** và **Student**.
+Frontend của Anthill là web application phục vụ 2 role chính: **Teacher** và **Student**.
 
 Teacher sử dụng hệ thống để quản lý Student, tạo ngân hàng câu hỏi, tạo bài kiểm tra theo tỷ lệ câu dễ / trung bình / khó, giao bài kiểm tra và xem kết quả. Student sử dụng hệ thống để xem bài kiểm tra được giao, làm bài và xem kết quả.
 
@@ -42,7 +42,7 @@ Gợi ý ưu tiên:
 ## 3. Frontend Folder Structure
 
 ```text
-EduQuiz.Frontend/
+Anthill_FE/
 │
 ├── public/
 │

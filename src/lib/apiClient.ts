@@ -1,13 +1,13 @@
 /**
- * Wrapper fetch chờ sẵn cho backend thật.
- * HIỆN CHƯA ĐƯỢC DÙNG Ở ĐÂU: toàn bộ dữ liệu đang đi qua tầng mock trong src/services.
- * Khi API sẵn sàng, chỉ cần thay phần thân của từng hàm service bằng apiClient,
- * chữ ký hàm giữ nguyên nên các trang không phải sửa gì.
+ * Lối duy nhất từ frontend tới API: mọi hàm trong src/services gọi qua đây, trang không gọi fetch
+ * trực tiếp. Gắn token, ghép VITE_API_BASE_URL với đường dẫn /api/... của từng service, đổi mã lỗi
+ * HTTP thành thông điệp tiếng Việt, và báo cho App khi token mất hiệu lực giữa phiên (401) để App
+ * đưa người dùng về trang đăng nhập.
  */
 import { NETWORK_ERROR_MESSAGE } from './delay'
 
 /** Token do authService lưu lại sau khi đăng nhập. */
-export const TOKEN_STORAGE_KEY = 'eduquiz.token'
+export const TOKEN_STORAGE_KEY = 'anthill.token'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 

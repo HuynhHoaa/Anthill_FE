@@ -37,7 +37,7 @@ const identityLabels: Record<UserRole, string> = {
 const identityPlaceholders: Record<UserRole, string> = {
   teacher: 'giaovien@truong.edu.vn',
   student: 'Mã học sinh hoặc tên đăng nhập',
-  admin: 'quantri@eduquiz.vn',
+  admin: 'quantri@truong.edu.vn',
 }
 
 // Dẫn xuất từ roleLabels để thêm một vai trò là tab và thẻ tài khoản demo tự có mặt.
@@ -161,7 +161,7 @@ export default function LoginPage() {
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
             <GraduationCap size={26} className="text-white" />
           </div>
-          <span className="text-white font-bold text-3xl tracking-tight">EduQuiz</span>
+          <span className="text-white font-bold text-3xl tracking-tight">Anthill</span>
         </div>
 
         {/* Center text */}
@@ -192,7 +192,7 @@ export default function LoginPage() {
         </div>
 
         <p className="relative text-indigo-300 text-sm">
-          © {new Date().getFullYear()} EduQuiz — Đồng hành cùng thầy cô và học sinh.
+          © {new Date().getFullYear()} Anthill — Đồng hành cùng thầy cô và học sinh.
         </p>
       </div>
 
@@ -204,7 +204,7 @@ export default function LoginPage() {
             <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}>
               <GraduationCap size={20} className="text-white" />
             </div>
-            <span className="font-bold text-2xl gradient-text">EduQuiz</span>
+            <span className="font-bold text-2xl gradient-text">Anthill</span>
           </div>
 
           <div className="mb-8">
@@ -345,8 +345,8 @@ export default function LoginPage() {
               Tài khoản demo
             </p>
             <p className="text-xs text-indigo-600 leading-relaxed">
-              Bấm “Điền sẵn” để tự điền tài khoản và chuyển đúng tab vai trò. Bản demo chưa nối máy chủ
-              thật nên mọi mật khẩu khác cũng đăng nhập được.
+              Bấm “Điền sẵn” để tự điền tài khoản và chuyển đúng tab vai trò. Cả ba tài khoản dùng chung
+              mật khẩu <strong className="font-semibold">{DEMO_PASSWORD}</strong>.
             </p>
 
             <ul className="mt-3 space-y-2">

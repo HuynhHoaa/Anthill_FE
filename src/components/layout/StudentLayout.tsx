@@ -63,7 +63,7 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
                 >
                   <GraduationCap size={20} className="text-white" />
                 </div>
-                <span className="font-bold text-xl text-slate-800">EduQuiz</span>
+                <span className="font-bold text-xl text-slate-800">Anthill</span>
               </div>
             ) : (
               <NavLink to="/hoc-sinh" className="flex items-center gap-2.5 flex-shrink-0">
@@ -73,7 +73,7 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
                 >
                   <GraduationCap size={20} className="text-white" />
                 </div>
-                <span className="font-bold text-xl text-slate-800">EduQuiz</span>
+                <span className="font-bold text-xl text-slate-800">Anthill</span>
               </NavLink>
             )}
 

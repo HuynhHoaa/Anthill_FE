@@ -1,5 +1,5 @@
 /**
- * Nguồn sự thật duy nhất về type nghiệp vụ của EduQuiz.
+ * Nguồn sự thật duy nhất về type nghiệp vụ của Anthill.
  * Mọi feature, service và mock data đều import từ đây.
  */
 
