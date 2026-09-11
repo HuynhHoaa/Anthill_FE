@@ -487,7 +487,7 @@ export default function ExamAssignPage() {
                 <EmptyState
                   icon={Layers}
                   title="Bạn chưa được phân công lớp nào"
-                  description="Lớp học do quản trị viên lập và phân công giáo viên phụ trách. Hãy liên hệ quản trị viên, hoặc chọn từng học sinh ở phần bên dưới."
+                  description="Lớp học do quản trị viên lập và phân công giáo viên phụ trách. Hãy liên hệ quản trị viên để được phân công vào lớp."
                 />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

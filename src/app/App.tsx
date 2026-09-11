@@ -40,9 +40,9 @@ export default function App() {
   //
   // Đăng ký ở đây vì đây là nơi đầu tiên có router; apiClient cố ý không biết gì về react-router.
   useEffect(() => {
-    setUnauthorizedHandler(() => {
+    setUnauthorizedHandler(message => {
       logout()
-      navigate('/dang-nhap', { replace: true, state: { sessionExpired: true } })
+      navigate('/dang-nhap', { replace: true, state: { sessionExpired: true, reason: message } })
     })
 
     return () => setUnauthorizedHandler(null)

@@ -84,9 +84,12 @@ export default function LoginPage() {
   const location = useLocation()
 
   // RequireRole gửi kèm địa chỉ đang muốn vào; luồng 401 giữa phiên thì gửi cờ sessionExpired.
-  const routeState = location.state as { from?: string; sessionExpired?: boolean } | null
+  const routeState = location.state as { from?: string; sessionExpired?: boolean; reason?: string } | null
   const returnTo = typeof routeState?.from === 'string' ? routeState.from : undefined
   const sessionExpired = routeState?.sessionExpired === true
+  // Lý do server gửi kèm 401 ("tài khoản đã bị khoá, liên hệ quản trị viên"...). Có thì nói đúng lý
+  // do: một em bị khoá mà chỉ đọc "hãy đăng nhập lại" sẽ đăng nhập lại và gặp thêm một lỗi khó hiểu.
+  const sessionReason = typeof routeState?.reason === 'string' && routeState.reason ? routeState.reason : undefined
   const toast = useToast()
   const [showPassword, setShowPassword] = useState(false)
   const [role, setRole] = useState<UserRole>('teacher')
@@ -242,8 +245,8 @@ export default function LoginPage() {
             >
               <AlertCircle size={17} className="text-amber-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700 leading-relaxed">
-                Phiên đăng nhập đã kết thúc. Việc này xảy ra khi tài khoản bị khoá hoặc mật khẩu
-                vừa được đổi. Hãy đăng nhập lại để tiếp tục.
+                {sessionReason ??
+                  'Phiên đăng nhập đã kết thúc. Việc này xảy ra khi tài khoản bị khoá hoặc mật khẩu vừa được đổi. Hãy đăng nhập lại để tiếp tục.'}
               </p>
             </div>
           )}

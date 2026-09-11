@@ -17,6 +17,7 @@ import { useAsync } from '../../../hooks/useAsync'
 import {
   formatDate, formatDateTime, formatScore, getInitials, getScoreTone, NO_VALUE, roundToOneDecimal,
 } from '../../../lib/format'
+import { listGroups } from '../../../services/groupService'
 import { DELETION_RETENTION_DAYS, getStudent } from '../../../services/studentService'
 import { listResults } from '../../../services/resultService'
 import StudentStatusPill from '../components/StudentStatusPill'
@@ -77,6 +78,11 @@ export default function StudentDetailPage() {
     [studentId],
   )
 
+  // Lớp mà giáo viên đang dạy. Hồ sơ còn mở được với em đã chuyển sang lớp khác (vì em từng nhận đề
+  // của giáo viên này), nhưng lớp mới đó không thuộc về giáo viên — link tới nó chỉ dẫn tới trang
+  // "không tìm thấy", nên chỉ gắn link khi lớp nằm trong danh sách này.
+  const { data: taughtGroups } = useAsync(() => listGroups(), [])
+
   const historyItems = useMemo(() => results?.items ?? [], [results])
 
   // Số liệu lấy từ chính bảng lịch sử bên dưới, không lấy từ hai trường tĩnh của học sinh,
@@ -105,10 +111,10 @@ export default function StudentDetailPage() {
   }, [student])
 
   // Lối quay lại suy từ chính học sinh, nên học sinh chưa phân nhóm vẫn có đường về hợp lệ.
-  const backTo =
-    student && student.groupId > 0 ? `${groupListLink}/${student.groupId}` : groupListLink
-  const backLabel =
-    student && student.groupId > 0 ? `Quay lại nhóm ${student.group}` : 'Quay lại danh sách nhóm'
+  const canOpenGroup =
+    !!student && student.groupId > 0 && (taughtGroups ?? []).some(group => group.id === student.groupId)
+  const backTo = canOpenGroup && student ? `${groupListLink}/${student.groupId}` : groupListLink
+  const backLabel = canOpenGroup && student ? `Quay lại nhóm ${student.group}` : 'Quay lại danh sách nhóm'
 
   const avatarTone = getAvatarTone(studentId)
   const isErased = student?.status === 'deleted'
@@ -298,7 +304,7 @@ export default function StudentDetailPage() {
                       </span>
                     </>
                   )}
-                  {student.groupId > 0 ? (
+                  {canOpenGroup ? (
                     <NavLink
                       to={`${groupListLink}/${student.groupId}`}
                       title={`Mở nhóm ${student.group}`}
