@@ -192,7 +192,13 @@ export interface ExamAssignment {
   examId: number
   studentId: number
   studentName: string
+  /** Chuỗi rỗng với tài khoản đã xoá — mã giữ chỗ của server không phải dữ liệu thật. */
   studentCode: string
+  /**
+   * Trạng thái **tài khoản** của em, khác `status` là tiến độ làm bài. Bài và điểm của em đã rời
+   * trường vẫn nằm lại trên bảng, nên thiếu trường này thì dòng của em trông y hệt một em đang học.
+   */
+  studentStatus: StudentStatus
   group: string
   status: ExamStatus
   attemptId?: number
@@ -210,7 +216,10 @@ export interface ResultSummary {
   topicColor: string
   studentId: number
   studentName: string
+  /** Chuỗi rỗng với tài khoản đã xoá — xem ExamAssignment. */
   studentCode: string
+  /** Trạng thái tài khoản của em, không phải của bài làm — xem ExamAssignment. */
+  studentStatus: StudentStatus
   group: string
   status: ExamStatus
   /** True khi hệ thống nộp hộ vì hết giờ, không phải học sinh tự bấm nộp. */
@@ -315,7 +324,10 @@ export interface AttemptDetail {
   topicColor: string
   studentId: number
   studentName: string
+  /** Chuỗi rỗng với tài khoản đã xoá — xem ExamAssignment. */
   studentCode: string
+  /** Trạng thái tài khoản của em — xem ExamAssignment. */
+  studentStatus: StudentStatus
   group: string
   status: ExamStatus
   /** `null` nghĩa là chưa được phép xem — xem chú thích ở ResultSummary. */

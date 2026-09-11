@@ -7,6 +7,7 @@ import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
 import { StatusBadge } from '../../../components/common/Badge'
 import { SkeletonTable } from '../../../components/common/Skeleton'
+import StudentStatusPill from '../../students/components/StudentStatusPill'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { getResultStats, listResults } from '../../../services/resultService'
@@ -364,14 +365,19 @@ export default function TeacherResultsPage() {
                         <p className="text-xs text-slate-400 mt-0.5">Nộp {formatDateTime(result.submittedAt)}</p>
                       </td>
                       <td className="px-5 py-4">
-                        <button
-                          type="button"
-                          onClick={() => updateFilters({ [STUDENT_PARAM]: String(result.studentId) })}
-                          title={`Chỉ xem kết quả của ${result.studentName}`}
-                          className={`${cellLinkClass} whitespace-nowrap`}
-                        >
-                          {result.studentName}
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateFilters({ [STUDENT_PARAM]: String(result.studentId) })}
+                            title={`Chỉ xem kết quả của ${result.studentName}`}
+                            className={`${cellLinkClass} whitespace-nowrap`}
+                          >
+                            {result.studentName}
+                          </button>
+                          {/* Chỉ gắn nhãn khi khác thường: "Đang hoạt động" trên mọi dòng chỉ là
+                              nhiễu, còn em đã rời trường thì giáo viên cần biết trước khi đọc điểm. */}
+                          {result.studentStatus !== 'active' && <StudentStatusPill status={result.studentStatus} />}
+                        </div>
                       </td>
                       <td className="px-5 py-4">
                         {/* Không tra ra id thì nhóm chỉ hiện ra chứ không bấm lọc được, vì lọc theo

@@ -8,8 +8,9 @@
  */
 import { apiClient } from '../lib/apiClient'
 import { getTopicColor } from '../lib/topicTheme'
-import type { AttemptDetail, ExamStatus, ResultSummary } from '../types'
+import type { AttemptDetail, ExamStatus, ResultSummary, StudentStatus } from '../types'
 import {
+  toDisplayStudentCode,
   toResultSummary,
   type PagedResponse,
   type ResultSummaryDto,
@@ -81,6 +82,8 @@ interface AttemptDetailDto {
   studentId: number
   studentName: string
   studentCode: string
+  /** Vắng mặt khi server cũ hơn trường này. */
+  studentStatus?: StudentStatus
   group?: string
   status: ExamStatus
   startedAt: string
@@ -144,6 +147,7 @@ export function getResultStats(params: ListResultsParams = {}): Promise<ResultSt
 /** Chi tiết một lượt làm bài, soi từng câu. */
 export async function getAttemptDetail(attemptId: number): Promise<AttemptDetail> {
   const dto = await apiClient.get<AttemptDetailDto>(`/api/results/${attemptId}`)
+  const studentStatus = dto.studentStatus ?? 'active'
 
   return {
     attemptId: dto.attemptId,
@@ -153,7 +157,8 @@ export async function getAttemptDetail(attemptId: number): Promise<AttemptDetail
     topicColor: getTopicColor(dto.topic),
     studentId: dto.studentId,
     studentName: dto.studentName,
-    studentCode: dto.studentCode,
+    studentCode: toDisplayStudentCode(dto.studentCode, studentStatus),
+    studentStatus,
     group: dto.group ?? '',
     status: dto.status,
     score: dto.score ?? null,

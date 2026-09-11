@@ -16,6 +16,7 @@ import { getAttemptDetail } from '../../../services/resultService'
 import { formatDateTime, formatDuration, formatScore } from '../../../lib/format'
 import type { AttemptAnswerDetail, AttemptDetail, ResultAudience } from '../../../types'
 import ScoreRing from '../components/ScoreRing'
+import StudentStatusPill from '../../students/components/StudentStatusPill'
 
 interface ResultDetailPageProps {
   audience: ResultAudience
@@ -422,6 +423,11 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                   {/* Chi tiết bài làm không kèm nhóm lớp, nên bỏ trống là chuyện thường —
                       in dấu chấm giữa mà không có gì theo sau trông như dữ liệu bị mất. */}
                   {detail.group !== '' && ` · ${detail.group}`}
+                  {detail.studentStatus !== 'active' && (
+                    <span className="ml-2 align-middle">
+                      <StudentStatusPill status={detail.studentStatus} />
+                    </span>
+                  )}
                 </p>
               ) : (
                 <p className="text-sm text-slate-500 mt-1.5">Nộp lúc {formatDateTime(detail.submittedAt)}</p>
@@ -543,6 +549,11 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                   <p className="text-xs text-slate-400 truncate">
                     {[detail.studentCode, detail.group].filter(Boolean).join(' · ')}
                   </p>
+                  {detail.studentStatus !== 'active' && (
+                    <div className="mt-1.5">
+                      <StudentStatusPill status={detail.studentStatus} />
+                    </div>
+                  )}
                 </div>
               </div>
 

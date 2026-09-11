@@ -26,6 +26,7 @@ import { getTopicLabel } from '../../../lib/topicTheme'
 import { difficultyLabels, examStatusLabels } from '../../../types'
 import type { DifficultyLevel, ExamAssignment, ExamStatus } from '../../../types'
 import { examDeleteConfirmCopy } from '../utils/examConfirmations'
+import StudentStatusPill from '../../students/components/StudentStatusPill'
 
 const ROWS_PER_PAGE = 10
 
@@ -114,9 +115,15 @@ function AssignmentRow({ assignment }: { assignment: ExamAssignment }) {
   return (
     <tr className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
       <td className={`${cellClass} font-semibold text-slate-800 whitespace-nowrap`}>
-        {assignment.studentName}
+        <span className="inline-flex items-center gap-2">
+          {assignment.studentName}
+          {/* Dòng của em đã rời trường vẫn ở lại cùng bài và điểm; không có nhãn thì một em chờ xoá
+              trông y hệt em "chưa bắt đầu", và giáo viên đi nhắc một người không còn học. */}
+          {assignment.studentStatus !== 'active' && <StudentStatusPill status={assignment.studentStatus} />}
+        </span>
       </td>
-      <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>{assignment.studentCode}</td>
+      {/* Tài khoản đã xoá không có mã thật (service đã quy mã giữ chỗ về rỗng). */}
+      <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>{assignment.studentCode || '—'}</td>
       <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>{assignment.group}</td>
       <td className={`${cellClass} whitespace-nowrap`}>
         <StatusBadge status={assignment.status} />

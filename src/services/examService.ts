@@ -9,7 +9,8 @@
  * 3. **`randomizePerStudent` là thật.** Trước đây là ô tích không có tác dụng gì.
  */
 import { apiClient } from '../lib/apiClient'
-import type { Exam, ExamAssignment, Paged } from '../types'
+import type { Exam, ExamAssignment, Paged, StudentStatus } from '../types'
+import { toDisplayStudentCode } from './mappers'
 
 export interface ExamPayload {
   title: string
@@ -120,14 +121,27 @@ export function publishExam(id: number): Promise<Exam> {
   return apiClient.post<Exam>(`/api/exams/${id}/publish`)
 }
 
-export function listExamAssignments(examId: number): Promise<ExamAssignment[]> {
-  return apiClient.get<ExamAssignment[]>(`/api/exams/${examId}/assignments`)
+/** Dòng theo dõi như server gửi. `studentStatus` vắng mặt khi server cũ hơn trường này. */
+type ExamAssignmentDto = Omit<ExamAssignment, 'studentStatus'> & { studentStatus?: StudentStatus }
+
+export async function listExamAssignments(examId: number): Promise<ExamAssignment[]> {
+  const rows = await apiClient.get<ExamAssignmentDto[]>(`/api/exams/${examId}/assignments`)
+
+  return rows.map(row => {
+    const studentStatus = row.studentStatus ?? 'active'
+    return { ...row, studentStatus, studentCode: toDisplayStudentCode(row.studentCode, studentStatus) }
+  })
 }
 
 export interface AssignExamResult {
   assignedCount: number
   skippedAlreadyAssigned: number
   skippedLocked: number
+  /**
+   * Tài khoản chờ xoá hoặc đã xoá — em đã rời trường. Tách khỏi `skippedLocked` vì em bị khoá thì
+   * nhờ mở khoá rồi giao lại được, còn em đã rời trường thì không có gì để làm.
+   */
+  skippedRetired: number
   skippedNotFound: number
   /** Học sinh không thuộc lớp nào của giáo viên này. */
   skippedOutOfScope: number
