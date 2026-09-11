@@ -7,17 +7,36 @@
 import { formatDuration } from '../../../lib/format'
 import type { Exam } from '../../../types'
 
-/** Nút xoá chỉ bật khi chưa em nào nộp bài, nên câu chữ được phép khẳng định không mất kết quả nào. */
-export function examDeleteConfirmCopy(exam: Pick<Exam, 'title' | 'assignedCount'>) {
+/**
+ * Nút xoá chỉ bật khi chưa em nào nộp bài, nên không mất điểm số nào. Nhưng xoá đề là gỡ mọi lượt
+ * giao bài, kể cả lượt đang làm dở: em đang ngồi làm bị dừng ngay và mất phần bài chưa nộp. Trước
+ * đây câu chữ nói "không kết quả nào bị mất" — đúng về điểm, sai với chính em đang làm bài.
+ *
+ * Trang chi tiết biết chính xác bao nhiêu em đang làm và truyền vào `inProgressCount`; danh sách
+ * đề không có số đó, nên chỉ cảnh báo khi đề đang mở.
+ */
+export function examDeleteConfirmCopy(
+  exam: Pick<Exam, 'title' | 'assignedCount' | 'lifecycle'>,
+  inProgressCount?: number,
+) {
   const assignmentPart =
     exam.assignedCount > 0
       ? ` Toàn bộ ${exam.assignedCount} lượt giao bài bị gỡ theo — ${exam.assignedCount} học sinh sẽ không còn thấy bài này trong danh sách của mình.`
       : ''
 
+  const inProgressPart =
+    inProgressCount !== undefined
+      ? inProgressCount > 0
+        ? ` ${inProgressCount} học sinh đang làm bài sẽ bị dừng ngay và mất toàn bộ phần bài đang làm dở.`
+        : ''
+      : exam.lifecycle === 'open' && exam.assignedCount > 0
+        ? ' Đề đang mở: học sinh nào đang làm bài sẽ bị dừng ngay và mất toàn bộ phần bài đang làm dở.'
+        : ''
+
   return {
-    title: 'Xóa bài kiểm tra',
-    message: `Bài kiểm tra "${exam.title}" sẽ bị xóa vĩnh viễn và không khôi phục được.${assignmentPart} Chưa có học sinh nào nộp bài nên không kết quả nào bị mất.`,
-    confirmLabel: 'Xóa bài kiểm tra',
+    title: 'Xoá bài kiểm tra',
+    message: `Bài kiểm tra "${exam.title}" sẽ bị xoá vĩnh viễn và không khôi phục được.${assignmentPart}${inProgressPart} Chưa em nào nộp bài nên không mất điểm số nào.`,
+    confirmLabel: 'Xoá bài kiểm tra',
     tone: 'danger' as const,
   }
 }

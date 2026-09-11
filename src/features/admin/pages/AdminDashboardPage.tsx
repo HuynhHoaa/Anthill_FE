@@ -4,7 +4,7 @@
  */
 import { NavLink } from 'react-router-dom'
 import {
-  ChevronRight, Lock, ShieldCheck, UserPlus, Users, UsersRound, type LucideIcon,
+  ChevronRight, Clock, Lock, ShieldCheck, UserPlus, Users, UsersRound, type LucideIcon,
 } from 'lucide-react'
 import AdminLayout from '../../../components/layout/AdminLayout'
 import EmptyState from '../../../components/common/EmptyState'
@@ -13,7 +13,7 @@ import { SkeletonBlock, SkeletonTable } from '../../../components/common/Skeleto
 import { useAsync } from '../../../hooks/useAsync'
 import { formatDate, getInitials } from '../../../lib/format'
 import { listGroups } from '../../../services/groupService'
-import { listStudents } from '../../../services/studentService'
+import { DELETION_RETENTION_DAYS, listStudents } from '../../../services/studentService'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
 import { getAvatarTone } from '../../student-groups/components/groupTheme'
 import type { Student } from '../../../types'
@@ -22,15 +22,18 @@ import type { Student } from '../../../types'
 const RECENT_STUDENT_COUNT = 5
 
 const studentListLink = '/quan-tri/hoc-sinh'
+const pendingDeletionListLink = `${studentListLink}?trang-thai=pendingDeletion`
 const studentCreateLink = '/quan-tri/hoc-sinh/tao'
 const groupListLink = '/quan-tri/nhom-lop'
 const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
 const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500'
 
 interface AdminOverview {
+  /** Học sinh còn theo học: đang hoạt động cộng đang khoá. */
   totalStudents: number
   activeStudents: number
   lockedStudents: number
+  pendingDeletionStudents: number
   groupCount: number
   recentStudents: Student[]
 }
@@ -38,15 +41,18 @@ interface AdminOverview {
 /** Gộp mọi lời gọi thành một trạng thái tải để trang chỉ có duy nhất một khung xương. */
 function loadAdminOverview(): Promise<AdminOverview> {
   return Promise.all([
-    listStudents({ page: 1, pageSize: 1 }),
     listStudents({ status: 'active', page: 1, pageSize: 1 }),
     listStudents({ status: 'locked', page: 1, pageSize: 1 }),
+    listStudents({ status: 'pendingDeletion', page: 1, pageSize: 1 }),
     listGroups(),
     listStudents({ page: 1, pageSize: RECENT_STUDENT_COUNT }),
-  ]).then(([everyone, activeOnly, lockedOnly, groups, recent]) => ({
-    totalStudents: everyone.total,
+  ]).then(([activeOnly, lockedOnly, pendingOnly, groups, recent]) => ({
+    // Tổng là cộng hai trạng thái chứ không đếm mọi tài khoản: tài khoản chờ xoá hay đã xoá không
+    // còn là học sinh của trung tâm, và đếm cả vào thì ba ô đầu không bao giờ cộng khớp nhau.
+    totalStudents: activeOnly.total + lockedOnly.total,
     activeStudents: activeOnly.total,
     lockedStudents: lockedOnly.total,
+    pendingDeletionStudents: pendingOnly.total,
     groupCount: groups.length,
     recentStudents: recent.items,
   }))
@@ -79,7 +85,7 @@ const statTiles: StatTileConfig[] = [
     icon: Lock,
     iconBg: 'bg-amber-50',
     iconColor: 'text-amber-600',
-    label: 'Đã khóa',
+    label: 'Đã khoá',
     selectValue: overview => overview.lockedStudents,
   },
   {
@@ -101,7 +107,7 @@ const quickActions: { label: string; description: string; to: string; icon: Luci
   },
   {
     label: 'Xem tất cả học sinh',
-    description: 'Tìm kiếm, sửa và khóa tài khoản',
+    description: 'Tìm kiếm, sửa và khoá tài khoản',
     to: studentListLink,
     icon: Users,
     gradient: 'linear-gradient(135deg,#3B82F6,#2563EB)',
@@ -122,7 +128,9 @@ export default function AdminDashboardPage() {
   const recentStudents = overview?.recentStudents ?? []
 
   const summaryText = overview
-    ? `${overview.totalStudents} học sinh · ${overview.activeStudents} đang hoạt động · ${overview.lockedStudents} đã khóa · ${overview.groupCount} nhóm lớp`
+    ? `${overview.totalStudents} học sinh · ${overview.activeStudents} đang hoạt động · ${overview.lockedStudents} đã khoá${
+        overview.pendingDeletionStudents > 0 ? ` · ${overview.pendingDeletionStudents} chờ xoá` : ''
+      } · ${overview.groupCount} nhóm lớp`
     : undefined
 
   if (error) {
@@ -155,6 +163,27 @@ export default function AdminDashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* Chỉ hiện khi có việc cần để mắt tới — một ô "Chờ xoá: 0" nằm thường trực chỉ thêm nhiễu. Đây
+          là lối để người quản lý thấy những tài khoản sắp bị xoá vĩnh viễn trước khi quá muộn. */}
+      {overview && overview.pendingDeletionStudents > 0 && (
+        <NavLink
+          to={pendingDeletionListLink}
+          className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3.5 hover:bg-amber-100/70 transition-colors animate-fade-in-up"
+        >
+          <span className="flex items-start gap-2.5 text-sm text-amber-800 leading-relaxed">
+            <Clock size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <span>
+              <strong className="font-semibold">{overview.pendingDeletionStudents} tài khoản đang chờ xoá.</strong>{' '}
+              Mỗi tài khoản còn khôi phục được trong {DELETION_RETENTION_DAYS} ngày kể từ ngày yêu cầu; hết hạn, dữ
+              liệu cá nhân bị xoá vĩnh viễn.
+            </span>
+          </span>
+          <span className="inline-flex items-center gap-1 text-sm font-semibold text-amber-700 flex-shrink-0">
+            Xem danh sách <ChevronRight size={16} />
+          </span>
+        </NavLink>
+      )}
 
       <div className="mt-8 mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>

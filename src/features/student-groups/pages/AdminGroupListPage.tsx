@@ -92,7 +92,7 @@ export default function AdminGroupListPage() {
     [trimmedSearch],
   )
 
-  // Phụ đề phải mô tả toàn bộ dữ liệu nên dùng truy vấn riêng không kèm từ khóa,
+  // Phụ đề phải mô tả toàn bộ dữ liệu nên dùng truy vấn riêng không kèm từ khoá,
   // tránh cảnh gõ tìm kiếm là tổng học sinh tụt theo kết quả lọc.
   const { data: allGroups, reload: reloadSummary } = useAsync(() => listGroups(), [])
 
@@ -132,7 +132,7 @@ export default function AdminGroupListPage() {
   const handleFormSaved = () => {
     const wasCreating = editingGroup === undefined
     setFormOpen(false)
-    // Xóa bộ lọc sau khi tạo để lớp vừa lập chắc chắn nằm trong danh sách
+    // Xoá bộ lọc sau khi tạo để lớp vừa lập chắc chắn nằm trong danh sách
     if (wasCreating && searchInput) setSearchInput('')
     reloadAll()
   }
@@ -152,12 +152,12 @@ export default function AdminGroupListPage() {
   }
 
   const requestDelete = async (group: StudentGroup) => {
-    // Lớp còn học sinh thì server từ chối xóa, nên dẫn thẳng sang trang quản lý
+    // Lớp còn học sinh thì server từ chối xoá, nên dẫn thẳng sang trang quản lý
     // thay vì để quản trị viên bấm một nút chắc chắn thất bại.
     if (group.studentCount > 0) {
       const openManager = await confirm({
-        title: 'Chưa thể xóa lớp',
-        message: `Lớp "${group.name}" đang có ${group.studentCount} học sinh nên chưa thể xóa. Hãy chuyển các em sang lớp khác trong trang quản lý lớp trước — tài khoản học sinh sẽ không bị xóa theo.`,
+        title: 'Chưa thể xoá lớp',
+        message: `Lớp "${group.name}" đang có ${group.studentCount} học sinh nên chưa thể xoá. Hãy chuyển các em sang lớp khác trong trang quản lý lớp trước — tài khoản học sinh sẽ không bị xoá theo.`,
         confirmLabel: 'Mở trang quản lý lớp',
         cancelLabel: 'Để sau',
       })
@@ -170,14 +170,14 @@ export default function AdminGroupListPage() {
         ? ` ${group.teachers.length} giáo viên đang phụ trách sẽ không còn thấy lớp này.`
         : ''
     const deleted = await confirm({
-      title: 'Xóa lớp',
-      message: `Lớp "${group.name}" sẽ bị xóa và không khôi phục được.${teacherPart} Lớp hiện không có học sinh nào nên không tài khoản hay kết quả bài làm nào bị ảnh hưởng.`,
-      confirmLabel: 'Xóa lớp',
+      title: 'Xoá lớp',
+      message: `Lớp "${group.name}" sẽ bị xoá và không khôi phục được.${teacherPart} Lớp hiện không có học sinh nào nên không tài khoản hay kết quả bài làm nào bị ảnh hưởng.`,
+      confirmLabel: 'Xoá lớp',
       tone: 'danger',
       onConfirm: reloadOnFailure(() => deleteGroup(group.id)),
     })
     if (!deleted) return
-    toast.success(`Đã xóa lớp ${group.name}.`)
+    toast.success(`Đã xoá lớp ${group.name}.`)
     reloadAll()
   }
 
@@ -240,7 +240,7 @@ export default function AdminGroupListPage() {
               <button
                 type="button"
                 onClick={() => setSearchInput('')}
-                aria-label="Xóa tìm kiếm"
+                aria-label="Xoá tìm kiếm"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
               >
                 <X size={15} />
@@ -268,14 +268,14 @@ export default function AdminGroupListPage() {
             <EmptyState
               icon={Search}
               title="Không tìm thấy lớp phù hợp"
-              description={`Không có lớp nào khớp với từ khóa "${trimmedSearch}". Thử từ khóa khác hoặc xóa bộ lọc để xem toàn bộ lớp.`}
+              description={`Không có lớp nào khớp với từ khoá "${trimmedSearch}". Thử từ khoá khác hoặc xoá bộ lọc để xem toàn bộ lớp.`}
               action={
                 <button
                   type="button"
                   onClick={() => setSearchInput('')}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                 >
-                  <X size={15} /> Xóa tìm kiếm
+                  <X size={15} /> Xoá tìm kiếm
                 </button>
               }
             />
@@ -387,8 +387,8 @@ export default function AdminGroupListPage() {
                         <button
                           type="button"
                           onClick={() => void requestDelete(group)}
-                          title="Xóa lớp"
-                          aria-label={`Xóa lớp ${group.name}`}
+                          title="Xoá lớp"
+                          aria-label={`Xoá lớp ${group.name}`}
                           className="w-9 h-9 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors"
                         >
                           <Trash2 size={15} />

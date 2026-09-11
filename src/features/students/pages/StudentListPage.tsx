@@ -1,6 +1,6 @@
 // Trang thuộc vai trò quản trị viên: admin sở hữu tài khoản học sinh.
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useSearchParams } from 'react-router-dom'
 import {
   FilterX, Mail, Plus, RotateCcw, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, Users, UsersRound,
 } from 'lucide-react'
@@ -34,18 +34,32 @@ export default function StudentListPage() {
   const [searchInput, setSearchInput] = useState('')
   // Giữ ID chứ không giữ tên: bộ lọc phải sống sót qua việc giáo viên đổi tên nhóm lớp.
   const [group, setGroup] = useState('all')
-  const [status, setStatus] = useState<'all' | StudentStatus>('all')
+  // Trang tổng quan dẫn thẳng tới đây bằng ?trang-thai=pendingDeletion. Chỉ nhận đúng các giá trị có
+  // trong ô lọc: một giá trị lạ trên URL mà lọt vào thì server trả 400 và cả trang thành trang lỗi.
+  const [searchParams] = useSearchParams()
+  const [status, setStatus] = useState<'all' | StudentStatus>(() => {
+    const requested = searchParams.get('trang-thai')
+    return statusFilterOptions.find(option => option === requested) ?? 'all'
+  })
   const [page, setPage] = useState(1)
 
   const debouncedSearch = useDebouncedValue(searchInput)
 
   const summaryQuery = useAsync(async () => {
-    const [everyone, activeOnly, groups] = await Promise.all([
-      listStudents({ page: 1, pageSize: 1 }),
+    const [activeOnly, lockedOnly, pendingOnly, groups] = await Promise.all([
       listStudents({ status: 'active', page: 1, pageSize: 1 }),
+      listStudents({ status: 'locked', page: 1, pageSize: 1 }),
+      listStudents({ status: 'pendingDeletion', page: 1, pageSize: 1 }),
       listGroups(),
     ])
-    return { totalStudents: everyone.total, activeStudents: activeOnly.total, groups }
+    // Cùng cách đếm với trang tổng quan: "học sinh" là em còn theo học, không gồm tài khoản chờ xoá
+    // hay đã xoá. Hai trang nói về cùng một điều thì phải ra cùng một con số.
+    return {
+      totalStudents: activeOnly.total + lockedOnly.total,
+      activeStudents: activeOnly.total,
+      pendingDeletionStudents: pendingOnly.total,
+      groups,
+    }
   }, [])
 
   const studentsQuery = useAsync(
@@ -62,6 +76,14 @@ export default function StudentListPage() {
   const summary = summaryQuery.data
   const groupOptions = summary?.groups ?? []
   const students = studentsQuery.data?.items ?? []
+
+  // Thao tác trên dòng cuối cùng của trang cuối — xoá một em khi đang lọc "Đang hoạt động" — làm
+  // trang đó trống. Lùi về trang cuối còn dữ liệu thay vì để người dùng đứng trước "Không tìm thấy".
+  const loadedPage = studentsQuery.data
+  if (loadedPage && !studentsQuery.loading && loadedPage.items.length === 0 && page > 1) {
+    const lastPage = Math.max(1, Math.ceil(loadedPage.total / loadedPage.pageSize))
+    if (lastPage < page) setPage(lastPage)
+  }
   const hasActiveFilters = debouncedSearch.trim() !== '' || group !== 'all' || status !== 'all'
 
   const clearFilters = () => {
@@ -82,7 +104,9 @@ export default function StudentListPage() {
   }
 
   const summaryText = summary
-    ? `${summary.totalStudents} học sinh · ${summary.activeStudents} đang hoạt động · ${summary.groups.length} nhóm lớp`
+    ? `${summary.totalStudents} học sinh · ${summary.activeStudents} đang hoạt động${
+        summary.pendingDeletionStudents > 0 ? ` · ${summary.pendingDeletionStudents} chờ xoá` : ''
+      } · ${summary.groups.length} nhóm lớp`
     : null
 
   return (
@@ -142,7 +166,7 @@ export default function StudentListPage() {
                 onClick={clearFilters}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
               >
-                <FilterX size={15} /> Xóa bộ lọc
+                <FilterX size={15} /> Xoá bộ lọc
               </button>
             )}
           </div>
@@ -166,14 +190,14 @@ export default function StudentListPage() {
           <EmptyState
             icon={Search}
             title="Không tìm thấy học sinh phù hợp"
-            description="Không có học sinh nào khớp với từ khóa và bộ lọc hiện tại. Hãy thử từ khóa khác hoặc xóa bớt bộ lọc."
+            description="Không có học sinh nào khớp với từ khoá và bộ lọc hiện tại. Hãy thử từ khoá khác hoặc xoá bớt bộ lọc."
             action={
               <button
                 type="button"
                 onClick={clearFilters}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
               >
-                <FilterX size={15} /> Xóa bộ lọc
+                <FilterX size={15} /> Xoá bộ lọc
               </button>
             }
           />
@@ -272,7 +296,7 @@ export default function StudentListPage() {
                           )}
                         </td>
                         <td className="px-5 py-4">
-                          <StudentStatusPill status={student.status} />
+                          <StudentStatusPill status={student.status} deletionScheduledAt={student.deletionScheduledAt} />
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex items-center justify-end gap-2">
@@ -291,11 +315,11 @@ export default function StudentListPage() {
                                 <button
                                   type="button"
                                   onClick={() => void runAccountAction(accountActions.toggleLock(student))}
-                                  title={isActive ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
+                                  title={isActive ? 'Khoá tài khoản' : 'Mở khoá tài khoản'}
                                   aria-label={
                                     isActive
-                                      ? `Khóa tài khoản của ${student.fullName}`
-                                      : `Mở khóa tài khoản của ${student.fullName}`
+                                      ? `Khoá tài khoản của ${student.fullName}`
+                                      : `Mở khoá tài khoản của ${student.fullName}`
                                   }
                                   className={`${iconActionClass} ${
                                     isActive

@@ -5,7 +5,8 @@
  * Gom về một chỗ vì danh sách học sinh và trang sửa học sinh cùng làm bốn việc này. Hai bản câu chữ
  * tách rời thì sớm muộn một bản nói "khôi phục được trong 60 ngày" còn bản kia quên mất.
  */
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import ConsequenceList from '../../../components/common/ConsequenceList'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import {
@@ -15,19 +16,42 @@ import {
 } from '../../../services/studentService'
 import type { Student } from '../../../types'
 
+/**
+ * Hệ quả của việc khoá/mở khoá, tách riêng để trang sửa học sinh ghép chung với hệ quả đổi lớp vào
+ * một hộp duy nhất khi người dùng đổi cả hai rồi bấm Lưu.
+ *
+ * Điều dễ bị bỏ sót nhất là chuyện giao bài: server bỏ qua mọi tài khoản không ở trạng thái hoạt
+ * động khi giáo viên giao bài, và mở khoá xong em cũng không tự nhận lại những bài đã lỡ.
+ */
+export function lockConsequences(fullName: string, locking: boolean): string[] {
+  return locking
+    ? [
+        `${fullName} bị đăng xuất ngay khỏi mọi thiết bị, kể cả khi đang làm bài dở — đồng hồ của bài đó vẫn chạy, câu trả lời đã lưu còn nguyên nhưng em không vào tiếp được.`,
+        'Em ấy không đăng nhập hay làm bài được cho tới khi được mở khoá.',
+        'Bài giáo viên giao trong thời gian này sẽ bỏ qua em, và mở khoá xong em cũng không tự nhận lại những bài đó.',
+        'Bài đã nộp và điểm vẫn giữ nguyên.',
+      ]
+    : [
+        `${fullName} đăng nhập lại được bằng mật khẩu hiện tại và tiếp tục làm những bài đang được giao.`,
+        'Bài được giao trong lúc em bị khoá không tự đến với em — giáo viên cần giao lại nếu muốn em làm.',
+      ]
+}
+
 /** Câu chữ của hộp khoá/mở khoá — trang sửa học sinh cũng dùng khi đổi ô trạng thái rồi bấm Lưu. */
 export function lockConfirmCopy(fullName: string, locking: boolean) {
   return locking
     ? {
-        title: 'Khóa tài khoản học sinh',
-        message: `${fullName} sẽ bị đăng xuất ngay khỏi mọi thiết bị — kể cả khi đang làm bài dở — và không đăng nhập hay làm bài được cho tới khi được mở khóa. Bài đã nộp và điểm vẫn giữ nguyên.`,
-        confirmLabel: 'Khóa tài khoản',
+        title: 'Khoá tài khoản học sinh',
+        message: `Tài khoản của ${fullName} sẽ bị khoá:`,
+        details: <ConsequenceList items={lockConsequences(fullName, true)} />,
+        confirmLabel: 'Khoá tài khoản',
         tone: 'danger' as const,
       }
     : {
-        title: 'Mở khóa tài khoản học sinh',
-        message: `${fullName} sẽ đăng nhập lại được bằng mật khẩu hiện tại và tiếp tục làm những bài đang được giao.`,
-        confirmLabel: 'Mở khóa',
+        title: 'Mở khoá tài khoản học sinh',
+        message: `Tài khoản của ${fullName} sẽ được mở khoá:`,
+        details: <ConsequenceList items={lockConsequences(fullName, false)} />,
+        confirmLabel: 'Mở khoá',
         tone: 'primary' as const,
       }
 }
@@ -61,6 +85,16 @@ export function useStudentAccountActions(): StudentAccountActions {
   const confirm = useConfirm()
   const toast = useToast()
 
+  // Trang gọi hook này có thể đã bị gỡ khi server trả lời (người dùng bấm Back giữa chừng). Với mật
+  // khẩu vừa cấp thì đó là mất trắng, nên phải biết để báo thay vì im lặng bỏ qua.
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
   return useMemo<StudentAccountActions>(() => ({
     async toggleLock(student) {
       const locking = student.status === 'active'
@@ -72,8 +106,8 @@ export function useStudentAccountActions(): StudentAccountActions {
       if (ok) {
         toast.success(
           locking
-            ? `Đã khóa tài khoản của ${student.fullName}.`
-            : `Đã mở khóa tài khoản của ${student.fullName}.`,
+            ? `Đã khoá tài khoản của ${student.fullName}.`
+            : `Đã mở khoá tài khoản của ${student.fullName}.`,
         )
       }
       return ok || state.failed
@@ -85,16 +119,14 @@ export function useStudentAccountActions(): StudentAccountActions {
         title: 'Xoá tài khoản học sinh',
         message: `Tài khoản của ${student.fullName} (${student.code}) sẽ được đưa vào danh sách chờ xoá:`,
         details: (
-          <ul className="space-y-1.5 list-disc pl-4 marker:text-slate-300">
-            <li>Em ấy không đăng nhập được nữa, kể từ ngay bây giờ — phiên đang mở cũng bị đăng xuất.</li>
-            <li>Bạn có thể khôi phục tài khoản trong vòng {DELETION_RETENTION_DAYS} ngày.</li>
-            <li>
-              Hết {DELETION_RETENTION_DAYS} ngày, hệ thống tự xoá vĩnh viễn dữ liệu cá nhân: họ tên thành
-              "{ERASED_STUDENT_NAME}", email, tên đăng nhập và mã học sinh bị thay thế. Bước này không
-              hoàn tác được.
-            </li>
-            <li>Kết quả các bài em ấy đã làm vẫn được giữ lại, để bảng điểm của lớp không bị thiếu dòng.</li>
-          </ul>
+          <ConsequenceList
+            items={[
+              'Em ấy không đăng nhập được nữa, kể từ ngay bây giờ — phiên đang mở cũng bị đăng xuất.',
+              `Bạn có thể khôi phục tài khoản trong vòng ${DELETION_RETENTION_DAYS} ngày kể từ hôm nay.`,
+              `Hết ${DELETION_RETENTION_DAYS} ngày, hệ thống tự xoá vĩnh viễn dữ liệu cá nhân: họ tên thành "${ERASED_STUDENT_NAME}", email, tên đăng nhập và mã học sinh bị thay thế. Bước này không hoàn tác được.`,
+              'Kết quả các bài em ấy đã làm vẫn được giữ lại, để bảng điểm của lớp không bị thiếu dòng.',
+            ]}
+          />
         ),
         inputLabel: 'Lý do xoá tài khoản',
         placeholder: 'Ví dụ: Học sinh đã chuyển trường từ ngày 01/09',
@@ -118,7 +150,7 @@ export function useStudentAccountActions(): StudentAccountActions {
       const ok = await confirm({
         title: 'Khôi phục tài khoản học sinh',
         message: `${student.fullName} sẽ trở lại trạng thái Đang hoạt động và đăng nhập lại được bằng mật khẩu cũ. Lý do xoá đã ghi bị huỷ, hệ thống ngừng đếm ngược ${DELETION_RETENTION_DAYS} ngày và dữ liệu của em ấy được giữ nguyên.`,
-        details: 'Nếu trước khi bị xoá tài khoản đang bị khóa, trạng thái khóa không được giữ lại — hãy khóa lại sau khi khôi phục nếu cần.',
+        details: 'Nếu trước khi bị xoá tài khoản đang bị khoá, trạng thái khoá không được giữ lại — hãy khoá lại sau khi khôi phục nếu cần. Bài giáo viên giao trong lúc em chờ xoá không tự đến với em.',
         confirmLabel: 'Khôi phục',
         onConfirm: () => recordFailure(state, () => restoreStudent(student.id)),
       })
@@ -130,14 +162,30 @@ export function useStudentAccountActions(): StudentAccountActions {
       const holder: { result?: ResetPasswordResult } = {}
       const ok = await confirm({
         title: 'Cấp lại mật khẩu',
-        message: `Mật khẩu hiện tại của ${student.fullName} ngừng hoạt động ngay và em ấy bị đăng xuất khỏi mọi thiết bị. Hệ thống tạo một mật khẩu mới và chỉ hiển thị đúng một lần — bạn cần chép lại để trao cho học sinh.`,
+        message: `Hệ thống sẽ tạo mật khẩu mới cho ${student.fullName}:`,
+        details: (
+          <ConsequenceList
+            items={[
+              'Mật khẩu hiện tại ngừng hoạt động ngay và em ấy bị đăng xuất khỏi mọi thiết bị.',
+              'Nếu em đang làm bài dở, đồng hồ của bài đó vẫn chạy trong lúc em đăng nhập lại; câu trả lời đã lưu còn nguyên.',
+              'Mật khẩu mới chỉ hiện đúng một lần ngay sau bước này — hãy chép lại để trao cho học sinh.',
+            ]}
+          />
+        ),
         confirmLabel: 'Cấp mật khẩu mới',
         tone: 'danger',
         onConfirm: async () => {
           holder.result = await resetStudentPassword(student.id)
         },
       })
-      return ok && holder.result ? holder.result : null
+      if (!ok || !holder.result) return null
+      if (!mountedRef.current) {
+        toast.error(
+          `Mật khẩu của ${student.fullName} đã được đổi, nhưng bạn rời trang trước khi mật khẩu mới kịp hiện ra. Hãy mở lại hồ sơ và cấp mật khẩu mới lần nữa.`,
+        )
+        return null
+      }
+      return holder.result
     },
   }), [confirm, toast])
 }

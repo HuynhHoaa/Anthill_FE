@@ -180,7 +180,7 @@ function ExamRowMenu({ exam, onRequestDelete }: ExamRowMenuProps) {
               type="button"
               role="menuitem"
               disabled={hasSubmission}
-              title={hasSubmission ? 'Không thể xóa bài đã có học sinh nộp' : undefined}
+              title={hasSubmission ? 'Không thể xoá bài đã có học sinh nộp' : undefined}
               onClick={() => {
                 setAnchor(null)
                 onRequestDelete(exam)
@@ -189,7 +189,7 @@ function ExamRowMenu({ exam, onRequestDelete }: ExamRowMenuProps) {
                 hasSubmission ? 'text-slate-300 cursor-not-allowed' : 'text-red-500 hover:bg-red-50'
               }`}
             >
-              <Trash2 size={15} /> Xóa bài kiểm tra
+              <Trash2 size={15} /> Xoá bài kiểm tra
             </button>
           </div>,
           document.body,
@@ -351,8 +351,8 @@ export default function ExamListPage() {
       onConfirm: () => deleteExam(exam.id),
     })
     if (!deleted) return
-    toast.success(`Đã xóa bài kiểm tra "${exam.title}".`)
-    // Về trang đầu để không mắc kẹt ở trang vừa trống sau khi xóa
+    toast.success(`Đã xoá bài kiểm tra "${exam.title}".`)
+    // Về trang đầu để không mắc kẹt ở trang vừa trống sau khi xoá
     if (page === 1) reload()
     else setPage(1)
   }
@@ -401,7 +401,7 @@ export default function ExamListPage() {
                 onClick={resetFilters}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap"
               >
-                <FilterX size={15} /> Xóa bộ lọc
+                <FilterX size={15} /> Xoá bộ lọc
               </button>
             )}
           </div>
@@ -432,14 +432,14 @@ export default function ExamListPage() {
             <EmptyState
               icon={Search}
               title="Không tìm thấy bài kiểm tra phù hợp"
-              description="Không có bài kiểm tra nào khớp với từ khóa và bộ lọc hiện tại. Hãy thử từ khóa khác hoặc bỏ bộ lọc."
+              description="Không có bài kiểm tra nào khớp với từ khoá và bộ lọc hiện tại. Hãy thử từ khoá khác hoặc bỏ bộ lọc."
               action={
                 <button
                   type="button"
                   onClick={resetFilters}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                 >
-                  Xóa bộ lọc
+                  Xoá bộ lọc
                 </button>
               }
             />

@@ -7,7 +7,7 @@
 import { useMemo, useState } from 'react'
 import { NavLink, useParams } from 'react-router-dom'
 import {
-  AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, Edit3, EyeOff, GraduationCap,
+  AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, Edit3, Eye, EyeOff, GraduationCap,
   Send, UserPlus, Users, UsersRound,
 } from 'lucide-react'
 import AdminLayout from '../../../components/layout/AdminLayout'
@@ -323,7 +323,7 @@ export default function AdminGroupDetailPage() {
               {students && <span className="text-slate-400 font-semibold"> ({students.length})</span>}
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Gỡ học sinh khỏi lớp không xóa tài khoản, học sinh chỉ chuyển về trạng thái chưa phân lớp.
+              Gỡ học sinh khỏi lớp không xoá tài khoản, học sinh chỉ chuyển về trạng thái chưa phân lớp.
             </p>
           </div>
 
@@ -358,6 +358,7 @@ export default function AdminGroupDetailPage() {
               buildStudentLink={studentEditorLink}
               studentLinkLabel="Sửa"
               studentLinkIcon={Edit3}
+              retiredStudentLink={{ label: 'Xem', icon: Eye }}
               onRemove={student => void requestRemoveStudent(student)}
             />
           )}

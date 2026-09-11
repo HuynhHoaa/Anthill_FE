@@ -190,6 +190,18 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     if (!wasBusy) current.resolve(false, '')
   }, [location.pathname, clearDialog])
 
+  // Trong lúc thao tác đang chạy, đóng tab hay tải lại trang là bỏ ngang một việc server có thể đã
+  // làm xong — cấp lại mật khẩu mà trang đã biến mất thì mật khẩu mới không bao giờ hiện ra. Trình
+  // duyệt không cho chặn hẳn, nhưng hỏi lại một câu thì được.
+  useEffect(() => {
+    if (!busy) return
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [busy])
+
   // Provider bị gỡ mà còn lời hứa treo thì người gọi chờ mãi — trả về "huỷ" cho họ đi tiếp.
   useEffect(
     () => () => {

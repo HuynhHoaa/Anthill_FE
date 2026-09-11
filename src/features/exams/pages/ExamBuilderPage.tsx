@@ -31,6 +31,7 @@ import { examPublishConfirmCopy, publishedExamEditConfirmCopy } from '../utils/e
 import {
   buildDefaultSchedule, isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
 } from '../utils/examScheduleFormat'
+import { formatDateTime } from '../../../lib/format'
 
 type SaveMode = 'draft' | 'publish' | 'assign'
 
@@ -357,7 +358,7 @@ export default function ExamBuilderPage() {
   const examId = id === undefined ? undefined : Number(id)
   const isEditing = examId !== undefined
 
-  // Nháp chỉ được đọc đúng một lần lúc gắn trang: hàm xóa chạy ngay sau đó nên các
+  // Nháp chỉ được đọc đúng một lần lúc gắn trang: hàm xoá chạy ngay sau đó nên các
   // render sau không còn đọc lại được nữa.
   const [restoredForm] = useState(() => readExamBuilderDraft(examId ?? null)?.form)
   const restoredRef = useRef(restoredForm !== undefined)
@@ -375,8 +376,8 @@ export default function ExamBuilderPage() {
   const topicsQuery = useAsync(() => listTopics(), [])
   const loadedExam = examQuery.data
 
-  // Xóa ở effect riêng chứ không xóa trong initializer, vì StrictMode chạy initializer hai lần.
-  // Chỉ xóa nháp của đúng đề này: bản nháp vừa được đọc vào state ở trên rồi, còn nháp của đề khác
+  // Xoá ở effect riêng chứ không xoá trong initializer, vì StrictMode chạy initializer hai lần.
+  // Chỉ xoá nháp của đúng đề này: bản nháp vừa được đọc vào state ở trên rồi, còn nháp của đề khác
   // thì không liên quan gì tới lần mở này.
   useEffect(() => {
     clearExamBuilderDraft(examId ?? null)
@@ -567,8 +568,10 @@ export default function ExamBuilderPage() {
                 title: form.title,
                 totalQuestions: form.totalQuestions,
                 durationMinutes: form.durationMinutes,
-                openAt: toServiceDateTime(form.openAtLocal),
-                closeAt: toServiceDateTime(form.closeAtLocal),
+                // Hộp xác nhận là chỗ để người dùng đọc, nên in giờ địa phương. Chuỗi ISO theo giờ
+                // UTC chỉ dành cho server — in ra đây là lệch bảy tiếng với giờ Việt Nam.
+                openAt: formatDateTime(form.openAtLocal),
+                closeAt: formatDateTime(form.closeAtLocal),
               },
               goingToAssign,
             )
@@ -818,8 +821,8 @@ export default function ExamBuilderPage() {
               {scheduleWindowMinutes > 0 && (
                 <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
                   Học sinh có thể vào làm từ{' '}
-                  <strong className="text-slate-800 font-semibold">{toServiceDateTime(form.openAtLocal)}</strong>{' '}
-                  đến <strong className="text-slate-800 font-semibold">{toServiceDateTime(form.closeAtLocal)}</strong>{' '}
+                  <strong className="text-slate-800 font-semibold">{formatDateTime(form.openAtLocal)}</strong>{' '}
+                  đến <strong className="text-slate-800 font-semibold">{formatDateTime(form.closeAtLocal)}</strong>{' '}
                   — cửa sổ mở bài kéo dài {formatScheduleWindow(scheduleWindowMinutes)}.
                 </div>
               )}

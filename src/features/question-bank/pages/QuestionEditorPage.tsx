@@ -101,7 +101,7 @@ export default function QuestionEditorPage() {
   const [answers, setAnswers] = useState<AnswerOption[]>(createBlankAnswers)
   const [answerIdsWithImageEditor, setAnswerIdsWithImageEditor] = useState<number[]>([])
   const [saving, setSaving] = useState(false)
-  // Đổi khóa để khối xem trước quên đáp án đã bấm thử của câu vừa lưu.
+  // Đổi khoá để khối xem trước quên đáp án đã bấm thử của câu vừa lưu.
   const [previewInstanceId, setPreviewInstanceId] = useState(0)
 
   // Đổ dữ liệu câu hỏi cũ vào form ngay khi service trả về.
@@ -205,7 +205,7 @@ export default function QuestionEditorPage() {
     )))
   }
 
-  // Xóa ảnh thì giữ nguyên ô tải ảnh để giáo viên chọn lại được ảnh khác ngay.
+  // Xoá ảnh thì giữ nguyên ô tải ảnh để giáo viên chọn lại được ảnh khác ngay.
   const updateAnswerImage = (answerId: number, dataUrl: string | undefined) => {
     setAnswers(currentAnswers => currentAnswers.map(answer => (
       answer.id === answerId ? { ...answer, imageUrl: dataUrl } : answer
@@ -240,7 +240,7 @@ export default function QuestionEditorPage() {
     if (answers.length <= MIN_ANSWERS) return
     const removedAnswer = answers.find(answer => answer.id === answerId)
     const nextAnswers = answers.filter(answer => answer.id !== answerId)
-    // Xóa mất đáp án đúng thì chuyển quyền đó cho đáp án đầu tiên còn lại.
+    // Xoá mất đáp án đúng thì chuyển quyền đó cho đáp án đầu tiên còn lại.
     if (removedAnswer?.isCorrect && nextAnswers.length > 0) {
       nextAnswers[0] = { ...nextAnswers[0], isCorrect: true }
     }
@@ -281,11 +281,15 @@ export default function QuestionEditorPage() {
 
       // Đổi ô trạng thái rồi bấm Lưu là ẩn hoặc hiện câu hỏi thật, nên hỏi lại đúng như nút ẩn ở
       // ngân hàng câu hỏi — hai lối vào cùng một việc thì không được một lối hỏi, một lối không.
-      if (existingQuestion && existingQuestion.status !== status) {
-        const copy = questionStatusConfirmCopy({ content, difficulty }, status)
+      // Hiện lại thì cả hai lối đều không hỏi — quy tắc đó nằm trong questionStatusConfirmCopy.
+      const statusCopy =
+        existingQuestion && existingQuestion.status !== status
+          ? questionStatusConfirmCopy({ content, difficulty }, status)
+          : null
+      if (statusCopy) {
         const saved = await confirm({
-          ...copy,
-          confirmLabel: status === 'hidden' ? 'Lưu và ẩn câu hỏi' : 'Lưu và hiện câu hỏi',
+          ...statusCopy,
+          confirmLabel: 'Lưu và ẩn câu hỏi',
           onConfirm: persist,
         })
         if (!saved) return

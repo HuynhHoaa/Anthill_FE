@@ -7,12 +7,13 @@ import {
 } from 'lucide-react'
 import AdminLayout from '../../../components/layout/AdminLayout'
 import ErrorState from '../../../components/common/ErrorState'
+import ConsequenceList from '../../../components/common/ConsequenceList'
 import Modal from '../../../components/common/Modal'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import useAsync from '../../../hooks/useAsync'
-import { formatDate, getInitials } from '../../../lib/format'
+import { formatDate, formatDateTime, getInitials } from '../../../lib/format'
 import { UNASSIGNED_GROUP_ID, UNASSIGNED_GROUP_NAME, listGroups } from '../../../services/groupService'
 import {
   DELETION_RETENTION_DAYS, ERASED_STUDENT_NAME,
@@ -21,8 +22,24 @@ import {
 } from '../../../services/studentService'
 import StudentStatusPill from '../components/StudentStatusPill'
 import StudentTextField from '../components/StudentTextField'
-import { lockConfirmCopy, useStudentAccountActions } from '../hooks/useStudentAccountActions'
+import { lockConfirmCopy, lockConsequences, useStudentAccountActions } from '../hooks/useStudentAccountActions'
 import { studentStatusLabels, type Student, type StudentStatus } from '../../../types'
+
+/**
+ * Hệ quả của việc đổi lớp khi sửa hồ sơ. Đây là cùng một việc với "Gỡ khỏi lớp" ở trang lớp, nên
+ * phải nói cùng những điều: em rời lớp nào, đi đâu, và điều gì KHÔNG mất.
+ */
+function groupChangeConsequences(fullName: string, fromGroup: string, toGroup: string | null): string[] {
+  return toGroup === null
+    ? [
+        `${fullName} rời lớp ${fromGroup} và chuyển về trạng thái chưa phân lớp.`,
+        'Giáo viên của lớp cũ không giao được bài mới cho em nữa. Bài đã giao, bài đã nộp và điểm vẫn giữ nguyên.',
+      ]
+    : [
+        `${fullName} chuyển từ lớp ${fromGroup} sang lớp ${toGroup}.`,
+        'Từ giờ em nhận bài được giao cho lớp mới. Bài đã giao, bài đã nộp và điểm vẫn giữ nguyên.',
+      ]
+}
 
 /** Số bản ghi tải về để kiểm tra trùng mã, email và tên đăng nhập ngay trên giao diện. */
 const DIRECTORY_PAGE_SIZE = 500
@@ -146,12 +163,13 @@ export default function StudentEditorPage() {
 
   const loadedStudent = editorQuery.data?.student ?? null
 
-  // So theo bản ghi chứ không theo id: sau một thao tác tài khoản (xoá, khôi phục) trang tải lại
-  // đúng học sinh đó, và form phải theo bản mới — nếu không ô trạng thái vẫn nói "Đang hoạt động"
-  // cho một tài khoản vừa bị đưa vào diện chờ xoá.
+  // Học sinh mà form đang phản ánh. Đổ lại form khi đó là học sinh khác, hoặc khi trạng thái vừa
+  // đổi (xoá, khôi phục) — nếu không ô trạng thái vẫn nói "Đang hoạt động" cho một tài khoản vừa
+  // vào diện chờ xoá. Nhưng KHÔNG đổ lại chỉ vì trang vừa tải lại: một thao tác tài khoản hỏng cũng
+  // tải lại và nhận về bản ghi y hệt, và đổ lại theo nó là xoá âm thầm những gì đang gõ dở.
   const [syncedStudent, setSyncedStudent] = useState<Student | null>(null)
 
-  // Cùng một component phục vụ cả hai chế độ: khi chuyển sang tạo mới phải xóa sạch
+  // Cùng một component phục vụ cả hai chế độ: khi chuyển sang tạo mới phải xoá sạch
   // dữ liệu của học sinh đang mở trước đó, nếu không form sẽ giữ lại thông tin người cũ.
   if (!isEditMode && syncedStudent !== null) {
     setSyncedStudent(null)
@@ -161,7 +179,12 @@ export default function StudentEditorPage() {
   }
 
   // Đổ dữ liệu vào form ngay trong lúc render để không nháy form rỗng ở khoảnh khắc vừa tải xong.
-  if (loadedStudent && loadedStudent !== syncedStudent) {
+  const needsSync =
+    loadedStudent !== null
+    && (syncedStudent === null
+      || loadedStudent.id !== syncedStudent.id
+      || loadedStudent.status !== syncedStudent.status)
+  if (loadedStudent && needsSync) {
     setSyncedStudent(loadedStudent)
     setValues({
       fullName: loadedStudent.fullName,
@@ -176,10 +199,10 @@ export default function StudentEditorPage() {
     setHasSubmitted(false)
   }
 
-  // Tài khoản đã rời hệ thống chỉ còn để xem. Server chưa chặn việc sửa hồ sơ hay đổi trạng thái
-  // của những tài khoản này, nên giao diện không được mở đường cho việc đó: đặt lại "Đang hoạt
-  // động" qua ô trạng thái là vòng qua bước khôi phục, còn sửa một tài khoản đã xoá là ghi đè lên
-  // chính phần dữ liệu đã được ẩn danh.
+  // Tài khoản đã rời hệ thống chỉ còn để xem. Server từ chối (409) mọi lượt sửa hồ sơ, đổi trạng
+  // thái hay cấp lại mật khẩu trên những tài khoản này, nhưng giao diện cũng không mở đường cho một
+  // việc chắc chắn hỏng: đặt lại "Đang hoạt động" qua ô trạng thái là vòng qua bước khôi phục, còn
+  // sửa một tài khoản đã xoá là ghi đè lên chính phần dữ liệu đã được ẩn danh.
   const isReadOnly = loadedStudent !== null && isRetiredStudent(loadedStudent)
 
   const groups = editorQuery.data?.groups ?? []
@@ -226,7 +249,7 @@ export default function StudentEditorPage() {
     // sinh. Ở chế độ sửa thì không gửi: đổi mật khẩu đi qua chức năng đặt lại riêng.
     if (!isEditMode) payload.password = values.password
 
-    // Khóa/mở khóa tài khoản đi qua một endpoint riêng chứ không nằm trong hồ sơ, nên sau khi
+    // Khoá/mở khoá tài khoản đi qua một endpoint riêng chứ không nằm trong hồ sơ, nên sau khi
     // lưu còn phải đối chiếu trạng thái trong phản hồi và chỉnh thêm nếu ô chọn khác.
     const save = async () => {
       if (studentId === null) {
@@ -238,16 +261,42 @@ export default function StudentEditorPage() {
       }
     }
 
-    // Đổi ô trạng thái của một tài khoản đang có rồi bấm Lưu là khóa hoặc mở khóa thật, nên phải
-    // hỏi lại y như nút khóa ở danh sách. Tạo mới thì chưa ai dùng tài khoản đó, không cần hỏi.
+    // Đổi ô trạng thái của một tài khoản đang có rồi bấm Lưu là khoá hoặc mở khoá thật, nên phải
+    // hỏi lại y như nút khoá ở danh sách. Tạo mới thì chưa ai dùng tài khoản đó, không cần hỏi.
     const lockChanging = loadedStudent !== null && values.status !== loadedStudent.status
-    if (lockChanging) {
+    // Đổi lớp ở đây cũng là gỡ em khỏi lớp cũ — đúng việc mà trang lớp hỏi lại trước khi làm — nên
+    // phải hỏi y như vậy. Xếp một em chưa có lớp vào lớp thì không ai mất gì, không hỏi.
+    const leavingGroup =
+      loadedStudent !== null
+      && loadedStudent.groupId !== UNASSIGNED_GROUP_ID
+      && values.groupId !== loadedStudent.groupId
+
+    if (lockChanging || leavingGroup) {
       const locking = values.status === 'locked'
-      const saved = await confirm({
-        ...lockConfirmCopy(payload.fullName, locking),
-        confirmLabel: locking ? 'Lưu và khóa tài khoản' : 'Lưu và mở khóa',
-        onConfirm: save,
-      })
+      const movingTo = values.groupId === UNASSIGNED_GROUP_ID ? null : selectedGroupName
+      const groupItems =
+        leavingGroup && loadedStudent ? groupChangeConsequences(payload.fullName, loadedStudent.group, movingTo) : []
+
+      // Đổi cả hai thì gộp vào MỘT hộp: hai hộp liền nhau là mời người dùng bấm "Đồng ý" lần thứ
+      // hai mà không đọc.
+      const copy = !leavingGroup
+        ? {
+            ...lockConfirmCopy(payload.fullName, locking),
+            confirmLabel: locking ? 'Lưu và khoá tài khoản' : 'Lưu và mở khoá',
+          }
+        : {
+            title: lockChanging ? 'Lưu thay đổi tài khoản' : movingTo ? 'Chuyển lớp cho học sinh' : 'Gỡ học sinh khỏi lớp',
+            message: `Khi lưu, thay đổi của ${payload.fullName} có hiệu lực ngay:`,
+            details: (
+              <ConsequenceList
+                items={lockChanging ? [...groupItems, ...lockConsequences(payload.fullName, locking)] : groupItems}
+              />
+            ),
+            confirmLabel: 'Lưu thay đổi',
+            tone: 'danger' as const,
+          }
+
+      const saved = await confirm({ ...copy, onConfirm: save })
       if (!saved) return
     } else {
       setSubmitting(true)
@@ -296,11 +345,19 @@ export default function StudentEditorPage() {
   }
 
   const pageTitle = isReadOnly ? 'Thông tin học sinh' : isEditMode ? 'Sửa thông tin học sinh' : 'Thêm học sinh'
-  const pageSubtitle = isReadOnly
-    ? 'Tài khoản đã rời hệ thống, hồ sơ chỉ còn để xem'
-    : isEditMode
-      ? 'Cập nhật hồ sơ, nhóm lớp và trạng thái tài khoản'
-      : 'Tạo tài khoản mới để học sinh đăng nhập và làm bài kiểm tra'
+  // Mốc xoá vĩnh viễn do server tính. Không có thì nói mốc tương đối chứ không tự cộng ngày.
+  const restoreDeadline = loadedStudent?.deletionScheduledAt
+    ? `tới ${formatDateTime(loadedStudent.deletionScheduledAt)}`
+    : `trong ${DELETION_RETENTION_DAYS} ngày kể từ ngày yêu cầu xoá`
+  // "Đã rời hệ thống" nghe như việc đã xong, trong khi tài khoản chờ xoá vẫn còn đường lui.
+  const pageSubtitle =
+    loadedStudent?.status === 'pendingDeletion'
+      ? `Tài khoản đang chờ xoá — vẫn khôi phục được ${restoreDeadline}`
+      : loadedStudent?.status === 'deleted'
+        ? 'Dữ liệu cá nhân đã bị xoá vĩnh viễn, hồ sơ chỉ còn để xem'
+        : isEditMode
+          ? 'Cập nhật hồ sơ, nhóm lớp và trạng thái tài khoản'
+          : 'Tạo tài khoản mới để học sinh đăng nhập và làm bài kiểm tra'
 
   return (
     <AdminLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle}>
@@ -353,10 +410,15 @@ export default function StudentEditorPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold text-amber-800">Tài khoản đang chờ xoá</p>
                   <p className="text-sm text-amber-700 mt-1 leading-relaxed">
-                    {loadedStudent.fullName} không đăng nhập được. Bạn có thể khôi phục trong vòng{' '}
-                    {DELETION_RETENTION_DAYS} ngày kể từ lúc yêu cầu xoá; hết hạn, hệ thống xoá vĩnh viễn
-                    dữ liệu cá nhân nhưng vẫn giữ kết quả bài làm. Hồ sơ chỉ để xem cho tới khi được khôi phục.
+                    {loadedStudent.fullName} không đăng nhập được. Bạn có thể khôi phục {restoreDeadline}; sau
+                    đó hệ thống xoá vĩnh viễn dữ liệu cá nhân nhưng vẫn giữ kết quả bài làm. Hồ sơ chỉ để xem
+                    cho tới khi được khôi phục.
                   </p>
+                  {loadedStudent.deletionReason && (
+                    <p className="text-sm text-amber-700 mt-1.5 leading-relaxed">
+                      <span className="font-semibold">Lý do xoá:</span> {loadedStudent.deletionReason}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -375,7 +437,7 @@ export default function StudentEditorPage() {
                   <p className="text-sm font-bold text-rose-700">Dữ liệu cá nhân đã bị xoá vĩnh viễn</p>
                   <p className="text-sm text-rose-600 mt-1 leading-relaxed">
                     Kết quả các bài đã làm vẫn được giữ dưới tên "{ERASED_STUDENT_NAME}". Tài khoản chỉ
-                    còn để xem: không sửa, khóa, cấp lại mật khẩu hay khôi phục được nữa.
+                    còn để xem: không sửa, khoá, cấp lại mật khẩu hay khôi phục được nữa.
                   </p>
                 </div>
               </div>
@@ -489,7 +551,7 @@ export default function StudentEditorPage() {
                       // Ô chọn chỉ có hai lựa chọn khoá/mở khoá; chờ xoá và đã xoá không phải thứ
                       // chọn được ở đây, nên hiện nhãn thay vì một ô chọn mang giá trị lạ.
                       <div id="student-status" className="py-2">
-                        <StudentStatusPill status={values.status} />
+                        <StudentStatusPill status={values.status} deletionScheduledAt={loadedStudent?.deletionScheduledAt} />
                       </div>
                     ) : (
                       <select
@@ -503,7 +565,7 @@ export default function StudentEditorPage() {
                       </select>
                     )}
                     <p className="mt-1.5 text-xs text-slate-400">
-                      Tài khoản bị khóa sẽ không thể đăng nhập và làm bài.
+                      Tài khoản bị khoá sẽ không thể đăng nhập và làm bài.
                     </p>
                   </div>
                 </div>
@@ -528,7 +590,7 @@ export default function StudentEditorPage() {
                   <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600">
                     {values.code.trim() || 'Chưa có mã'}
                   </span>
-                  <StudentStatusPill status={values.status} />
+                  <StudentStatusPill status={values.status} deletionScheduledAt={loadedStudent?.deletionScheduledAt} />
                 </div>
 
                 <dl className="mt-4 space-y-2.5 text-sm">
@@ -641,6 +703,9 @@ export default function StudentEditorPage() {
         title="Mật khẩu mới đã được tạo"
         description={loadedStudent ? `Cho tài khoản ${loadedStudent.fullName} (@${loadedStudent.username})` : undefined}
         size="sm"
+        // Chỉ nút "Tôi đã chép lại" mới đóng được hộp. Một cú chạm trượt ra ngoài hay phím ESC mà
+        // làm mất mật khẩu thì phải cấp lại lần nữa — và học sinh bị đăng xuất thêm một lần.
+        dismissible={false}
         onClose={() => setIssuedPassword(null)}
         footer={
           <button

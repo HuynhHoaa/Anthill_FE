@@ -339,11 +339,21 @@ export default function QuestionBankPage() {
 
   async function handleToggleStatus(question: Question) {
     const nextStatus: QuestionStatus = question.status === 'active' ? 'hidden' : 'active'
-    const changed = await confirm({
-      ...questionStatusConfirmCopy(question, nextStatus),
-      onConfirm: () => setQuestionStatus(question.id, nextStatus),
-    })
-    if (!changed) return
+    const copy = questionStatusConfirmCopy(question, nextStatus)
+    if (copy) {
+      const changed = await confirm({
+        ...copy,
+        onConfirm: () => setQuestionStatus(question.id, nextStatus),
+      })
+      if (!changed) return
+    } else {
+      try {
+        await setQuestionStatus(question.id, nextStatus)
+      } catch (caught) {
+        toast.error(caught instanceof Error ? caught.message : 'Không đổi được trạng thái câu hỏi. Vui lòng thử lại.')
+        return
+      }
+    }
     toast.success(
       nextStatus === 'hidden'
         ? 'Đã ẩn câu hỏi khỏi ngân hàng đề.'

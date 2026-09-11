@@ -17,7 +17,7 @@ import { useAsync } from '../../../hooks/useAsync'
 import {
   formatDate, formatDateTime, formatScore, getInitials, getScoreTone, NO_VALUE, roundToOneDecimal,
 } from '../../../lib/format'
-import { getStudent } from '../../../services/studentService'
+import { DELETION_RETENTION_DAYS, getStudent } from '../../../services/studentService'
 import { listResults } from '../../../services/resultService'
 import StudentStatusPill from '../components/StudentStatusPill'
 import { getAvatarTone } from '../../student-groups/components/groupTheme'
@@ -97,7 +97,10 @@ export default function StudentDetailPage() {
 
   const summaryText = useMemo(() => {
     if (!student) return null
-    const parts = [student.fullName, student.code, student.group]
+    // Tài khoản đã xoá mang mã giữ chỗ kiểu "deleted-12" — không phải thứ để hiện cho người đọc.
+    const parts = student.status === 'deleted'
+      ? [student.fullName, student.group]
+      : [student.fullName, student.code, student.group]
     return parts.join(' · ')
   }, [student])
 
@@ -108,6 +111,7 @@ export default function StudentDetailPage() {
     student && student.groupId > 0 ? `Quay lại nhóm ${student.group}` : 'Quay lại danh sách nhóm'
 
   const avatarTone = getAvatarTone(studentId)
+  const isErased = student?.status === 'deleted'
   const showProfileSkeleton = studentLoading && student === undefined
   const showResultsSkeleton = resultsLoading && results === undefined
 
@@ -277,17 +281,23 @@ export default function StudentDetailPage() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h1 className="text-xl font-bold text-slate-800">{student.fullName}</h1>
-                  <StudentStatusPill status={student.status} />
+                  <StudentStatusPill status={student.status} deletionScheduledAt={student.deletionScheduledAt} />
                 </div>
-                <p className="text-sm text-slate-400 mt-1">@{student.username}</p>
+                {!isErased && <p className="text-sm text-slate-400 mt-1">@{student.username}</p>}
 
                 <div className="flex flex-wrap items-center gap-2 mt-4">
-                  <span className={chipClass}>
-                    <Hash size={13} /> {student.code}
-                  </span>
-                  <span className={chipClass}>
-                    <Mail size={13} /> {student.email}
-                  </span>
+                  {/* Tên đăng nhập, email và mã của tài khoản đã xoá đều là chuỗi giữ chỗ do server
+                      thay vào — hiện ra như dữ liệu thật là đánh lừa người xem. */}
+                  {!isErased && (
+                    <>
+                      <span className={chipClass}>
+                        <Hash size={13} /> {student.code}
+                      </span>
+                      <span className={chipClass}>
+                        <Mail size={13} /> {student.email}
+                      </span>
+                    </>
+                  )}
                   {student.groupId > 0 ? (
                     <NavLink
                       to={`${groupListLink}/${student.groupId}`}
@@ -306,6 +316,23 @@ export default function StudentDetailPage() {
                   </span>
                 </div>
 
+                {isErased && (
+                  <p className="text-sm text-slate-500 mt-4 leading-relaxed">
+                    Dữ liệu cá nhân của học sinh này đã bị xoá theo yêu cầu. Kết quả các bài em đã làm vẫn
+                    được giữ lại bên dưới.
+                  </p>
+                )}
+                {student.status === 'pendingDeletion' && (
+                  <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800 leading-relaxed">
+                    Tài khoản đang chờ xoá: em không đăng nhập được và không nhận bài mới. Quản trị viên vẫn
+                    khôi phục được{' '}
+                    {student.deletionScheduledAt
+                      ? `tới ${formatDateTime(student.deletionScheduledAt)}`
+                      : `trong ${DELETION_RETENTION_DAYS} ngày kể từ ngày yêu cầu xoá`}
+                    .
+                  </p>
+                )}
+
                 <p className="inline-flex items-center gap-1.5 text-xs text-slate-400 mt-4">
                   <Lock size={12} /> Thông tin tài khoản do quản trị viên quản lý.
                 </p>
@@ -320,7 +347,7 @@ export default function StudentDetailPage() {
               iconColor="text-indigo-600"
               label="Trạng thái tài khoản"
             >
-              <StudentStatusPill status={student.status} />
+              <StudentStatusPill status={student.status} deletionScheduledAt={student.deletionScheduledAt} />
             </StatTile>
 
             <StatTile

@@ -109,6 +109,8 @@ export interface AddMembersResult {
   added: number
   skippedAlreadyMember: number
   skippedNotFound: number
+  /** Tài khoản chờ xoá hoặc đã xoá — server bỏ qua, không đưa vào lớp. */
+  skippedRetired?: number
   studentCount: number
 }
 

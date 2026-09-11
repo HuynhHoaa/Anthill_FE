@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import StudentLayout from '../../../components/layout/StudentLayout'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
+import { useToast } from '../../../components/common/Toast'
 import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { StatusBadge, TopicBadge } from '../../../components/common/Badge'
@@ -78,6 +79,7 @@ export default function ExamIntroPage() {
   const navigate = useNavigate()
   const numericAssignmentId = Number(assignmentId)
   const confirm = useConfirm()
+  const toast = useToast()
 
   const { data, loading, error, reload } = useAsync(async () => {
     if (!Number.isInteger(numericAssignmentId) || numericAssignmentId <= 0) {
@@ -111,7 +113,16 @@ export default function ExamIntroPage() {
       confirmLabel: 'Bắt đầu ngay',
       cancelLabel: 'Để sau',
     })
-    if (ready) navigate(`/hoc-sinh/bai-kiem-tra/${numericAssignmentId}/lam-bai`)
+    if (!ready) return
+
+    // Cửa sổ làm bài có thể đóng ngay trong lúc hộp xác nhận đang mở. Đồng hồ trên trang đã tắt
+    // nút, nhưng hộp thì vẫn nằm đó — kiểm lại lần cuối để không đưa học sinh vào một bài đã đóng,
+    // nơi em chỉ gặp một trang báo lỗi.
+    if (closeDate !== null && closeDate.getTime() <= Date.now()) {
+      toast.error('Bài kiểm tra vừa hết hạn làm bài nên không bắt đầu được nữa.')
+      return
+    }
+    navigate(`/hoc-sinh/bai-kiem-tra/${numericAssignmentId}/lam-bai`)
   }
 
   const renderBody = () => {

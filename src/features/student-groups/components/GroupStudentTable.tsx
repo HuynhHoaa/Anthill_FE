@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { UserMinus, type LucideIcon } from 'lucide-react'
 import { formatScore, getInitials, getScoreTone } from '../../../lib/format'
+import { isRetiredStudent } from '../../../services/studentService'
 import type { Student } from '../../../types'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
 import { getAvatarTone } from './groupTheme'
@@ -16,6 +17,11 @@ interface GroupStudentTableProps {
   buildStudentLink: (studentId: number) => string
   studentLinkLabel: string
   studentLinkIcon: LucideIcon
+  /**
+   * Lối vào cho tài khoản chờ xoá — hồ sơ của những em này chỉ còn để xem, nên nhãn "Sửa" là hứa
+   * một việc không làm được. Bỏ trống thì mọi dòng dùng chung một lối.
+   */
+  retiredStudentLink?: { label: string; icon: LucideIcon }
   /** Bỏ trống nghĩa là bảng chỉ đọc: xếp lớp là việc của quản trị viên, không phải của giáo viên. */
   onRemove?: (student: Student) => void
   /** Làm mờ trong lúc tải lại nền, để bảng cũ không trông như dữ liệu mới. */
@@ -29,6 +35,7 @@ export default function GroupStudentTable({
   buildStudentLink,
   studentLinkLabel,
   studentLinkIcon: StudentLinkIcon,
+  retiredStudentLink,
   onRemove,
   dimmed = false,
 }: GroupStudentTableProps) {
@@ -56,6 +63,11 @@ export default function GroupStudentTable({
               const avatarTone = getAvatarTone(student.id)
               const scoreTone = getScoreTone(student.averageScore)
               const studentLink = buildStudentLink(student.id)
+              const link =
+                retiredStudentLink && isRetiredStudent(student)
+                  ? retiredStudentLink
+                  : { label: studentLinkLabel, icon: StudentLinkIcon }
+              const LinkIcon = link.icon
 
               return (
                 <tr
@@ -72,8 +84,8 @@ export default function GroupStudentTable({
                       <div className="min-w-0">
                         <NavLink
                           to={studentLink}
-                          title={studentLinkLabel}
-                          aria-label={`${studentLinkLabel} — ${student.fullName}`}
+                          title={link.label}
+                          aria-label={`${link.label} — ${student.fullName}`}
                           className="block text-sm font-semibold text-slate-800 truncate hover:text-indigo-600 transition-colors"
                         >
                           {student.fullName}
@@ -99,17 +111,17 @@ export default function GroupStudentTable({
                   <td className="px-5 py-4">
                     {/* Dùng chung một viên trạng thái với trang học sinh, để hai nơi không bao giờ
                         tô cùng một trạng thái bằng hai màu. */}
-                    <StudentStatusPill status={student.status} />
+                    <StudentStatusPill status={student.status} deletionScheduledAt={student.deletionScheduledAt} />
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-end gap-2">
                       <NavLink
                         to={studentLink}
-                        title={studentLinkLabel}
-                        aria-label={`${studentLinkLabel} — ${student.fullName}`}
+                        title={link.label}
+                        aria-label={`${link.label} — ${student.fullName}`}
                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                       >
-                        <StudentLinkIcon size={14} /> {studentLinkLabel}
+                        <LinkIcon size={14} /> {link.label}
                       </NavLink>
                       {onRemove && (
                         <button

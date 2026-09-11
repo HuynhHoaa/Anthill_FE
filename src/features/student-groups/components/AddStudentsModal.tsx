@@ -8,6 +8,7 @@ import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { getInitials, normalizeText } from '../../../lib/format'
 import { UNASSIGNED_GROUP_ID, addStudentsToGroup, listAssignableStudents } from '../../../services/groupService'
+import { isRetiredStudent } from '../../../services/studentService'
 import { getAvatarTone } from './groupTheme'
 
 interface AddStudentsModalProps {
@@ -29,26 +30,32 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [submitting, setSubmitting] = useState(false)
 
+  // Server không còn trả tài khoản chờ xoá hay đã xoá về đây, nhưng lọc thêm vẫn rẻ: nó bảo đảm
+  // "Chọn tất cả" không bao giờ đưa một tài khoản đã ẩn danh trở lại lớp, dù server đang chạy bản nào.
+  const candidates = useMemo(
+    () => (assignableStudents ?? []).filter(student => !isRetiredStudent(student)),
+    [assignableStudents],
+  )
+
   const filteredStudents = useMemo(() => {
-    const students = assignableStudents ?? []
     const normalizedSearch = normalizeText(search)
-    if (!normalizedSearch) return students
-    return students.filter(student =>
+    if (!normalizedSearch) return candidates
+    return candidates.filter(student =>
       normalizeText(`${student.fullName} ${student.code} ${student.email} ${student.group}`).includes(
         normalizedSearch,
       ),
     )
-  }, [assignableStudents, search])
+  }, [candidates, search])
 
   const visibleIds = filteredStudents.map(student => student.id)
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id))
 
   const transferredStudentCount = useMemo(
     () =>
-      (assignableStudents ?? []).filter(
+      candidates.filter(
         student => student.groupId !== UNASSIGNED_GROUP_ID && selectedIds.includes(student.id),
       ).length,
-    [assignableStudents, selectedIds],
+    [candidates, selectedIds],
   )
 
   const toggleStudent = (studentId: number) => {
@@ -80,7 +87,8 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
       const result = await addStudentsToGroup(groupId, selectedIds)
       addedCount = result.added
 
-      const skipped = result.skippedAlreadyMember + result.skippedNotFound
+      const skippedRetired = result.skippedRetired ?? 0
+      const skipped = result.skippedAlreadyMember + result.skippedNotFound + skippedRetired
 
       if (addedCount > 0 && skipped === 0) {
         toast.success(`Đã thêm ${addedCount} học sinh vào ${groupName}.`)
@@ -88,6 +96,9 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
         toast.info(`Đã thêm ${addedCount} học sinh, bỏ qua ${skipped} em.`)
       } else if (result.skippedAlreadyMember > 0) {
         toast.info('Những học sinh đã chọn đều đã thuộc lớp này.')
+      } else if (skippedRetired > 0) {
+        // Có người khác vừa xoá tài khoản trong lúc hộp này đang mở.
+        toast.info('Những tài khoản đã chọn đang chờ xoá nên không thêm vào lớp được.')
       } else {
         toast.error('Không thêm được học sinh nào vào lớp.')
       }
@@ -105,7 +116,7 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
     }
   }
 
-  const hasStudents = (assignableStudents?.length ?? 0) > 0
+  const hasStudents = candidates.length > 0
 
   return (
     <Modal
@@ -206,14 +217,14 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
             <div className="py-10 text-center">
               <p className="text-sm font-semibold text-slate-600">Không tìm thấy học sinh phù hợp</p>
               <p className="text-sm text-slate-400 mt-1">
-                {`Không có học sinh nào khớp với từ khóa "${search.trim()}".`}
+                {`Không có học sinh nào khớp với từ khoá "${search.trim()}".`}
               </p>
               <button
                 type="button"
                 onClick={() => setSearch('')}
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
               >
-                Xóa từ khóa tìm kiếm
+                Xoá từ khoá tìm kiếm
               </button>
             </div>
           ) : (

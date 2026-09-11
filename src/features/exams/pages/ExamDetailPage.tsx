@@ -226,11 +226,11 @@ export default function ExamDetailPage() {
     if (!data) return
     const target = data.exam
     const deleted = await confirm({
-      ...examDeleteConfirmCopy(target),
+      ...examDeleteConfirmCopy(target, statusCounts.inprogress),
       onConfirm: () => deleteExam(target.id),
     })
     if (!deleted) return
-    toast.success(`Đã xóa bài kiểm tra "${target.title}".`)
+    toast.success(`Đã xoá bài kiểm tra "${target.title}".`)
     navigate('/giao-vien/bai-kiem-tra')
   }
 
@@ -333,12 +333,12 @@ export default function ExamDetailPage() {
                     type="button"
                     onClick={() => void handleDelete()}
                     disabled={hasSubmission}
-                    title={hasSubmission ? 'Không thể xóa bài đã có học sinh nộp' : undefined}
+                    title={hasSubmission ? 'Không thể xoá bài đã có học sinh nộp' : undefined}
                     className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                       hasSubmission ? 'text-slate-300 cursor-not-allowed' : 'text-red-500 hover:bg-red-50'
                     }`}
                   >
-                    <Trash2 size={16} /> Xóa
+                    <Trash2 size={16} /> Xoá
                   </button>
                 </div>
               </div>
@@ -464,14 +464,14 @@ export default function ExamDetailPage() {
                   <EmptyState
                     icon={Search}
                     title="Không có học sinh nào khớp bộ lọc"
-                    description="Thử đổi từ khóa tìm kiếm hoặc chọn lại trạng thái ở dải tiến độ phía trên."
+                    description="Thử đổi từ khoá tìm kiếm hoặc chọn lại trạng thái ở dải tiến độ phía trên."
                     action={
                       <button
                         type="button"
                         onClick={resetTableFilters}
                         className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                       >
-                        Xóa bộ lọc
+                        Xoá bộ lọc
                       </button>
                     }
                   />
