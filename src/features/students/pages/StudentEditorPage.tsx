@@ -38,8 +38,8 @@ function groupChangeConsequences(fromGroup: string, toGroup: string | null): str
       ]
     : [
         `Chuyển từ lớp ${fromGroup} sang lớp ${toGroup}. Từ giờ em nhận những bài được giao cho lớp mới.`,
-        `Bài lớp ${toGroup} đã giao trước hôm nay không tự đến với em — giáo viên cần giao thêm nếu muốn em làm.`,
-        'Bài đã giao, bài đã nộp và điểm cũ vẫn giữ nguyên.',
+        `Bài lớp ${toGroup} đã giao trước khi em chuyển sang không tự đến với em — giáo viên cần giao thêm nếu muốn em làm.`,
+        `Bài lớp ${fromGroup} đã giao cho em, bài đã nộp và điểm cũ vẫn giữ nguyên.`,
       ]
 }
 

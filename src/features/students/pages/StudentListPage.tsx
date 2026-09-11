@@ -11,7 +11,7 @@ import Pagination from '../../../components/common/Pagination'
 import { SkeletonTable } from '../../../components/common/Skeleton'
 import useAsync from '../../../hooks/useAsync'
 import useDebouncedValue from '../../../hooks/useDebouncedValue'
-import { formatDate, formatScore, getInitials, getScoreTone } from '../../../lib/format'
+import { formatDate, formatDateTime, formatScore, getInitials, getScoreTone } from '../../../lib/format'
 import { UNASSIGNED_GROUP_ID, UNASSIGNED_GROUP_NAME, listGroups } from '../../../services/groupService'
 import { isRetiredStudent, listStudents } from '../../../services/studentService'
 import StudentStatusPill from '../components/StudentStatusPill'
@@ -53,6 +53,14 @@ export default function StudentListPage() {
     )
   }
   const [page, setPage] = useState(1)
+
+  // URL có thể đổi bộ lọc từ bên ngoài ô lọc — bấm "Học sinh" ở thanh bên xoá ?trang-thai. Khi đó
+  // cũng phải về trang 1 như lúc tự đổi ô lọc, nếu không người dùng rơi vào giữa một danh sách khác.
+  const [previousStatus, setPreviousStatus] = useState(status)
+  if (previousStatus !== status) {
+    setPreviousStatus(status)
+    setPage(1)
+  }
 
   const debouncedSearch = useDebouncedValue(searchInput)
 
@@ -118,11 +126,15 @@ export default function StudentListPage() {
   const summaryText = summary
     // "Đang theo học" nói rõ con số này không gồm tài khoản chờ xoá hay đã xoá — ô lọc "Tất cả trạng
     // thái" thì có, nên hai con số được phép khác nhau mà không ai tưởng một bên sai.
-    ? `${summary.totalStudents} học sinh đang theo học · ${summary.activeStudents} đang hoạt động · ${
-        summary.lockedStudents
-      } đã khoá${
-        summary.pendingDeletionStudents > 0 ? ` · ${summary.pendingDeletionStudents} chờ xoá` : ''
-      } · ${summary.groups.length} nhóm lớp`
+    ? [
+        `${summary.totalStudents} học sinh đang theo học`,
+        `${summary.activeStudents} đang hoạt động`,
+        summary.lockedStudents > 0 ? `${summary.lockedStudents} đã khoá` : '',
+        summary.pendingDeletionStudents > 0 ? `${summary.pendingDeletionStudents} chờ xoá` : '',
+        `${summary.groups.length} nhóm lớp`,
+      ]
+        .filter(Boolean)
+        .join(' · ')
     : null
 
   return (
@@ -317,7 +329,7 @@ export default function StudentListPage() {
                               tooltip, và đây là trang mà lối "N tài khoản đang chờ xoá" dẫn tới. */}
                           {student.status === 'pendingDeletion' && student.deletionScheduledAt && (
                             <p className="text-xs text-slate-400 mt-1 whitespace-nowrap">
-                              Xoá hẳn ngày {formatDate(student.deletionScheduledAt)}
+                              Khôi phục được tới {formatDateTime(student.deletionScheduledAt)}
                             </p>
                           )}
                         </td>
