@@ -10,7 +10,7 @@ import { LifecycleBadge, StatusBadge, TopicBadge } from '../../../components/com
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
-import ConfirmDialog from '../../../components/common/ConfirmDialog'
+import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { SkeletonBlock, SkeletonTable } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
@@ -25,6 +25,7 @@ import {
 import { getTopicLabel } from '../../../lib/topicTheme'
 import { difficultyLabels, examStatusLabels } from '../../../types'
 import type { DifficultyLevel, ExamAssignment, ExamStatus } from '../../../types'
+import { examDeleteConfirmCopy } from '../utils/examConfirmations'
 
 const ROWS_PER_PAGE = 10
 
@@ -155,13 +156,12 @@ export default function ExamDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
   const examId = Number(id)
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
-  const [deleting, setDeleting] = useState(false)
 
   const search = useDebouncedValue(searchInput, 300)
 
@@ -224,16 +224,14 @@ export default function ExamDetailPage() {
 
   const handleDelete = async () => {
     if (!data) return
-    setDeleting(true)
-    try {
-      await deleteExam(data.exam.id)
-      toast.success(`Đã xóa bài kiểm tra "${data.exam.title}".`)
-      navigate('/giao-vien/bai-kiem-tra')
-    } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : 'Không xóa được bài kiểm tra.')
-      setDeleting(false)
-      setConfirmDeleteOpen(false)
-    }
+    const target = data.exam
+    const deleted = await confirm({
+      ...examDeleteConfirmCopy(target, statusCounts.inprogress),
+      onConfirm: () => deleteExam(target.id),
+    })
+    if (!deleted) return
+    toast.success(`Đã xoá bài kiểm tra "${target.title}".`)
+    navigate('/giao-vien/bai-kiem-tra')
   }
 
   const exam = data?.exam
@@ -333,14 +331,14 @@ export default function ExamDetailPage() {
                   </NavLink>
                   <button
                     type="button"
-                    onClick={() => setConfirmDeleteOpen(true)}
+                    onClick={() => void handleDelete()}
                     disabled={hasSubmission}
-                    title={hasSubmission ? 'Không thể xóa bài đã có học sinh nộp' : undefined}
+                    title={hasSubmission ? 'Không thể xoá bài đã có học sinh nộp' : undefined}
                     className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                       hasSubmission ? 'text-slate-300 cursor-not-allowed' : 'text-red-500 hover:bg-red-50'
                     }`}
                   >
-                    <Trash2 size={16} /> Xóa
+                    <Trash2 size={16} /> Xoá
                   </button>
                 </div>
               </div>
@@ -466,14 +464,14 @@ export default function ExamDetailPage() {
                   <EmptyState
                     icon={Search}
                     title="Không có học sinh nào khớp bộ lọc"
-                    description="Thử đổi từ khóa tìm kiếm hoặc chọn lại trạng thái ở dải tiến độ phía trên."
+                    description="Thử đổi từ khoá tìm kiếm hoặc chọn lại trạng thái ở dải tiến độ phía trên."
                     action={
                       <button
                         type="button"
                         onClick={resetTableFilters}
                         className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                       >
-                        Xóa bộ lọc
+                        Xoá bộ lọc
                       </button>
                     }
                   />
@@ -607,17 +605,6 @@ export default function ExamDetailPage() {
           </aside>
         </div>
       )}
-
-      <ConfirmDialog
-        open={confirmDeleteOpen}
-        tone="danger"
-        title="Xóa bài kiểm tra"
-        message={`Bạn có chắc muốn xóa "${exam?.title ?? ''}"? Toàn bộ lượt giao bài của bài kiểm tra này cũng bị gỡ và không thể khôi phục.`}
-        confirmLabel="Xóa bài kiểm tra"
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setConfirmDeleteOpen(false)}
-      />
     </TeacherLayout>
   )
 }

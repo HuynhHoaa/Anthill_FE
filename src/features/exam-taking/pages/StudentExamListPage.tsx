@@ -315,7 +315,7 @@ export default function StudentExamListPage() {
       onClick={() => { setSearchInput(''); setActiveTab('all') }}
       className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
     >
-      Xóa tìm kiếm <ChevronRight size={15} />
+      Xoá tìm kiếm <ChevronRight size={15} />
     </button>
   )
 
@@ -330,7 +330,7 @@ export default function StudentExamListPage() {
             : examItems === undefined
               ? 'Đang tải danh sách bài kiểm tra được giao...'
               : hasSearch
-                ? <>Tìm thấy <strong>{counts.all}</strong> bài kiểm tra khớp với từ khóa</>
+                ? <>Tìm thấy <strong>{counts.all}</strong> bài kiểm tra khớp với từ khoá</>
                 : <>Tổng cộng <strong>{counts.all}</strong> bài kiểm tra được giao</>}
         </p>
       </div>
@@ -420,14 +420,14 @@ export default function StudentExamListPage() {
         <EmptyState
           icon={Search}
           title="Không tìm thấy bài kiểm tra nào"
-          description={`Không có kết quả cho "${normalizedSearch}". Hãy thử từ khóa khác hoặc xóa bộ lọc đang áp dụng.`}
+          description={`Không có kết quả cho "${normalizedSearch}". Hãy thử từ khoá khác hoặc xoá bộ lọc đang áp dụng.`}
           action={clearSearchButton}
         />
       ) : hasSearch ? (
         <EmptyState
           icon={Search}
           title={`Không có kết quả trong mục "${activeTabLabel}"`}
-          description={`Có ${counts.all} bài kiểm tra khớp với "${normalizedSearch}" nhưng không bài nào thuộc mục này. Hãy chuyển sang mục khác hoặc xóa từ khóa.`}
+          description={`Có ${counts.all} bài kiểm tra khớp với "${normalizedSearch}" nhưng không bài nào thuộc mục này. Hãy chuyển sang mục khác hoặc xoá từ khoá.`}
           action={clearSearchButton}
         />
       ) : (

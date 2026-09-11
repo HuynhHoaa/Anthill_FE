@@ -24,7 +24,7 @@ export default function QuestionPreview({
   const [selectedAnswerId, setSelectedAnswerId] = useState<number | null>(null)
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false)
 
-  // Đáp án đã chọn có thể vừa bị xóa khỏi form nên phải đối chiếu lại danh sách hiện tại.
+  // Đáp án đã chọn có thể vừa bị xoá khỏi form nên phải đối chiếu lại danh sách hiện tại.
   const activeAnswerId = answers.some(answer => answer.id === selectedAnswerId) ? selectedAnswerId : null
 
   return (

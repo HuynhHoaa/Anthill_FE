@@ -10,7 +10,12 @@ export type UserRole = 'teacher' | 'student' | 'admin'
 /** Vai trò được xem chi tiết bài làm. Quản trị viên đứng ngoài vòng này. */
 export type ResultAudience = 'teacher' | 'student'
 
-export type StudentStatus = 'active' | 'locked'
+/**
+ * `pendingDeletion` và `deleted` là hai chặng của việc xoá tài khoản, không phải một biến thể của
+ * khoá: chờ xoá thì vẫn khôi phục được trong 60 ngày, còn đã xoá thì dữ liệu cá nhân không còn —
+ * dòng đó chỉ ở lại để kết quả bài làm cũ còn có chủ.
+ */
+export type StudentStatus = 'active' | 'locked' | 'pendingDeletion' | 'deleted'
 
 export type DifficultyLevel = 'easy' | 'medium' | 'hard'
 
@@ -70,6 +75,17 @@ export interface Student {
   createdAt: string
   completedExams: number
   averageScore: number
+  /** Lý do yêu cầu xoá. Chỉ có khi tài khoản đang chờ xoá hoặc đã xoá. */
+  deletionReason?: string
+  /** Lúc yêu cầu xoá được ghi nhận (ISO). */
+  deletionRequestedAt?: string
+  /**
+   * Lúc dữ liệu cá nhân sẽ bị xoá vĩnh viễn (ISO). Chỉ có khi đang chờ xoá.
+   *
+   * Server tính sẵn chứ giao diện không tự cộng 60 ngày: con số đó là chính sách của hệ thống, và
+   * để hai bên cùng giữ một bản thì ngày đổi chính sách là ngày hai bên nói hai ngày khác nhau.
+   */
+  deletionScheduledAt?: string
 }
 
 /**
@@ -416,7 +432,9 @@ export interface StudentDashboardData {
 
 export const studentStatusLabels: Record<StudentStatus, string> = {
   active: 'Đang hoạt động',
-  locked: 'Đã khóa',
+  locked: 'Đã khoá',
+  pendingDeletion: 'Chờ xoá',
+  deleted: 'Đã xoá',
 }
 
 export const questionStatusLabels: Record<QuestionStatus, string> = {

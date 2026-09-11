@@ -6,8 +6,10 @@
  * 1. **Lọc theo `groupId`, không theo tên nhóm.** Bản giả lập lọc bằng tên, nên đổi tên một nhóm
  *    là bộ lọc trả về 0 dòng cho tới khi tải lại trang.
  *
- * 2. **Không có endpoint xoá.** Học sinh bị **khoá** chứ không xoá (§4.2): kết quả các bài đã làm
- *    phải tra cứu được về sau, mà xoá tài khoản thì những dòng kết quả đó mất chủ.
+ * 2. **Xoá là xoá mềm, và có hạn chờ.** Không có `DELETE`: kết quả các bài đã làm phải tra cứu
+ *    được về sau, mà xoá hẳn dòng tài khoản thì những dòng kết quả đó mất chủ. Xoá tài khoản đi
+ *    qua `requestStudentDeletion` — chặn đăng nhập ngay, khôi phục được trong 60 ngày, hết hạn thì
+ *    server xoá dữ liệu cá nhân nhưng giữ lại kết quả.
  */
 import { apiClient } from '../lib/apiClient'
 import type { Paged, Student, StudentStatus } from '../types'
@@ -106,10 +108,47 @@ export function setStudentStatus(id: number, status: StudentStatus): Promise<Stu
  * Mật khẩu chỉ nằm trong response này, không bao giờ xuất hiện lại ở bất kỳ endpoint nào khác —
  * nên giao diện phải hiện nó ra cho người quản trị chép lại ngay, đóng hộp thoại là mất.
  */
-export function resetStudentPassword(id: number): Promise<{
+export interface ResetPasswordResult {
   studentId: number
   password: string
   mustChangePassword: boolean
-}> {
-  return apiClient.post(`/api/students/${id}/reset-password`)
+}
+
+export function resetStudentPassword(id: number): Promise<ResetPasswordResult> {
+  return apiClient.post<ResetPasswordResult>(`/api/students/${id}/reset-password`)
+}
+
+/** Số ngày một tài khoản nằm chờ trước khi server xoá dữ liệu cá nhân — khớp `RetentionDays` ở server. */
+export const DELETION_RETENTION_DAYS = 60
+
+/** Khớp validator ở server; giao diện chặn trước để người nhập không phải gặp một lỗi 400. */
+export const DELETION_REASON_MIN_LENGTH = 10
+export const DELETION_REASON_MAX_LENGTH = 512
+
+/** Tên server gán cho tài khoản đã bị xoá dữ liệu cá nhân. */
+export const ERASED_STUDENT_NAME = 'Học sinh đã xoá'
+
+/** Đang chờ xoá hoặc đã xoá: hai trạng thái mà khoá, mở khoá hay sửa hồ sơ đều không còn nghĩa. */
+export function isRetiredStudent(student: Pick<Student, 'status'>): boolean {
+  return student.status === 'pendingDeletion' || student.status === 'deleted'
+}
+
+/**
+ * Đưa tài khoản vào danh sách chờ xoá.
+ *
+ * Lý do là bắt buộc và server từ chối chuỗi ngắn hơn 10 ký tự: sau khi dữ liệu cá nhân bị xoá,
+ * đó là chỗ duy nhất còn giải thích được vì sao lớp hụt một em. Token của em đó chết ngay.
+ */
+export function requestStudentDeletion(id: number, reason: string): Promise<Student> {
+  return apiClient.post<Student>(`/api/students/${id}/request-deletion`, { reason: reason.trim() })
+}
+
+/**
+ * Đưa tài khoản đang chờ xoá trở lại hoạt động.
+ *
+ * Server trả **409** khi tài khoản không nằm trong danh sách chờ — thường nghĩa là màn hình đang cũ:
+ * ai đó đã khôi phục trước, hoặc hạn 60 ngày đã qua và dữ liệu đã bị xoá.
+ */
+export function restoreStudent(id: number): Promise<Student> {
+  return apiClient.post<Student>(`/api/students/${id}/restore`)
 }

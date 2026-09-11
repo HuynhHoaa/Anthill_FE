@@ -116,7 +116,7 @@ function StudentPickerRow({
       <div className="flex flex-wrap items-center justify-end gap-1.5 flex-shrink-0">
         {student.status === 'locked' && (
           <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-500">
-            Đã khóa
+            Đã khoá
           </span>
         )}
         {isAlreadyAssigned && (
@@ -353,11 +353,11 @@ export default function ExamAssignPage() {
 
       setConfirmOpen(false)
 
-      // Mỗi lý do bị bỏ qua đòi một hành động khác nhau — mở khóa tài khoản, chọn lại lớp, hay
+      // Mỗi lý do bị bỏ qua đòi một hành động khác nhau — mở khoá tài khoản, chọn lại lớp, hay
       // không cần làm gì — nên gộp chúng thành một con số là lấy mất thông tin giáo viên cần.
       const skipNotes = [
         result.skippedAlreadyAssigned > 0 ? `${result.skippedAlreadyAssigned} em đã có bài này từ trước` : '',
-        result.skippedLocked > 0 ? `${result.skippedLocked} em đang bị khóa tài khoản` : '',
+        result.skippedLocked > 0 ? `${result.skippedLocked} em đang bị khoá tài khoản` : '',
         result.skippedOutOfScope > 0 ? `${result.skippedOutOfScope} em ngoài phạm vi lớp bạn phụ trách` : '',
         result.skippedOutOfScopeGroups > 0 ? `${result.skippedOutOfScopeGroups} nhóm lớp không thuộc quyền bạn` : '',
         result.skippedNotFound > 0 ? `${result.skippedNotFound} em không còn trong hệ thống` : '',
@@ -586,14 +586,14 @@ export default function ExamAssignPage() {
                 <EmptyState
                   icon={SearchX}
                   title="Không tìm thấy học sinh phù hợp"
-                  description={`Không có học sinh nào khớp với từ khóa “${search}”. Thử tìm bằng mã học sinh hoặc tên nhóm lớp.`}
+                  description={`Không có học sinh nào khớp với từ khoá “${search}”. Thử tìm bằng mã học sinh hoặc tên nhóm lớp.`}
                   action={
                     <button
                       type="button"
                       onClick={() => setSearch('')}
                       className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                     >
-                      <X size={15} /> Xóa tìm kiếm
+                      <X size={15} /> Xoá tìm kiếm
                     </button>
                   }
                 />
@@ -646,7 +646,7 @@ export default function ExamAssignPage() {
             </div>
 
             <div className={`${cardClass} p-5`}>
-              <h2 className="text-base font-bold text-slate-800 mb-2">Tùy chọn giao bài</h2>
+              <h2 className="text-base font-bold text-slate-800 mb-2">Tuỳ chọn giao bài</h2>
 
               <label className="flex items-start justify-between gap-3 py-2.5 cursor-pointer">
                 <span className="min-w-0">

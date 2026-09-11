@@ -44,7 +44,7 @@ export default function StudentResultsPage() {
 
   const { data: myExams } = useAsync(() => listMyExams(), [])
 
-  // Gõ từ khóa mới thì quay về trang đầu, tránh rơi vào trang trống của kết quả cũ.
+  // Gõ từ khoá mới thì quay về trang đầu, tránh rơi vào trang trống của kết quả cũ.
   const changeSearch = (value: string) => {
     setSearchInput(value)
     setPage(1)
@@ -122,14 +122,14 @@ export default function StudentResultsPage() {
         <EmptyState
           icon={Search}
           title="Không tìm thấy bài nào"
-          description={`Không có kết quả nào khớp với từ khóa "${search.trim()}". Thử tìm với từ khóa khác nhé.`}
+          description={`Không có kết quả nào khớp với từ khoá "${search.trim()}". Thử tìm với từ khoá khác nhé.`}
           action={
             <button
               type="button"
               onClick={() => changeSearch('')}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
             >
-              Xóa tìm kiếm
+              Xoá tìm kiếm
             </button>
           }
         />

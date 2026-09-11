@@ -74,11 +74,11 @@ export default function AddTeachersModal({
       if (assignedCount > 0 && result.skippedLocked > 0) {
         // Tài khoản bị khoá là lý do duy nhất đòi quản trị viên làm thêm một việc nữa, nên nó
         // được nói riêng thay vì gộp vào một con số "bỏ qua" chung chung.
-        toast.info(`Đã phân công ${assignedCount} giáo viên, bỏ qua ${result.skippedLocked} tài khoản đang bị khóa.`)
+        toast.info(`Đã phân công ${assignedCount} giáo viên, bỏ qua ${result.skippedLocked} tài khoản đang bị khoá.`)
       } else if (assignedCount > 0) {
         toast.success(`Đã phân công ${assignedCount} giáo viên cho ${groupName}.`)
       } else if (result.skippedLocked > 0) {
-        toast.error('Những giáo viên đã chọn đều đang bị khóa tài khoản. Hãy mở khóa trước khi phân công.')
+        toast.error('Những giáo viên đã chọn đều đang bị khoá tài khoản. Hãy mở khoá trước khi phân công.')
       } else if (result.skippedAlreadyAssigned > 0) {
         toast.info('Những giáo viên đã chọn đều đang phụ trách lớp này rồi.')
       } else {
@@ -117,7 +117,7 @@ export default function AddTeachersModal({
             disabled={submitting}
             className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50"
           >
-            Hủy
+            Huỷ
           </button>
           <button
             type="button"
@@ -190,14 +190,14 @@ export default function AddTeachersModal({
             <div className="py-10 text-center">
               <p className="text-sm font-semibold text-slate-600">Không tìm thấy giáo viên phù hợp</p>
               <p className="text-sm text-slate-400 mt-1">
-                {`Không có giáo viên nào khớp với từ khóa "${search.trim()}".`}
+                {`Không có giáo viên nào khớp với từ khoá "${search.trim()}".`}
               </p>
               <button
                 type="button"
                 onClick={() => setSearch('')}
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
               >
-                Xóa từ khóa tìm kiếm
+                Xoá từ khoá tìm kiếm
               </button>
             </div>
           ) : (

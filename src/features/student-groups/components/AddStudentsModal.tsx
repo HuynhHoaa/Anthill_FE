@@ -8,6 +8,7 @@ import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { getInitials, normalizeText } from '../../../lib/format'
 import { UNASSIGNED_GROUP_ID, addStudentsToGroup, listAssignableStudents } from '../../../services/groupService'
+import { isRetiredStudent } from '../../../services/studentService'
 import { getAvatarTone } from './groupTheme'
 
 interface AddStudentsModalProps {
@@ -29,26 +30,32 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [submitting, setSubmitting] = useState(false)
 
+  // Server không còn trả tài khoản chờ xoá hay đã xoá về đây, nhưng lọc thêm vẫn rẻ: nó bảo đảm
+  // "Chọn tất cả" không bao giờ đưa một tài khoản đã ẩn danh trở lại lớp, dù server đang chạy bản nào.
+  const candidates = useMemo(
+    () => (assignableStudents ?? []).filter(student => !isRetiredStudent(student)),
+    [assignableStudents],
+  )
+
   const filteredStudents = useMemo(() => {
-    const students = assignableStudents ?? []
     const normalizedSearch = normalizeText(search)
-    if (!normalizedSearch) return students
-    return students.filter(student =>
+    if (!normalizedSearch) return candidates
+    return candidates.filter(student =>
       normalizeText(`${student.fullName} ${student.code} ${student.email} ${student.group}`).includes(
         normalizedSearch,
       ),
     )
-  }, [assignableStudents, search])
+  }, [candidates, search])
 
   const visibleIds = filteredStudents.map(student => student.id)
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id))
 
   const transferredStudentCount = useMemo(
     () =>
-      (assignableStudents ?? []).filter(
+      candidates.filter(
         student => student.groupId !== UNASSIGNED_GROUP_ID && selectedIds.includes(student.id),
       ).length,
-    [assignableStudents, selectedIds],
+    [candidates, selectedIds],
   )
 
   const toggleStudent = (studentId: number) => {
@@ -80,14 +87,22 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
       const result = await addStudentsToGroup(groupId, selectedIds)
       addedCount = result.added
 
-      const skipped = result.skippedAlreadyMember + result.skippedNotFound
+      // Mỗi lý do bỏ qua được nói riêng, như màn hình giao bài: gộp thành "bỏ qua N em" thì người bấm
+      // không biết phải làm gì tiếp với từng em. Tài khoản bị xoá chỉ lọt tới đây khi có người xoá
+      // nó trong lúc hộp này đang mở.
+      const skippedRetired = result.skippedRetired ?? 0
+      const reasons = [
+        result.skippedAlreadyMember > 0 ? `${result.skippedAlreadyMember} em đã ở trong lớp` : '',
+        skippedRetired > 0 ? `${skippedRetired} tài khoản đã bị xoá hoặc đang chờ xoá` : '',
+        result.skippedNotFound > 0 ? `${result.skippedNotFound} tài khoản không còn tồn tại` : '',
+      ].filter(Boolean)
 
-      if (addedCount > 0 && skipped === 0) {
+      if (addedCount > 0 && reasons.length === 0) {
         toast.success(`Đã thêm ${addedCount} học sinh vào ${groupName}.`)
       } else if (addedCount > 0) {
-        toast.info(`Đã thêm ${addedCount} học sinh, bỏ qua ${skipped} em.`)
-      } else if (result.skippedAlreadyMember > 0) {
-        toast.info('Những học sinh đã chọn đều đã thuộc lớp này.')
+        toast.info(`Đã thêm ${addedCount} học sinh. Bỏ qua ${reasons.join(', ')}.`)
+      } else if (reasons.length > 0) {
+        toast.info(`Không thêm được em nào: ${reasons.join(', ')}.`)
       } else {
         toast.error('Không thêm được học sinh nào vào lớp.')
       }
@@ -105,7 +120,7 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
     }
   }
 
-  const hasStudents = (assignableStudents?.length ?? 0) > 0
+  const hasStudents = candidates.length > 0
 
   return (
     <Modal
@@ -124,7 +139,7 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
             disabled={submitting}
             className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50"
           >
-            Hủy
+            Huỷ
           </button>
           <button
             type="button"
@@ -206,14 +221,14 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
             <div className="py-10 text-center">
               <p className="text-sm font-semibold text-slate-600">Không tìm thấy học sinh phù hợp</p>
               <p className="text-sm text-slate-400 mt-1">
-                {`Không có học sinh nào khớp với từ khóa "${search.trim()}".`}
+                {`Không có học sinh nào khớp với từ khoá "${search.trim()}".`}
               </p>
               <button
                 type="button"
                 onClick={() => setSearch('')}
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
               >
-                Xóa từ khóa tìm kiếm
+                Xoá từ khoá tìm kiếm
               </button>
             </div>
           ) : (

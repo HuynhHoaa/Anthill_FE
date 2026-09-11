@@ -70,6 +70,16 @@ export function publishGroup(id: number): Promise<StudentGroup> {
 }
 
 /**
+ * Đưa một lớp đã công bố trở lại dạng nháp. Chỉ quản trị viên.
+ *
+ * Đường lui cho việc công bố nhầm: lớp biến khỏi màn hình giáo viên, còn học sinh và bài đã giao
+ * giữ nguyên. Server trả **409** khi lớp vốn đang là nháp.
+ */
+export function unpublishGroup(id: number): Promise<StudentGroup> {
+  return apiClient.post<StudentGroup>(`/api/student-groups/${id}/unpublish`)
+}
+
+/**
  * Xoá nhóm lớp. Chỉ quản trị viên.
  *
  * Server trả **409** khi nhóm còn thành viên, kèm sĩ số trong thông điệp. Đó là chủ đích: xoá một
@@ -99,6 +109,8 @@ export interface AddMembersResult {
   added: number
   skippedAlreadyMember: number
   skippedNotFound: number
+  /** Tài khoản chờ xoá hoặc đã xoá — server bỏ qua, không đưa vào lớp. */
+  skippedRetired?: number
   studentCount: number
 }
 

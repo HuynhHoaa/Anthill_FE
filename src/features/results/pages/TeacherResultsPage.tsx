@@ -227,7 +227,7 @@ export default function TeacherResultsPage() {
   if (search.trim() !== '') {
     activeFilterChips.push({
       key: 'search',
-      label: `Từ khóa: ${search.trim()}`,
+      label: `Từ khoá: ${search.trim()}`,
       onRemove: () => {
         setSearchInput('')
         updateFilters({ [SEARCH_PARAM]: undefined })
@@ -299,14 +299,14 @@ export default function TeacherResultsPage() {
         <EmptyState
           icon={Search}
           title="Không tìm thấy kết quả phù hợp"
-          description="Không có bài làm nào khớp với bộ lọc hiện tại. Thử đổi từ khóa hoặc bỏ bớt điều kiện lọc."
+          description="Không có bài làm nào khớp với bộ lọc hiện tại. Thử đổi từ khoá hoặc bỏ bớt điều kiện lọc."
           action={
             <button
               type="button"
               onClick={clearFilters}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
             >
-              <FilterX size={15} /> Xóa bộ lọc
+              <FilterX size={15} /> Xoá bộ lọc
             </button>
           }
         />
@@ -533,7 +533,7 @@ export default function TeacherResultsPage() {
                 onClick={clearFilters}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
               >
-                <FilterX size={14} /> Xóa bộ lọc
+                <FilterX size={14} /> Xoá bộ lọc
               </button>
             </div>
           </div>

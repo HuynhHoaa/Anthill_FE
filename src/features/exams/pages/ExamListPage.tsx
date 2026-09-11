@@ -9,7 +9,7 @@ import { LifecycleBadge, TopicBadge } from '../../../components/common/Badge'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
-import ConfirmDialog from '../../../components/common/ConfirmDialog'
+import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { SkeletonTable } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
@@ -18,6 +18,7 @@ import { deleteExam, listExams } from '../../../services/examService'
 import { formatDateTime, formatDuration, parseDateTime, roundToOneDecimal } from '../../../lib/format'
 import { lifecycleLabels } from '../../../types'
 import type { Exam, ExamLifecycle } from '../../../types'
+import { examDeleteConfirmCopy } from '../utils/examConfirmations'
 
 const PAGE_SIZE = 9
 
@@ -72,7 +73,7 @@ const MENU_WIDTH = 224
 const MENU_ITEM_HEIGHT = 44
 const MENU_VERTICAL_PADDING = 12
 
-/** Menu có 2 hay 3 mục tùy bài đã có người nộp hay chưa, nên chiều cao phải tính lại. */
+/** Menu có 2 hay 3 mục tuỳ bài đã có người nộp hay chưa, nên chiều cao phải tính lại. */
 function estimateMenuHeight(itemCount: number): number {
   return itemCount * MENU_ITEM_HEIGHT + MENU_VERTICAL_PADDING
 }
@@ -179,7 +180,7 @@ function ExamRowMenu({ exam, onRequestDelete }: ExamRowMenuProps) {
               type="button"
               role="menuitem"
               disabled={hasSubmission}
-              title={hasSubmission ? 'Không thể xóa bài đã có học sinh nộp' : undefined}
+              title={hasSubmission ? 'Không thể xoá bài đã có học sinh nộp' : undefined}
               onClick={() => {
                 setAnchor(null)
                 onRequestDelete(exam)
@@ -188,7 +189,7 @@ function ExamRowMenu({ exam, onRequestDelete }: ExamRowMenuProps) {
                 hasSubmission ? 'text-slate-300 cursor-not-allowed' : 'text-red-500 hover:bg-red-50'
               }`}
             >
-              <Trash2 size={15} /> Xóa bài kiểm tra
+              <Trash2 size={15} /> Xoá bài kiểm tra
             </button>
           </div>,
           document.body,
@@ -324,11 +325,10 @@ function ExamRow({ exam, onRequestDelete }: ExamRowProps) {
 
 export default function ExamListPage() {
   const toast = useToast()
+  const confirm = useConfirm()
   const [searchInput, setSearchInput] = useState('')
   const [lifecycle, setLifecycle] = useState<LifecycleFilter>('all')
   const [page, setPage] = useState(1)
-  const [examToDelete, setExamToDelete] = useState<Exam | null>(null)
-  const [deleting, setDeleting] = useState(false)
 
   const search = useDebouncedValue(searchInput, 350)
   const { data, loading, error, reload } = useAsync(
@@ -345,21 +345,16 @@ export default function ExamListPage() {
     setPage(1)
   }
 
-  const handleDelete = async () => {
-    if (!examToDelete) return
-    setDeleting(true)
-    try {
-      await deleteExam(examToDelete.id)
-      toast.success(`Đã xóa bài kiểm tra "${examToDelete.title}".`)
-      setExamToDelete(null)
-      // Về trang đầu để không mắc kẹt ở trang vừa trống sau khi xóa
-      if (page === 1) reload()
-      else setPage(1)
-    } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : 'Không xóa được bài kiểm tra.')
-    } finally {
-      setDeleting(false)
-    }
+  const requestDelete = async (exam: Exam) => {
+    const deleted = await confirm({
+      ...examDeleteConfirmCopy(exam),
+      onConfirm: () => deleteExam(exam.id),
+    })
+    if (!deleted) return
+    toast.success(`Đã xoá bài kiểm tra "${exam.title}".`)
+    // Về trang đầu để không mắc kẹt ở trang vừa trống sau khi xoá
+    if (page === 1) reload()
+    else setPage(1)
   }
 
   return (
@@ -406,7 +401,7 @@ export default function ExamListPage() {
                 onClick={resetFilters}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap"
               >
-                <FilterX size={15} /> Xóa bộ lọc
+                <FilterX size={15} /> Xoá bộ lọc
               </button>
             )}
           </div>
@@ -437,14 +432,14 @@ export default function ExamListPage() {
             <EmptyState
               icon={Search}
               title="Không tìm thấy bài kiểm tra phù hợp"
-              description="Không có bài kiểm tra nào khớp với từ khóa và bộ lọc hiện tại. Hãy thử từ khóa khác hoặc bỏ bộ lọc."
+              description="Không có bài kiểm tra nào khớp với từ khoá và bộ lọc hiện tại. Hãy thử từ khoá khác hoặc bỏ bộ lọc."
               action={
                 <button
                   type="button"
                   onClick={resetFilters}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                 >
-                  Xóa bộ lọc
+                  Xoá bộ lọc
                 </button>
               }
             />
@@ -488,7 +483,7 @@ export default function ExamListPage() {
                 </thead>
                 <tbody>
                   {exams.map(exam => (
-                    <ExamRow key={exam.id} exam={exam} onRequestDelete={setExamToDelete} />
+                    <ExamRow key={exam.id} exam={exam} onRequestDelete={target => void requestDelete(target)} />
                   ))}
                 </tbody>
               </table>
@@ -499,17 +494,6 @@ export default function ExamListPage() {
             </div>
           </div>
         )}
-
-      <ConfirmDialog
-        open={examToDelete !== null}
-        tone="danger"
-        title="Xóa bài kiểm tra"
-        message={`Bạn có chắc muốn xóa "${examToDelete?.title ?? ''}"? Toàn bộ lượt giao bài của bài kiểm tra này cũng bị gỡ và không thể khôi phục.`}
-        confirmLabel="Xóa bài kiểm tra"
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setExamToDelete(null)}
-      />
     </TeacherLayout>
   )
 }

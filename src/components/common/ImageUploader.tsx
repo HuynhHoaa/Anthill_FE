@@ -85,7 +85,7 @@ export default function ImageUploader({ value, onChange, label, compact = false 
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors"
             >
               <Trash2 size={13} />
-              Xóa
+              Xoá
             </button>
           </div>
         </div>

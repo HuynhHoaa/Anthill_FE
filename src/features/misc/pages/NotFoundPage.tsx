@@ -89,7 +89,7 @@ export default function NotFoundPage() {
 
           <h1 className="text-2xl font-bold text-slate-800 mt-4">Không tìm thấy trang bạn cần</h1>
           <p className="text-sm text-slate-500 mt-2.5 leading-relaxed max-w-md mx-auto">
-            Đường dẫn có thể đã bị đổi tên, bài kiểm tra đã bị xóa, hoặc bạn gõ nhầm một ký tự.
+            Đường dẫn có thể đã bị đổi tên, bài kiểm tra đã bị xoá, hoặc bạn gõ nhầm một ký tự.
             Đừng lo, mọi thứ vẫn còn nguyên ở trang chính.
           </p>
 

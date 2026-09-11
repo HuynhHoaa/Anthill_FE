@@ -30,7 +30,7 @@ export default function TeacherGroupListPage() {
     [trimmedSearch],
   )
 
-  // Phụ đề phải mô tả toàn bộ dữ liệu nên dùng truy vấn riêng không kèm từ khóa,
+  // Phụ đề phải mô tả toàn bộ dữ liệu nên dùng truy vấn riêng không kèm từ khoá,
   // tránh cảnh gõ tìm kiếm là tổng học sinh tụt theo kết quả lọc.
   const { data: allGroups } = useAsync(() => listGroups(), [])
 
@@ -63,7 +63,7 @@ export default function TeacherGroupListPage() {
             <button
               type="button"
               onClick={() => setSearchInput('')}
-              aria-label="Xóa tìm kiếm"
+              aria-label="Xoá tìm kiếm"
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
             >
               <X size={15} />
@@ -82,14 +82,14 @@ export default function TeacherGroupListPage() {
             <EmptyState
               icon={Search}
               title="Không tìm thấy lớp phù hợp"
-              description={`Không có lớp nào khớp với từ khóa "${trimmedSearch}". Thử từ khóa khác hoặc xóa bộ lọc để xem toàn bộ lớp của bạn.`}
+              description={`Không có lớp nào khớp với từ khoá "${trimmedSearch}". Thử từ khoá khác hoặc xoá bộ lọc để xem toàn bộ lớp của bạn.`}
               action={
                 <button
                   type="button"
                   onClick={() => setSearchInput('')}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                 >
-                  <X size={15} /> Xóa tìm kiếm
+                  <X size={15} /> Xoá tìm kiếm
                 </button>
               }
             />

@@ -7,6 +7,7 @@ import {
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
+import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
@@ -26,9 +27,11 @@ import {
   clearExamBuilderDraft, readExamBuilderDraft, saveExamBuilderDraft,
   type ExamFormState,
 } from '../utils/examDraftStorage'
+import { examPublishConfirmCopy, publishedExamEditConfirmCopy } from '../utils/examConfirmations'
 import {
   buildDefaultSchedule, isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
 } from '../utils/examScheduleFormat'
+import { formatDateTime } from '../../../lib/format'
 
 type SaveMode = 'draft' | 'publish' | 'assign'
 
@@ -347,6 +350,7 @@ export default function ExamBuilderPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
 
   // useParams luôn trả về chuỗi nên phải ép về số trước khi dùng làm id.
   // Đường dẫn '/sua' có id không đọc được vẫn phải ở chế độ sửa để báo lỗi,
@@ -354,7 +358,7 @@ export default function ExamBuilderPage() {
   const examId = id === undefined ? undefined : Number(id)
   const isEditing = examId !== undefined
 
-  // Nháp chỉ được đọc đúng một lần lúc gắn trang: hàm xóa chạy ngay sau đó nên các
+  // Nháp chỉ được đọc đúng một lần lúc gắn trang: hàm xoá chạy ngay sau đó nên các
   // render sau không còn đọc lại được nữa.
   const [restoredForm] = useState(() => readExamBuilderDraft(examId ?? null)?.form)
   const restoredRef = useRef(restoredForm !== undefined)
@@ -372,8 +376,8 @@ export default function ExamBuilderPage() {
   const topicsQuery = useAsync(() => listTopics(), [])
   const loadedExam = examQuery.data
 
-  // Xóa ở effect riêng chứ không xóa trong initializer, vì StrictMode chạy initializer hai lần.
-  // Chỉ xóa nháp của đúng đề này: bản nháp vừa được đọc vào state ở trên rồi, còn nháp của đề khác
+  // Xoá ở effect riêng chứ không xoá trong initializer, vì StrictMode chạy initializer hai lần.
+  // Chỉ xoá nháp của đúng đề này: bản nháp vừa được đọc vào state ở trên rồi, còn nháp của đề khác
   // thì không liên quan gì tới lần mở này.
   useEffect(() => {
     clearExamBuilderDraft(examId ?? null)
@@ -532,35 +536,75 @@ export default function ExamBuilderPage() {
       lifecycle: mode === 'draft' ? 'draft' : undefined,
     }
 
-    setSavingMode(mode)
-    try {
-      const saved = examId === undefined
-        ? await createExam(payload)
-        : await updateExam(examId, payload)
+    const outcome: { saved?: Exam; final?: Exam } = {}
+    const persist = async () => {
+      // Lần thử lại trong hộp xác nhận sau khi tạo đề xong mà bước xuất bản hỏng thì không được
+      // tạo thêm một đề nữa — dùng lại bản vừa lưu và chỉ thử lại bước còn thiếu.
+      if (!outcome.saved) {
+        outcome.saved = examId === undefined
+          ? await createExam(payload)
+          : await updateExam(examId, payload)
+      }
+      const saved = outcome.saved
 
       // Rời khỏi nháp là một HÀNH ĐỘNG riêng, không phải một trường dữ liệu: server kiểm lại đầy
       // đủ những điều kiện mà bản nháp vừa được miễn. Chỉ gọi khi đề thật sự còn là nháp — gọi
       // trên một đề đã xuất bản sẽ nhận 409.
-      const published = mode !== 'draft' && saved.lifecycle === 'draft'
+      outcome.final = mode !== 'draft' && saved.lifecycle === 'draft'
         ? await publishExam(saved.id)
         : saved
-
-      if (mode === 'draft') {
-        toast.success('Đã lưu bản nháp. Đề chưa phát cho học sinh.')
-      } else {
-        toast.success(isEditing ? 'Đã cập nhật bài kiểm tra.' : 'Đã tạo bài kiểm tra thành công.')
-      }
-
-      navigate(
-        mode === 'assign'
-          ? `/giao-vien/bai-kiem-tra/${published.id}/giao-bai`
-          : `/giao-vien/bai-kiem-tra/${published.id}`,
-      )
-    } catch (caught) {
-      toast.error(toErrorMessage(caught, 'Không lưu được bài kiểm tra. Vui lòng thử lại.'))
-    } finally {
-      setSavingMode(null)
     }
+
+    // Lưu nháp không đụng tới ai nên không hỏi. Hai trường hợp còn lại thì có: xuất bản là bước
+    // không quay lại được, còn sửa một đề đã xuất bản là sửa thứ học sinh đang cầm trên tay.
+    const goingToAssign = mode === 'assign'
+    const confirmCopy =
+      mode === 'draft'
+        ? undefined
+        : loadedExam && loadedExam.lifecycle !== 'draft'
+          ? publishedExamEditConfirmCopy(loadedExam, goingToAssign)
+          : examPublishConfirmCopy(
+              {
+                title: form.title,
+                totalQuestions: form.totalQuestions,
+                durationMinutes: form.durationMinutes,
+                // Hộp xác nhận là chỗ để người dùng đọc, nên in giờ địa phương. Chuỗi ISO theo giờ
+                // UTC chỉ dành cho server — in ra đây là lệch bảy tiếng với giờ Việt Nam.
+                openAt: formatDateTime(form.openAtLocal),
+                closeAt: formatDateTime(form.closeAtLocal),
+              },
+              goingToAssign,
+            )
+
+    if (confirmCopy) {
+      const confirmed = await confirm({ ...confirmCopy, onConfirm: persist })
+      if (!confirmed) return
+    } else {
+      setSavingMode(mode)
+      try {
+        await persist()
+      } catch (caught) {
+        toast.error(toErrorMessage(caught, 'Không lưu được bài kiểm tra. Vui lòng thử lại.'))
+        return
+      } finally {
+        setSavingMode(null)
+      }
+    }
+
+    const published = outcome.final
+    if (!published) return
+
+    if (mode === 'draft') {
+      toast.success('Đã lưu bản nháp. Đề chưa phát cho học sinh.')
+    } else {
+      toast.success(isEditing ? 'Đã cập nhật bài kiểm tra.' : 'Đã tạo bài kiểm tra thành công.')
+    }
+
+    navigate(
+      mode === 'assign'
+        ? `/giao-vien/bai-kiem-tra/${published.id}/giao-bai`
+        : `/giao-vien/bai-kiem-tra/${published.id}`,
+    )
   }
 
   const pageTitle = isEditing ? 'Sửa bài kiểm tra' : 'Tạo bài kiểm tra'
@@ -777,8 +821,8 @@ export default function ExamBuilderPage() {
               {scheduleWindowMinutes > 0 && (
                 <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
                   Học sinh có thể vào làm từ{' '}
-                  <strong className="text-slate-800 font-semibold">{toServiceDateTime(form.openAtLocal)}</strong>{' '}
-                  đến <strong className="text-slate-800 font-semibold">{toServiceDateTime(form.closeAtLocal)}</strong>{' '}
+                  <strong className="text-slate-800 font-semibold">{formatDateTime(form.openAtLocal)}</strong>{' '}
+                  đến <strong className="text-slate-800 font-semibold">{formatDateTime(form.closeAtLocal)}</strong>{' '}
                   — cửa sổ mở bài kéo dài {formatScheduleWindow(scheduleWindowMinutes)}.
                 </div>
               )}
@@ -881,7 +925,7 @@ export default function ExamBuilderPage() {
           />
 
           <div className={`${cardClass} p-5`}>
-            <h2 className="text-base font-bold text-slate-800 mb-2">Tùy chọn</h2>
+            <h2 className="text-base font-bold text-slate-800 mb-2">Tuỳ chọn</h2>
             <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
               <span className="text-sm text-slate-600">Trộn thứ tự câu hỏi</span>
               <input

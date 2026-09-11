@@ -78,7 +78,7 @@ export default function AnswerEditorRow({
             type="button"
             onClick={onRemove}
             disabled={!canRemove}
-            title={canRemove ? `Xóa đáp án ${answerLetter}` : 'Câu hỏi phải có tối thiểu 2 đáp án'}
+            title={canRemove ? `Xoá đáp án ${answerLetter}` : 'Câu hỏi phải có tối thiểu 2 đáp án'}
             className="w-9 h-9 rounded-xl text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed"
           >
             <Trash2 size={16} />
