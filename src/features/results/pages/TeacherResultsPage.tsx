@@ -375,7 +375,7 @@ export default function TeacherResultsPage() {
                             {result.studentName}
                           </button>
                           {/* Chỉ gắn nhãn khi khác thường: "Đang hoạt động" trên mọi dòng chỉ là
-                              nhiễu, còn em đã rời trường thì giáo viên cần biết trước khi đọc điểm. */}
+                              nhiễu, còn em có tài khoản chờ xoá hay đã xoá thì giáo viên cần biết trước khi đọc điểm. */}
                           {result.studentStatus !== 'active' && <StudentStatusPill status={result.studentStatus} />}
                         </div>
                       </td>

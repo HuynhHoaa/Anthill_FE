@@ -149,7 +149,7 @@ export interface AssignExamResult {
   skippedAlreadyAssigned: number
   skippedLocked: number
   /**
-   * Tài khoản chờ xoá hoặc đã xoá. Tách khỏi `skippedLocked` vì em bị khoá thì nhờ mở khoá rồi giao
+   * Tài khoản đang chờ xoá — tài khoản đã xoá hẳn không còn lớp nên server tính vào `skippedOutOfScope`. Tách khỏi `skippedLocked` vì em bị khoá thì nhờ mở khoá rồi giao
    * lại được, còn tài khoản chờ xoá thì chỉ quản trị viên khôi phục được. Hệ thống không biết vì sao
    * tài khoản bị xoá, nên câu chữ chỉ nói trạng thái tài khoản.
    */

@@ -117,7 +117,7 @@ function AssignmentRow({ assignment }: { assignment: ExamAssignment }) {
       <td className={`${cellClass} font-semibold text-slate-800 whitespace-nowrap`}>
         <span className="inline-flex items-center gap-2">
           {assignment.studentName}
-          {/* Dòng của em đã rời trường vẫn ở lại cùng bài và điểm; không có nhãn thì một em chờ xoá
+          {/* Dòng của em đã bị xoá tài khoản vẫn ở lại cùng bài và điểm; không có nhãn thì một em chờ xoá
               trông y hệt em "chưa bắt đầu", và giáo viên đi nhắc một người không còn học. */}
           {assignment.studentStatus !== 'active' && <StudentStatusPill status={assignment.studentStatus} />}
         </span>
