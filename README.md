@@ -174,7 +174,7 @@ src/
 │                    question-bank, results, student-groups, students
 ├── services/        9 service theo nghiệp vụ + mappers — trang không gọi API trực tiếp
 ├── hooks/           useAsync, useDebouncedValue, useMediaQuery
-├── lib/             apiClient, delay, format, topicTheme
+├── lib/             apiClient, format, topicTheme
 ├── styles/          index.css
 ├── types/           model dùng chung toàn app
 └── main.tsx         BrowserRouter → ToastProvider → ConfirmProvider → App

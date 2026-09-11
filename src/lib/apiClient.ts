@@ -4,12 +4,13 @@
  * HTTP thành thông điệp tiếng Việt, và báo cho App khi token mất hiệu lực giữa phiên (401) để App
  * đưa người dùng về trang đăng nhập.
  */
-import { NETWORK_ERROR_MESSAGE } from './delay'
-
 /** Token do authService lưu lại sau khi đăng nhập. */
 export const TOKEN_STORAGE_KEY = 'anthill.token'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+
+/** fetch ném lỗi (mất mạng, sai địa chỉ, CORS chặn) nghĩa là không có mã HTTP nào để tra bảng dưới. */
+const NETWORK_ERROR_MESSAGE = 'Không kết nối được máy chủ.'
 
 const statusMessages: Record<number, string> = {
   400: 'Dữ liệu gửi lên không hợp lệ.',
