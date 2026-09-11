@@ -89,7 +89,10 @@ trong localStorage để quyết định ngay khi render, nên nó chỉ là l�
 
 Token còn hạn vẫn có thể mất hiệu lực giữa phiên (tài khoản bị khoá, mật khẩu vừa đổi). `apiClient`
 phát hiện 401 trên request có mang token và gọi handler do `App` đăng ký; handler xoá phiên rồi đưa
-người dùng về trang đăng nhập kèm lời giải thích, thay vì để mọi thao tác tiếp theo lần lượt báo lỗi.
+người dùng về trang đăng nhập kèm lời giải thích và địa chỉ đang đứng, thay vì để mọi thao tác tiếp theo
+lần lượt báo lỗi. Đăng nhập lại xong thì quay về đúng trang đó nếu nó thuộc khu vực của vai trò vừa đăng
+nhập — học sinh bị văng ra giữa giờ về lại bài đang làm. Vì 401 nghĩa là phiên đã chết, backend không
+dùng nó cho lỗi nhập liệu: gõ sai mật khẩu hiện tại khi đổi mật khẩu là 400, hiện ngay dưới ô đó.
 `apiClient` cố ý không phụ thuộc react-router.
 
 ---

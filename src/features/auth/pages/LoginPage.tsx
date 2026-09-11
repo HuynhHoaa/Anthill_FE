@@ -70,6 +70,22 @@ function validateLoginForm(role: UserRole, username: string, password: string): 
   return errors
 }
 
+/**
+ * Trang đích sau khi đăng nhập: quay lại đúng trang người dùng định vào (RequireRole gửi kèm), hoặc
+ * trang đang đứng lúc phiên chết giữa chừng (App gửi kèm), nếu nó thuộc khu vực của vai trò vừa đăng
+ * nhập; không thì về trang tổng quan.
+ *
+ * Kiểm theo đoạn đường dẫn chứ không theo tiền tố chuỗi trần: một liên kết của giáo viên mở bằng tài
+ * khoản học sinh thì RequireRole đá ngược ra ngay, người dùng thấy màn hình nhấp nháy rồi về chỗ cũ mà
+ * không hiểu vì sao. Cũng vì luôn phải nằm dưới khu vực của một vai trò nên `/dang-nhap` không bao giờ
+ * là đích — không có vòng lặp quay về chính trang này.
+ */
+function resolveReturnPath(returnTo: string | undefined, home: string): string {
+  if (!returnTo) return home
+  const insideHome = returnTo === home || returnTo.startsWith(`${home}/`) || returnTo.startsWith(`${home}?`)
+  return insideHome ? returnTo : home
+}
+
 const baseInputClass =
   'w-full px-4 py-3 rounded-xl border text-sm font-medium outline-none transition-all bg-white placeholder:text-slate-400 placeholder:font-normal'
 
@@ -135,13 +151,7 @@ export default function LoginPage() {
     try {
       const profile = await login({ username: form.username.trim(), password: form.password, role })
 
-      // Quay lại đúng trang người dùng định vào, nếu nó thuộc khu vực của vai trò vừa đăng nhập.
-      // Kiểm tiền tố là bắt buộc: một liên kết của giáo viên mà mở bằng tài khoản học sinh thì
-      // RequireRole sẽ đá ngược ra ngay, và người dùng thấy màn hình nhấp nháy một cái rồi về
-      // chỗ cũ mà không hiểu vì sao.
-      const home = dashboardPath[profile.role]
-      const target = returnTo && returnTo.startsWith(home) ? returnTo : home
-      navigate(target, { replace: true })
+      navigate(resolveReturnPath(returnTo, dashboardPath[profile.role]), { replace: true })
     } catch (caught) {
       setServerError(caught instanceof Error ? caught.message : 'Đăng nhập không thành công. Vui lòng thử lại.')
       setLoading(false)
