@@ -194,7 +194,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       signal,
       body: body === undefined ? undefined : isFormData ? (body as FormData) : JSON.stringify(body),
     })
-  } catch {
+  } catch (caught) {
+    // Người gọi tự huỷ (bỏ một ảnh đang tải để chọn ảnh khác, rời trang) thì trả nguyên lỗi huỷ:
+    // đổi nó thành "Không kết nối được máy chủ" là báo một sự cố không hề xảy ra.
+    if (signal?.aborted) throw caught
     throw createApiError(0, NETWORK_ERROR_MESSAGE)
   }
 
@@ -225,6 +228,9 @@ export const apiClient = {
   get: <T>(path: string, query?: ApiRequestOptions['query'], signal?: AbortSignal) =>
     apiRequest<T>(path, { method: 'GET', query, signal }),
   post: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'POST', body }),
+  /** Gửi multipart. Không đặt Content-Type: trình duyệt phải tự ghi kèm boundary của FormData. */
+  postForm: <T>(path: string, form: FormData, signal?: AbortSignal) =>
+    apiRequest<T>(path, { method: 'POST', body: form, signal }),
   put: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'PUT', body }),
   patch: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'PATCH', body }),
   remove: <T>(path: string) => apiRequest<T>(path, { method: 'DELETE' }),

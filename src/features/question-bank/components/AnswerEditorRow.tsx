@@ -8,7 +8,8 @@ interface AnswerEditorRowProps {
   canRemove: boolean
   imageOpen: boolean
   onContentChange: (value: string) => void
-  onImageChange: (dataUrl: string | undefined) => void
+  onImageChange: (url: string | undefined) => void
+  onImageUploadingChange: (uploading: boolean) => void
   onToggleImage: () => void
   onMarkCorrect: () => void
   onRemove: () => void
@@ -21,6 +22,7 @@ export default function AnswerEditorRow({
   imageOpen,
   onContentChange,
   onImageChange,
+  onImageUploadingChange,
   onToggleImage,
   onMarkCorrect,
   onRemove,
@@ -58,7 +60,12 @@ export default function AnswerEditorRow({
           />
           {imageOpen && (
             <div className="mt-3">
-              <ImageUploader compact value={answer.imageUrl} onChange={onImageChange} />
+              <ImageUploader
+                compact
+                value={answer.imageUrl}
+                onChange={onImageChange}
+                onUploadingChange={onImageUploadingChange}
+              />
             </div>
           )}
         </div>
