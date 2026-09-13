@@ -13,6 +13,7 @@ import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { getCurrentUser } from '../../../services/authService'
 import { getAttemptDetail } from '../../../services/resultService'
+import { resolveMediaUrl } from '../../../lib/apiClient'
 import { formatDateTime, formatDuration, formatScore } from '../../../lib/format'
 import type { AttemptAnswerDetail, AttemptDetail, ResultAudience } from '../../../types'
 import ScoreRing from '../components/ScoreRing'
@@ -315,7 +316,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
 
                   {question.imageUrl && (
                     <img
-                      src={question.imageUrl}
+                      src={resolveMediaUrl(question.imageUrl)}
                       alt={`Hình minh họa câu ${number}`}
                       className="mb-3 rounded-xl border border-slate-100 max-h-56 object-contain"
                     />
@@ -356,7 +357,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                           </div>
                           {answer.imageUrl && (
                             <img
-                              src={answer.imageUrl}
+                              src={resolveMediaUrl(answer.imageUrl)}
                               alt={`Hình minh họa đáp án: ${answer.content}`}
                               className="mt-2 rounded-lg border border-white/60 max-h-28 object-contain"
                             />

@@ -101,6 +101,24 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): voi
   onUnauthorized = handler
 }
 
+/**
+ * Đổi đường dẫn ảnh server trả về thành địa chỉ trình duyệt tải được.
+ *
+ * API lưu và trả đường dẫn tương đối (<c>/uploads/202609/a1b2.png</c>) để database không dính tên
+ * miền của môi trường nào. Đường dẫn đó thuộc origin của API chứ không phải origin của trang: gắn
+ * thẳng vào <c>img</c> thì trình duyệt đi hỏi máy chủ Vite và nhận về 404. URL đã có scheme
+ * (<c>https:</c> của dịch vụ lưu ảnh sau này, <c>blob:</c> của ảnh xem trước) được giữ nguyên.
+ *
+ * Chỉ gọi lúc hiển thị, không gọi trong mapper của service: form sửa câu hỏi gửi lại đúng giá trị
+ * đã đọc, nên đổi sớm là ghi địa chỉ tuyệt đối của máy đang chạy xuống database.
+ */
+export function resolveMediaUrl(url: string | undefined | null): string | undefined {
+  if (!url) return undefined
+  if (/^[a-z][a-z\d+.-]*:/i.test(url) || url.startsWith('//')) return url
+  const base = API_BASE_URL.replace(/\/+$/, '')
+  return `${base}${url.startsWith('/') ? url : `/${url}`}`
+}
+
 function getStatusMessage(status: number): string {
   return statusMessages[status] ?? `Yêu cầu không thành công (mã lỗi ${status}).`
 }

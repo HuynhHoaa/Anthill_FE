@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CheckCircle2, Eye, EyeOff } from 'lucide-react'
 import { DifficultyBadge } from '../../../components/common/Badge'
+import { resolveMediaUrl } from '../../../lib/apiClient'
 import type { AnswerOption, DifficultyLevel } from '../../../types'
 
 interface QuestionPreviewProps {
@@ -71,7 +72,7 @@ export default function QuestionPreview({
 
           {imageUrl && (
             <img
-              src={imageUrl}
+              src={resolveMediaUrl(imageUrl)}
               alt="Hình minh họa câu hỏi"
               className="mt-4 rounded-xl border border-slate-200 bg-white max-h-56 object-contain"
             />
@@ -116,7 +117,7 @@ export default function QuestionPreview({
                       )}
                       {answer.imageUrl && (
                         <img
-                          src={answer.imageUrl}
+                          src={resolveMediaUrl(answer.imageUrl)}
                           alt={`Hình minh họa đáp án ${String.fromCharCode(65 + index)}`}
                           className="mt-2 rounded-lg border border-slate-200 bg-white max-h-28 object-contain"
                         />

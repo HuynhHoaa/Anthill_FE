@@ -15,6 +15,7 @@ import { DifficultyBadge } from '../../../components/common/Badge'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
+import { resolveMediaUrl } from '../../../lib/apiClient'
 import { formatDate } from '../../../lib/format'
 import { getCurrentUser } from '../../../services/authService'
 import {
@@ -100,7 +101,7 @@ function QuestionRow({ question, onPreview, onToggleStatus, onDelete }: Question
         <div className="flex gap-4 flex-1 min-w-0">
           {question.imageUrl && (
             <img
-              src={question.imageUrl}
+              src={resolveMediaUrl(question.imageUrl)}
               alt="Ảnh minh hoạ câu hỏi"
               className="w-16 h-16 rounded-xl border border-slate-100 bg-slate-50 object-cover flex-shrink-0"
             />
@@ -170,7 +171,7 @@ function QuestionPreviewDetail({ question }: { question: Question }) {
     <div className="space-y-5">
       {question.imageUrl && (
         <img
-          src={question.imageUrl}
+          src={resolveMediaUrl(question.imageUrl)}
           alt="Ảnh minh hoạ câu hỏi"
           className="w-full max-h-64 rounded-2xl border border-slate-100 bg-slate-50 object-contain"
         />
@@ -215,7 +216,7 @@ function QuestionPreviewDetail({ question }: { question: Question }) {
                 </p>
                 {answer.imageUrl && (
                   <img
-                    src={answer.imageUrl}
+                    src={resolveMediaUrl(answer.imageUrl)}
                     alt="Ảnh minh hoạ đáp án"
                     className="mt-2 max-h-32 rounded-xl border border-slate-100 object-contain"
                   />
