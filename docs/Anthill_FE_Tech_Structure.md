@@ -178,6 +178,7 @@ EduQuiz.Frontend/
 │   │   ├── resultService.ts
 │   │   ├── dashboardService.ts
 │   │   ├── notificationService.ts
+│   │   ├── uploadService.ts         # upload ảnh câu hỏi/đáp án, kiểm tra trước loại và dung lượng
 │   │   └── mappers.ts               # đổi DTO của backend sang model của giao diện
 │   │
 │   ├── hooks/
@@ -292,7 +293,7 @@ Teacher Dashboard
 → Save
 ```
 
-Lưu ý: `ImageUploader` hiện đọc ảnh thành data URI và chưa gọi `POST /api/uploads/images`, trong khi backend từ chối data URI — câu hỏi kèm ảnh chưa lưu được cho tới khi nối API upload.
+Ảnh câu hỏi và ảnh đáp án đi qua `ImageUploader`: chọn hoặc kéo thả là upload ngay qua `POST /api/uploads/images` (kiểm tra trước đuôi file, loại ảnh và trần 4 MB giống server), hiện ảnh xem trước kèm trạng thái đang tải, cho huỷ, đổi hoặc xoá ảnh, và hiện nguyên thông điệp lỗi của server. Còn ô ảnh nào đang tải thì nút lưu câu hỏi bị khoá. Form chỉ giữ đường dẫn tương đối server trả về; mọi chỗ vẽ ảnh (ngân hàng câu hỏi, trình soạn, làm bài, xem lại kết quả) ghép đường dẫn với `VITE_API_BASE_URL` qua `resolveMediaUrl`. Ảnh đã tải lên mà không được lưu hoặc bị thay thì không bị xoá từ giao diện, vì bản đề đã sinh vẫn có thể trỏ tới ảnh cũ.
 
 ### 5.4. Teacher Creates Exam Blueprint
 
@@ -372,6 +373,7 @@ Page
 - `apiClient` giữ lại lỗi theo từng trường (`errors`) để form hiện lỗi ngay dưới ô nhập.
 - Khi request có token mà nhận 401 (tài khoản vừa bị khóa, mật khẩu vừa đổi…), `apiClient` gọi handler do `App` đăng ký: xóa phiên và đưa người dùng về trang đăng nhập. `apiClient` không phụ thuộc react-router.
 - Frontend không cấu hình proxy; thiếu `VITE_API_BASE_URL` thì mọi lời gọi API đều hỏng.
+- Ảnh do API phục vụ (`/uploads/...`) nằm ở origin của API, không phải origin của trang: thẻ `img` luôn nhận `resolveMediaUrl(url)`. Hàm này chỉ gọi lúc hiển thị, không gọi trong mapper, để form sửa câu hỏi không ghi địa chỉ tuyệt đối của máy đang chạy xuống database.
 
 Realtime:
 
