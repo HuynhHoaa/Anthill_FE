@@ -16,7 +16,7 @@ import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import {
-  deleteExam, duplicateExam, getExam, listExamAssignments, previewBlueprint,
+  deleteExam, duplicateExam, getExam, listExamAssignments, previewBlueprint, rescheduleAssignment,
 } from '../../../services/examService'
 import {
   formatDate, formatDateTime, formatDuration, formatScore, getScoreTone, normalizeText,
@@ -26,6 +26,8 @@ import { getTopicLabel } from '../../../lib/topicTheme'
 import { difficultyLabels, examStatusLabels } from '../../../types'
 import type { DifficultyLevel, Exam, ExamAssignment, ExamStatus } from '../../../types'
 import { examDeleteConfirmCopy, examDuplicateConfirmCopy } from '../utils/examConfirmations'
+import AssignmentWindowList from '../components/AssignmentWindowList'
+import RescheduleAssignmentDialog from '../components/RescheduleAssignmentDialog'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
 
 const ROWS_PER_PAGE = 10
@@ -106,11 +108,22 @@ function describeMissingAttempt(status: ExamStatus): string {
   return 'Chưa có bài làm'
 }
 
-function AssignmentRow({ assignment }: { assignment: ExamAssignment }) {
+interface AssignmentRowProps {
+  assignment: ExamAssignment
+  onReschedule: (assignment: ExamAssignment) => void
+}
+
+function AssignmentRow({ assignment, onReschedule }: AssignmentRowProps) {
   const canViewAttempt =
     assignment.attemptId !== undefined &&
     (assignment.status === 'submitted' || assignment.status === 'graded')
   const scoreTone = assignment.score === undefined ? undefined : getScoreTone(assignment.score)
+
+  // Chỉ em được chọn đích danh mới dời giờ riêng được, và chỉ khi em chưa bắt đầu: giờ của em theo
+  // lớp thuộc về cả lớp, còn em đã vào thi thì hạn nộp đã chốt. Cùng hai điều kiện server dùng — server
+  // xét "chưa có Attempt", không phải "còn ở trạng thái assigned", nên em đã hết hạn mà chưa từng vào thi
+  // (status 'expired') vẫn dời được: đó chính là cách cứu một em đã lỡ khung giờ.
+  const canReschedule = assignment.assignedViaGroupId === undefined && assignment.attemptId === undefined
 
   return (
     <tr className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -129,6 +142,14 @@ function AssignmentRow({ assignment }: { assignment: ExamAssignment }) {
         <StatusBadge status={assignment.status} />
       </td>
       <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>
+        <span className="block">
+          {formatDateTime(assignment.openAt)} – {formatDateTime(assignment.closeAt)}
+        </span>
+        <span className="text-xs text-slate-400">
+          {assignment.hasScheduleOverride ? 'Khung giờ riêng' : 'Theo lịch chung'}
+        </span>
+      </td>
+      <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>
         {assignment.startedAt ? formatDateTime(assignment.startedAt) : '—'}
       </td>
       <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>
@@ -144,6 +165,16 @@ function AssignmentRow({ assignment }: { assignment: ExamAssignment }) {
         )}
       </td>
       <td className={`${cellClass} text-right whitespace-nowrap`}>
+        {canReschedule && (
+          <button
+            type="button"
+            onClick={() => onReschedule(assignment)}
+            title="Đặt khung giờ riêng cho em này"
+            className="inline-flex items-center gap-1.5 px-3 py-2 mr-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+          >
+            <CalendarClock size={14} /> Dời giờ
+          </button>
+        )}
         {canViewAttempt ? (
           <NavLink
             to={`/giao-vien/ket-qua/${assignment.attemptId}`}
@@ -169,6 +200,9 @@ export default function ExamDetailPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
+  const [rescheduling, setRescheduling] = useState<ExamAssignment | null>(null)
+  const [rescheduleSaving, setRescheduleSaving] = useState(false)
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null)
 
   const search = useDebouncedValue(searchInput, 300)
 
@@ -227,6 +261,30 @@ export default function ExamDetailPage() {
     setSearchInput('')
     setStatusFilter('all')
     setPage(1)
+  }
+
+  const handleReschedule = async (window: { openAt?: string; closeAt?: string }) => {
+    const target = rescheduling
+    if (!target) return
+
+    setRescheduleSaving(true)
+    setRescheduleError(null)
+    try {
+      await rescheduleAssignment(target.examId, target.id, window)
+      setRescheduling(null)
+      toast.success(`Đã đổi khung giờ làm bài của ${target.studentName}. Em sẽ nhận được thông báo.`)
+      // Đọc lại cả trang: khung giờ mới đổi luôn dòng khung giờ theo lớp ở cột bên và có thể đổi cả
+      // trạng thái của em, nên vá một dòng trong bộ nhớ sẽ để lại một màn hình nói hai điều khác nhau.
+      reload()
+    } catch (caught) {
+      setRescheduleError(
+        caught instanceof Error && caught.message
+          ? caught.message
+          : 'Không đổi được khung giờ. Vui lòng thử lại.',
+      )
+    } finally {
+      setRescheduleSaving(false)
+    }
   }
 
   const handleDelete = async () => {
@@ -512,13 +570,14 @@ export default function ExamDetailPage() {
               ) : (
                 <>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-[900px]">
+                    <table className="w-full text-sm min-w-[1100px]">
                       <thead className="bg-slate-50/60">
                         <tr>
                           <th className={headerCellClass}>Học sinh</th>
                           <th className={headerCellClass}>Mã học sinh</th>
                           <th className={headerCellClass}>Nhóm lớp</th>
                           <th className={headerCellClass}>Trạng thái</th>
+                          <th className={headerCellClass}>Khung giờ làm bài</th>
                           <th className={headerCellClass}>Bắt đầu</th>
                           <th className={headerCellClass}>Nộp lúc</th>
                           <th className={headerCellClass}>Điểm</th>
@@ -527,7 +586,11 @@ export default function ExamDetailPage() {
                       </thead>
                       <tbody>
                         {pagedAssignments.map(assignment => (
-                          <AssignmentRow key={assignment.id} assignment={assignment} />
+                          <AssignmentRow
+                            key={assignment.id}
+                            assignment={assignment}
+                            onReschedule={setRescheduling}
+                          />
                         ))}
                       </tbody>
                     </table>
@@ -635,6 +698,23 @@ export default function ExamDetailPage() {
               <InfoRow label="Mở bài" value={formatDateTime(exam.openAt)} />
               <InfoRow label="Đóng bài" value={formatDateTime(exam.closeAt)} />
               <InfoRow label="Thời lượng làm bài" value={formatDuration(exam.durationMinutes)} />
+
+              {/* Lịch phía trên chỉ là mặc định. Lớp học tiết 2 sáng thứ Ba và lớp học tiết 4 chiều
+                  thứ Năm làm cùng một đề, nên "lớp nào đang làm bài lúc này" phải đọc được ở đây. */}
+              {exam.assignmentWindows.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2.5">
+                    Khung giờ theo lớp
+                  </p>
+                  <AssignmentWindowList windows={exam.assignmentWindows} />
+                  <NavLink
+                    to={`/giao-vien/bai-kiem-tra/${exam.id}/giao-bai`}
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:underline"
+                  >
+                    <CalendarClock size={13} /> Đổi khung giờ của một lớp
+                  </NavLink>
+                </div>
+              )}
             </div>
 
             <NavLink
@@ -645,6 +725,21 @@ export default function ExamDetailPage() {
             </NavLink>
           </aside>
         </div>
+      )}
+
+      {exam && (
+        <RescheduleAssignmentDialog
+          open={rescheduling !== null}
+          exam={exam}
+          assignment={rescheduling}
+          loading={rescheduleSaving}
+          error={rescheduleError}
+          onSubmit={window => void handleReschedule(window)}
+          onCancel={() => {
+            setRescheduling(null)
+            setRescheduleError(null)
+          }}
+        />
       )}
     </TeacherLayout>
   )

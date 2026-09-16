@@ -144,6 +144,19 @@ export async function listExamAssignments(examId: number): Promise<ExamAssignmen
   })
 }
 
+/** Một lớp trong lần giao, kèm khung giờ của riêng lớp đó. */
+export interface AssignClassTarget {
+  groupId: number
+
+  /**
+   * Khung giờ riêng của lớp. Bỏ trống **cả hai** nghĩa là lớp này làm bài theo lịch chung của đề — và
+   * gửi như vậy cho một lớp đang có giờ riêng là **gỡ** giờ riêng đó khỏi những em chưa bắt đầu.
+   * Chỉ đặt một nửa thì server từ chối cả request.
+   */
+  openAt?: string
+  closeAt?: string
+}
+
 export interface AssignExamResult {
   assignedCount: number
   skippedAlreadyAssigned: number
@@ -162,24 +175,46 @@ export interface AssignExamResult {
   skippedOutOfScope: number
   /** Nhóm lớp không tồn tại, hoặc không thuộc quyền quản lý của giáo viên này. */
   skippedOutOfScopeGroups: number
+
+  /** Số em chưa bắt đầu vừa được dời sang khung giờ khác trong chính lần gửi này. */
+  scheduleUpdatedCount: number
+
+  /**
+   * Số em giữ nguyên khung giờ cũ vì đã bắt đầu làm bài — hạn nộp của các em đã chốt lúc vào thi.
+   * Chỉ đếm khi khung gửi lên thật sự khác khung các em đang giữ.
+   */
+  scheduleKeptStartedCount: number
 }
 
 /**
- * Giao bài cho học sinh, theo danh sách id hoặc theo cả nhóm lớp.
+ * Giao bài cho học sinh, theo danh sách id và/hoặc theo cả lớp — mỗi lớp một khung giờ riêng.
  *
  * Trả về kết quả **theo từng loại bị bỏ qua**, vì mỗi loại cần một hành động khác nhau: em đã được
  * giao rồi thì không sao, em bị khoá tài khoản thì phải mở khoá, còn em ngoài phạm vi lớp mình thì
  * là chọn nhầm.
  *
- * `notify` quyết định có sinh thông báo và bắn realtime hay không — giao lại một đề đã giao mà vẫn
- * báo cho cả lớp là làm phiền vô cớ.
+ * `notify` quyết định có sinh thông báo "có bài mới" và bắn realtime hay không — giao lại một đề đã
+ * giao mà vẫn báo cho cả lớp là làm phiền vô cớ. Nó **không** che thông báo đổi giờ: em bị dời giờ
+ * luôn được báo, vì đó là giờ thi của em vừa dịch đi.
  */
 export function assignExam(
   examId: number,
   payload: {
     studentIds: number[]
+
+    /**
+     * Lớp kèm khung giờ riêng. Gửi lại một lớp đã giao chính là cách sửa giờ cho lớp đó: những em
+     * chưa bắt đầu chuyển sang khung mới, em đã vào thi giữ hạn cũ.
+     */
+    classes?: AssignClassTarget[]
+
+    /** Lớp giao theo lịch đang có: không kèm giờ nên không đụng tới khung giờ lớp đang theo. */
     groupIds: number[]
     notify: boolean
+
+    /** Khung giờ cho những em chọn đích danh trong lần này. Bỏ trống thì các em theo lịch chung của đề. */
+    openAt?: string
+    closeAt?: string
 
     /**
      * Mỗi học sinh một bộ câu hỏi riêng.
@@ -193,6 +228,24 @@ export function assignExam(
   },
 ): Promise<AssignExamResult> {
   return apiClient.post<AssignExamResult>(`/api/exams/${examId}/assignments`, payload)
+}
+
+/**
+ * Dời khung giờ của **một** học sinh được chọn đích danh.
+ *
+ * Gửi cả hai mốc là đặt giờ riêng cho em; gửi rỗng là đưa em về lịch chung của đề. Server từ chối
+ * (409) em được giao qua lớp — giờ của em đó thuộc về cả lớp, sửa bằng cách gửi lại lớp — và em đã
+ * bắt đầu làm bài, vì hạn nộp đã chốt lúc vào thi.
+ */
+export function rescheduleAssignment(
+  examId: number,
+  assignmentId: number,
+  window: { openAt?: string; closeAt?: string },
+): Promise<ExamAssignment> {
+  return apiClient.patch<ExamAssignment>(
+    `/api/exams/${examId}/assignments/${assignmentId}/schedule`,
+    window,
+  )
 }
 
 /** Thu hồi bài đã giao. Server từ chối khi học sinh đã bắt đầu làm. */

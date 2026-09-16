@@ -17,7 +17,8 @@ import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { deleteExam, duplicateExam, listExams } from '../../../services/examService'
 import { formatDateTime, formatDuration, parseDateTime, roundToOneDecimal } from '../../../lib/format'
 import { lifecycleLabels } from '../../../types'
-import type { Exam, ExamLifecycle } from '../../../types'
+import { windowLabel } from '../utils/assignmentWindowLabel'
+import type { AssignmentWindow, Exam, ExamLifecycle } from '../../../types'
 import { examDeleteConfirmCopy, examDuplicateConfirmCopy } from '../utils/examConfirmations'
 
 const PAGE_SIZE = 9
@@ -33,6 +34,14 @@ const lifecycleOptions: Array<{ value: LifecycleFilter; label: string }> = [
 ]
 
 const primaryGradient = 'linear-gradient(135deg,#6366F1,#8B5CF6)'
+
+/** Chấm màu của một khung giờ, cùng bảng màu với nhãn vòng đời để hai chỗ không nói hai điều khác nhau. */
+const windowDotClass: Record<ExamLifecycle, string> = {
+  draft: 'bg-amber-400',
+  scheduled: 'bg-indigo-400',
+  open: 'bg-emerald-500',
+  closed: 'bg-slate-300',
+}
 
 const headCellClass = 'px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500'
 
@@ -62,6 +71,18 @@ function formatScheduleMoment(value: string): string {
   const yearPart = year === new Date().getFullYear() ? '' : `/${padTwoDigits(year % 100)}`
 
   return `${dayMonth}${yearPart} ${time}`
+}
+
+/** Số lớp trong mỗi trạng thái, để cột vòng đời nói được khi lớp và đề không cùng một trạng thái. */
+function countWindowLifecycles(windows: AssignmentWindow[]): string {
+  const labels = ['open', 'scheduled', 'closed'] as const
+  return labels
+    .map(lifecycle => {
+      const count = windows.filter(window => window.lifecycle === lifecycle).length
+      return count === 0 ? '' : `${count} ${lifecycleLabels[lifecycle].toLowerCase()}`
+    })
+    .filter(Boolean)
+    .join(' · ')
 }
 
 interface ExamRowMenuProps {
@@ -224,6 +245,10 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
     : 0
   const isDraft = exam.lifecycle === 'draft'
 
+  // Chỉ nói tới khung giờ riêng: lớp đang theo lịch chung thì hai dòng phía trên đã nói hộ rồi.
+  const ownWindows = exam.assignmentWindows.filter(window => window.hasScheduleOverride)
+  const differsFromExam = exam.assignmentWindows.some(window => window.lifecycle !== exam.lifecycle)
+
   const submissionProgress = (
     <div className="w-24">
       <p className="font-semibold text-slate-800 group-hover/progress:text-indigo-600 transition-colors">
@@ -283,6 +308,27 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         <p className="text-xs text-slate-500 mt-0.5" title={formatDateTime(exam.closeAt)}>
           Đóng <span className="font-semibold text-slate-600">{formatScheduleMoment(exam.closeAt)}</span>
         </p>
+
+        {/* Lịch trên chỉ là mặc định. Lớp có khung giờ riêng phải hiện ra ngay ở danh sách, nếu không
+            giáo viên đọc "đã đóng" trong khi một lớp còn đang ngồi làm bài. */}
+        {ownWindows.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-slate-100 space-y-1">
+            {ownWindows.slice(0, 2).map(window => (
+              <p
+                key={`${window.groupId ?? 'le'}-${window.openAt}`}
+                className="text-xs text-slate-500 flex items-center gap-1.5"
+                title={`${windowLabel(window)}: ${formatDateTime(window.openAt)} – ${formatDateTime(window.closeAt)} · ${lifecycleLabels[window.lifecycle]}`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${windowDotClass[window.lifecycle]}`} />
+                <span className="font-semibold text-slate-600 truncate max-w-[7rem]">{windowLabel(window)}</span>
+                <span className="whitespace-nowrap">{formatScheduleMoment(window.openAt)}</span>
+              </p>
+            ))}
+            {ownWindows.length > 2 && (
+              <p className="text-xs text-slate-400">+{ownWindows.length - 2} khung giờ riêng nữa</p>
+            )}
+          </div>
+        )}
       </td>
 
       <td className="px-5 py-4">
@@ -302,6 +348,12 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
 
       <td className="px-5 py-4">
         <LifecycleBadge lifecycle={exam.lifecycle} />
+        {/* Vòng đời của đề tính theo lịch chung; các lớp có giờ riêng có thể đang ở trạng thái khác. */}
+        {differsFromExam && (
+          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+            Lớp: {countWindowLifecycles(exam.assignmentWindows)}
+          </p>
+        )}
       </td>
 
       <td className="px-5 py-4">
