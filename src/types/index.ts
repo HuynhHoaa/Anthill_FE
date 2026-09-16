@@ -418,6 +418,8 @@ export interface StudentExamItem {
   status: StudentExamItemStatus
   /** Server quyết định bài này có vào làm được ngay bây giờ không — không phải giao diện tự suy. */
   canStart: boolean
+  /** Học sinh có được xem điểm và đáp án ngay sau khi nộp hay không. */
+  showResultAfterSubmit: boolean
   openAt: string
   closeAt: string
   /**

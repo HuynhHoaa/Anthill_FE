@@ -178,6 +178,7 @@ export function toStudentExamItem(dto: StudentExamItemDto): StudentExamItem {
     totalQuestions: dto.totalQuestions,
     status: toDisplayStatus(dto.status, dto.lifecycle),
     canStart: dto.canStart,
+    showResultAfterSubmit: dto.showResultAfterSubmit,
     openAt: dto.openAt,
     closeAt: dto.closeAt,
     deadline: new Date(deadlineSource),
