@@ -725,7 +725,7 @@ export default function TakeExamPage() {
                       {answer.imageUrl && (
                         <img
                           src={resolveMediaUrl(answer.imageUrl)}
-                          alt=""
+                          alt={answer.content ? '' : `Hình minh hoạ đáp án ${String.fromCharCode(65 + index)}`}
                           className="mt-2.5 max-h-40 rounded-lg border border-slate-100"
                         />
                       )}

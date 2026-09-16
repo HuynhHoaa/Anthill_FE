@@ -438,6 +438,7 @@ export default function QuestionEditorPage() {
               </div>
 
               <ImageUploader
+                key={previewInstanceId}
                 label="Hình minh họa cho câu hỏi (không bắt buộc)"
                 value={imageUrl}
                 onChange={setImageUrl}

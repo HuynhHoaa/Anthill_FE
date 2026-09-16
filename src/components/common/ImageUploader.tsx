@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
+import { useEffect, useId, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { ImagePlus, Loader2, Trash2, X } from 'lucide-react'
 import { resolveMediaUrl } from '../../lib/apiClient'
 import {
@@ -31,6 +31,9 @@ export default function ImageUploader({
   compact = false,
 }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const instanceId = useId()
+  const labelId = `${instanceId}-label`
+  const dropzoneId = `${instanceId}-dropzone`
   const [errorMessage, setErrorMessage] = useState<string>()
   const [isDragging, setIsDragging] = useState(false)
   // Ảnh đang trên đường lên server, xem trước bằng blob URL để giáo viên thấy ngay mình đã chọn gì.
@@ -104,7 +107,7 @@ export default function ImageUploader({
     event.target.value = ''
   }
 
-  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+  const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault()
     setIsDragging(false)
     const file = event.dataTransfer.files?.[0]
@@ -120,7 +123,11 @@ export default function ImageUploader({
 
   return (
     <div>
-      {label && <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>}
+      {label && (
+        <label id={labelId} className="block text-sm font-semibold text-slate-700 mb-2">
+          {label}
+        </label>
+      )}
 
       <input
         ref={inputRef}
@@ -130,6 +137,12 @@ export default function ImageUploader({
         onChange={handleInputChange}
       />
 
+      {/* Vùng thông báo luôn gắn trong DOM: trình đọc màn hình chỉ báo tin cậy khi nội dung của một
+          aria-live có sẵn thay đổi, chứ không phải khi cả khối mới được gắn vào cùng lúc với chữ. */}
+      <div aria-live="polite" className="sr-only">
+        {pendingPreviewUrl ? 'Đang tải ảnh lên…' : ''}
+      </div>
+
       {pendingPreviewUrl ? (
         <div className="relative inline-block max-w-full rounded-2xl border border-indigo-200 bg-indigo-50/40 p-2">
           <div className="relative">
@@ -138,7 +151,7 @@ export default function ImageUploader({
               <Loader2 size={compact ? 18 : 26} className="animate-spin text-indigo-600" />
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 mt-2" aria-live="polite">
+          <div className="flex flex-wrap items-center gap-2 mt-2">
             <span className="whitespace-nowrap text-xs font-semibold text-indigo-700">Đang tải ảnh lên…</span>
             <button
               type="button"
@@ -172,8 +185,10 @@ export default function ImageUploader({
           </div>
         </div>
       ) : (
-        <div
-          role="presentation"
+        <button
+          type="button"
+          id={dropzoneId}
+          aria-labelledby={label ? `${labelId} ${dropzoneId}` : undefined}
           onDragOver={event => {
             event.preventDefault()
             setIsDragging(true)
@@ -181,7 +196,7 @@ export default function ImageUploader({
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           onClick={() => inputRef.current?.click()}
-          className={`w-full rounded-2xl border-2 border-dashed cursor-pointer transition-colors flex flex-col items-center justify-center text-center ${
+          className={`w-full rounded-2xl border-2 border-dashed cursor-pointer transition-colors flex flex-col items-center justify-center text-center outline-none focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-50 ${
             compact ? 'px-3 py-3 gap-1' : 'px-4 py-8 gap-2'
           } ${isDragging ? 'border-indigo-400 bg-indigo-50/60' : 'border-slate-200 bg-slate-50/60 hover:border-indigo-300 hover:bg-indigo-50/40'}`}
         >
@@ -190,7 +205,7 @@ export default function ImageUploader({
             {compact ? 'Thêm ảnh' : 'Kéo thả ảnh vào đây hoặc bấm để chọn'}
           </p>
           {!compact && <p className="text-xs text-slate-400">Định dạng PNG, JPG, GIF, WEBP — tối đa 4 MB</p>}
-        </div>
+        </button>
       )}
 
       {errorMessage && (

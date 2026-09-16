@@ -323,7 +323,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                   )}
 
                   <div className="space-y-2">
-                    {question.answers.map(answer => {
+                    {question.answers.map((answer, answerIndex) => {
                       const isCorrectAnswer = answer.id === question.correctAnswerId
                       const isSelected = answer.id === question.selectedAnswerId
 
@@ -358,7 +358,11 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                           {answer.imageUrl && (
                             <img
                               src={resolveMediaUrl(answer.imageUrl)}
-                              alt={`Hình minh họa đáp án: ${answer.content}`}
+                              alt={
+                                answer.content
+                                  ? `Hình minh họa đáp án: ${answer.content}`
+                                  : `Hình minh hoạ đáp án ${String.fromCharCode(65 + answerIndex)}`
+                              }
                               className="mt-2 rounded-lg border border-white/60 max-h-28 object-contain"
                             />
                           )}
