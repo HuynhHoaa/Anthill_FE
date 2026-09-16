@@ -101,6 +101,10 @@ export default function QuestionEditorPage() {
   const [answers, setAnswers] = useState<AnswerOption[]>(createBlankAnswers)
   const [answerIdsWithImageEditor, setAnswerIdsWithImageEditor] = useState<number[]>([])
   const [saving, setSaving] = useState(false)
+  // Ô ảnh nào đang tải lên ('question' hoặc 'answer-<id>'). Còn ô nào thì chưa được lưu: ảnh chưa có
+  // đường dẫn từ server, lưu lúc này là mất ảnh giáo viên vừa chọn.
+  const [uploadingImageKeys, setUploadingImageKeys] = useState<string[]>([])
+  const isUploadingImage = uploadingImageKeys.length > 0
   // Đổi khoá để khối xem trước quên đáp án đã bấm thử của câu vừa lưu.
   const [previewInstanceId, setPreviewInstanceId] = useState(0)
 
@@ -191,6 +195,14 @@ export default function QuestionEditorPage() {
 
   const failedChecks = checks.filter(check => !check.passed)
   const isValid = failedChecks.length === 0
+  const canSave = isValid && !saving && !isUploadingImage
+
+  const setImageUploading = (key: string, uploading: boolean) => {
+    setUploadingImageKeys(currentKeys => {
+      if (uploading) return currentKeys.includes(key) ? currentKeys : [...currentKeys, key]
+      return currentKeys.filter(currentKey => currentKey !== key)
+    })
+  }
 
   const setCorrectAnswer = (answerId: number) => {
     setAnswers(currentAnswers => currentAnswers.map(answer => ({
@@ -206,9 +218,9 @@ export default function QuestionEditorPage() {
   }
 
   // Xoá ảnh thì giữ nguyên ô tải ảnh để giáo viên chọn lại được ảnh khác ngay.
-  const updateAnswerImage = (answerId: number, dataUrl: string | undefined) => {
+  const updateAnswerImage = (answerId: number, url: string | undefined) => {
     setAnswers(currentAnswers => currentAnswers.map(answer => (
-      answer.id === answerId ? { ...answer, imageUrl: dataUrl } : answer
+      answer.id === answerId ? { ...answer, imageUrl: url } : answer
     )))
     setAnswerIdsWithImageEditor(currentIds => (
       currentIds.includes(answerId) ? currentIds : [...currentIds, answerId]
@@ -268,7 +280,7 @@ export default function QuestionEditorPage() {
   }
 
   const handleSave = async (keepCreating: boolean) => {
-    if (!isValid || saving) return
+    if (!canSave) return
 
     if (isEdit) {
       // Ẩn/hiện câu hỏi đi qua một endpoint riêng chứ không nằm trong nội dung câu hỏi. So với
@@ -426,9 +438,11 @@ export default function QuestionEditorPage() {
               </div>
 
               <ImageUploader
+                key={previewInstanceId}
                 label="Hình minh họa cho câu hỏi (không bắt buộc)"
                 value={imageUrl}
                 onChange={setImageUrl}
+                onUploadingChange={uploading => setImageUploading('question', uploading)}
               />
 
               <div>
@@ -534,7 +548,8 @@ export default function QuestionEditorPage() {
                   canRemove={answers.length > MIN_ANSWERS}
                   imageOpen={answerIdsWithImageEditor.includes(answer.id) || Boolean(answer.imageUrl)}
                   onContentChange={value => updateAnswerContent(answer.id, value)}
-                  onImageChange={dataUrl => updateAnswerImage(answer.id, dataUrl)}
+                  onImageChange={url => updateAnswerImage(answer.id, url)}
+                  onImageUploadingChange={uploading => setImageUploading(`answer-${answer.id}`, uploading)}
                   onToggleImage={() => toggleAnswerImageEditor(answer.id)}
                   onMarkCorrect={() => setCorrectAnswer(answer.id)}
                   onRemove={() => removeAnswer(answer.id)}
@@ -560,10 +575,12 @@ export default function QuestionEditorPage() {
               <ListChecks size={17} className="text-indigo-500" />
               <h2 className="text-base font-bold text-slate-800">Kiểm tra nhanh</h2>
             </div>
-            <p className={`text-sm font-semibold mb-4 ${isValid ? 'text-emerald-600' : 'text-amber-600'}`}>
-              {isValid
-                ? 'Câu hỏi đã hợp lệ, có thể lưu.'
-                : `Còn ${failedChecks.length} mục cần hoàn thiện.`}
+            <p className={`text-sm font-semibold mb-4 ${canSave || saving ? 'text-emerald-600' : 'text-amber-600'}`}>
+              {!isValid
+                ? `Còn ${failedChecks.length} mục cần hoàn thiện.`
+                : isUploadingImage
+                  ? 'Đang tải ảnh lên, chờ xong rồi mới lưu được.'
+                  : 'Câu hỏi đã hợp lệ, có thể lưu.'}
             </p>
 
             <ul className="space-y-3">
@@ -589,19 +606,19 @@ export default function QuestionEditorPage() {
             <button
               type="button"
               onClick={() => handleSave(false)}
-              disabled={!isValid || saving}
+              disabled={!canSave}
               className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-white font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm"
               style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
             >
-              {saving ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
-              {isEdit ? 'Lưu thay đổi' : 'Tạo câu hỏi'}
+              {saving || isUploadingImage ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
+              {isUploadingImage ? 'Đang tải ảnh lên…' : isEdit ? 'Lưu thay đổi' : 'Tạo câu hỏi'}
             </button>
 
             {!isEdit && (
               <button
                 type="button"
                 onClick={() => handleSave(true)}
-                disabled={!isValid || saving}
+                disabled={!canSave}
                 className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-50"
               >
                 <Plus size={16} /> Lưu và tạo câu tiếp theo

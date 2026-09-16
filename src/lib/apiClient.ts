@@ -101,6 +101,24 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): voi
   onUnauthorized = handler
 }
 
+/**
+ * Đổi đường dẫn ảnh server trả về thành địa chỉ trình duyệt tải được.
+ *
+ * API lưu và trả đường dẫn tương đối (<c>/uploads/202609/a1b2.png</c>) để database không dính tên
+ * miền của môi trường nào. Đường dẫn đó thuộc origin của API chứ không phải origin của trang: gắn
+ * thẳng vào <c>img</c> thì trình duyệt đi hỏi máy chủ Vite và nhận về 404. URL đã có scheme
+ * (<c>https:</c> của dịch vụ lưu ảnh sau này, <c>blob:</c> của ảnh xem trước) được giữ nguyên.
+ *
+ * Chỉ gọi lúc hiển thị, không gọi trong mapper của service: form sửa câu hỏi gửi lại đúng giá trị
+ * đã đọc, nên đổi sớm là ghi địa chỉ tuyệt đối của máy đang chạy xuống database.
+ */
+export function resolveMediaUrl(url: string | undefined | null): string | undefined {
+  if (!url) return undefined
+  if (/^[a-z][a-z\d+.-]*:/i.test(url) || url.startsWith('//')) return url
+  const base = API_BASE_URL.replace(/\/+$/, '')
+  return `${base}${url.startsWith('/') ? url : `/${url}`}`
+}
+
 function getStatusMessage(status: number): string {
   return statusMessages[status] ?? `Yêu cầu không thành công (mã lỗi ${status}).`
 }
@@ -176,7 +194,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       signal,
       body: body === undefined ? undefined : isFormData ? (body as FormData) : JSON.stringify(body),
     })
-  } catch {
+  } catch (caught) {
+    // Người gọi tự huỷ (bỏ một ảnh đang tải để chọn ảnh khác, rời trang) thì trả nguyên lỗi huỷ:
+    // đổi nó thành "Không kết nối được máy chủ" là báo một sự cố không hề xảy ra.
+    if (signal?.aborted) throw caught
     throw createApiError(0, NETWORK_ERROR_MESSAGE)
   }
 
@@ -207,6 +228,9 @@ export const apiClient = {
   get: <T>(path: string, query?: ApiRequestOptions['query'], signal?: AbortSignal) =>
     apiRequest<T>(path, { method: 'GET', query, signal }),
   post: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'POST', body }),
+  /** Gửi multipart. Không đặt Content-Type: trình duyệt phải tự ghi kèm boundary của FormData. */
+  postForm: <T>(path: string, form: FormData, signal?: AbortSignal) =>
+    apiRequest<T>(path, { method: 'POST', body: form, signal }),
   put: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'PUT', body }),
   patch: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'PATCH', body }),
   remove: <T>(path: string) => apiRequest<T>(path, { method: 'DELETE' }),

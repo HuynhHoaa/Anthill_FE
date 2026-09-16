@@ -167,10 +167,13 @@ export interface AssignExamResult {
    * tài khoản bị xoá, nên câu chữ chỉ nói trạng thái tài khoản.
    */
   skippedRetired: number
-  skippedNotFound: number
-  /** Học sinh không thuộc lớp nào của giáo viên này. */
+  /**
+   * Id không giao được: không thuộc lớp nào của giáo viên này, **hoặc** không có tài khoản học
+   * sinh nào mang id đó. Server cố ý gộp hai lý do làm một con số — tách ra thì bắn thử từng id
+   * là đọc được id nào là học sinh thật của lớp đồng nghiệp.
+   */
   skippedOutOfScope: number
-  /** Nhóm lớp không thuộc quyền quản lý của giáo viên này. */
+  /** Nhóm lớp không tồn tại, hoặc không thuộc quyền quản lý của giáo viên này. */
   skippedOutOfScopeGroups: number
 
   /** Số em chưa bắt đầu vừa được dời sang khung giờ khác trong chính lần gửi này. */

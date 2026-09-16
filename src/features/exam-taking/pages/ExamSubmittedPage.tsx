@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useParams, useSearchParams } from 'react-router-dom'
 import {
-  AlarmClock, CalendarClock, CheckCircle2, ChevronLeft, Clock, Eye, FileText, Home, Hourglass, Trophy,
-  type LucideIcon,
+  AlarmClock, AlertTriangle, CalendarClock, CheckCircle2, ChevronLeft, Clock, Eye, FileText, Home,
+  Hourglass, Trophy, type LucideIcon,
 } from 'lucide-react'
 import StudentLayout from '../../../components/layout/StudentLayout'
 import EmptyState from '../../../components/common/EmptyState'
@@ -100,6 +100,13 @@ export default function ExamSubmittedPage() {
   const { attemptId } = useParams<{ attemptId: string }>()
   const [searchParams] = useSearchParams()
   const isAutoSubmitted = searchParams.get('tu-dong') === '1'
+  // Số câu TakeExamPage đã chọn nhưng server báo về không nhận được (xem finishAttempt). Đi kèm
+  // route bằng query param, không phải toast, vì toast tắt sau vài giây còn học sinh auto-submit
+  // có thể đã rời máy — cảnh báo này phải còn nguyên khi họ quay lại xem trang.
+  const missingAnswersParam = Number(searchParams.get('thieu-dap-an'))
+  const missingAnswersCount =
+    Number.isFinite(missingAnswersParam) && missingAnswersParam > 0 ? Math.trunc(missingAnswersParam) : 0
+  const hasMissingAnswers = missingAnswersCount > 0
 
   const parsedAttemptId = Number(attemptId)
   const isValidAttemptId = Number.isFinite(parsedAttemptId) && parsedAttemptId > 0
@@ -168,7 +175,31 @@ export default function ExamSubmittedPage() {
   return (
     <StudentLayout>
       <div className="max-w-2xl mx-auto">
-        {isAutoSubmitted && (
+        {/*
+          Cảnh báo này KHÔNG tự tắt và đứng trước cả banner tự-động-nộp: đây là phần trung thực
+          thay cho toast "Nộp bài thành công" — server đã nhận request (200) nhưng ghi nhận ít câu
+          hơn số câu học sinh thật sự đã chọn lúc bấm nộp/hết giờ. Im lặng ở đây đúng là điều audit
+          đã bắt lỗi.
+        */}
+        {hasMissingAnswers && (
+          <div
+            role="alert"
+            className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 flex items-start gap-3 animate-fade-in-up"
+          >
+            <AlertTriangle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-red-700">Bài nộp có thể thiếu câu trả lời</p>
+              <p className="text-sm text-red-600 mt-0.5 leading-relaxed">
+                Hệ thống chỉ ghi nhận được bản lưu gần nhất, thiếu khoảng {missingAnswersCount} câu bạn
+                đã chọn ngay trước khi hết giờ — có thể do gói tin nộp bài tới server trễ hơn hạn cho
+                phép. Những câu đó đang được tính là chưa trả lời. Nếu thấy điểm không khớp với bài
+                đã làm, hãy báo giáo viên phụ trách kèm mã bài làm bên dưới.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isAutoSubmitted && !hasMissingAnswers && (
           <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 flex items-start gap-3 animate-fade-in-up">
             <AlarmClock size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
@@ -182,15 +213,23 @@ export default function ExamSubmittedPage() {
         )}
 
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sm:p-8 text-center animate-fade-in-up">
-          <div className="w-20 h-20 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-5 animate-modal-in">
-            <CheckCircle2 size={42} />
+          <div
+            className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 animate-modal-in ${
+              hasMissingAnswers ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+            }`}
+          >
+            {hasMissingAnswers ? <AlertTriangle size={42} /> : <CheckCircle2 size={42} />}
           </div>
 
           <p className="text-xs font-semibold text-indigo-600 mb-2">
             {getTopicLabel(detail.topic)} · Mã bài làm #{detail.attemptId}
           </p>
           <h1 className="text-2xl font-bold text-slate-800">
-            {isAutoSubmitted ? 'Bài làm của bạn đã được nộp' : 'Bạn đã nộp bài thành công'}
+            {hasMissingAnswers
+              ? 'Bài làm đã được nộp, nhưng có thể thiếu câu trả lời'
+              : isAutoSubmitted
+                ? 'Bài làm của bạn đã được nộp'
+                : 'Bạn đã nộp bài thành công'}
           </h1>
           <p className="text-sm text-slate-500 mt-2.5 leading-relaxed max-w-lg mx-auto">
             {detail.examTitle}

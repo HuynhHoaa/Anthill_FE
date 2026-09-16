@@ -256,9 +256,10 @@ function ResultPanel({ result, examId }: { result: AssignExamResult; examId: num
     { key: 'locked', text: `${result.skippedLocked} em đang bị khoá tài khoản — mở khoá rồi giao lại` },
     // Tách khỏi "bị khoá": tài khoản chờ xoá không mở khoá được, chỉ quản trị viên khôi phục được.
     { key: 'retired', text: `${result.skippedRetired} em có tài khoản đang chờ xoá` },
-    { key: 'scope', text: `${result.skippedOutOfScope} em không thuộc lớp bạn phụ trách` },
+    // Một dòng cho cả "ngoài phạm vi" lẫn "không còn trong hệ thống": server trả về một con số
+    // duy nhất, vì hai con số riêng cho phép dò ra id nào là học sinh thật của lớp người khác.
+    { key: 'scope', text: `${result.skippedOutOfScope} em không thuộc lớp bạn phụ trách hoặc không còn trong hệ thống` },
     { key: 'scopeGroups', text: `${result.skippedOutOfScopeGroups} lớp không thuộc quyền của bạn` },
-    { key: 'notFound', text: `${result.skippedNotFound} em không còn trong hệ thống` },
   ].filter(item => {
     const count = Number(item.text.split(' ')[0])
     return count > 0
@@ -548,10 +549,28 @@ export default function ExamAssignPage() {
       setConfirmOpen(false)
       setResult(outcome)
 
+      // Mỗi lý do bị bỏ qua đòi một hành động khác nhau — mở khoá tài khoản, chọn lại lớp, hay
+      // không cần làm gì — nên gộp chúng thành một con số là lấy mất thông tin giáo viên cần.
+      const skipNotes = [
+        outcome.skippedAlreadyAssigned > 0 ? `${outcome.skippedAlreadyAssigned} em đã có bài này từ trước` : '',
+        outcome.skippedLocked > 0 ? `${outcome.skippedLocked} em đang bị khoá tài khoản` : '',
+        // Tách khỏi dòng "bị khoá": tài khoản chờ xoá không mở khoá được, chỉ quản trị viên khôi phục được.
+        // Chỉ nói trạng thái tài khoản, không đoán lý do — hệ thống không biết em đã nghỉ học hay chỉ bị
+        // xoá nhầm, và "rời trường" không hợp với một trung tâm.
+        outcome.skippedRetired > 0 ? `${outcome.skippedRetired} em có tài khoản đang chờ xoá` : '',
+        // Một dòng cho cả "ngoài phạm vi" lẫn "không còn trong hệ thống": server trả về một con số
+        // duy nhất, vì hai con số riêng cho phép dò ra id nào là học sinh thật của lớp người khác.
+        outcome.skippedOutOfScope > 0
+          ? `${outcome.skippedOutOfScope} em không thuộc lớp bạn phụ trách hoặc không còn trong hệ thống`
+          : '',
+        outcome.skippedOutOfScopeGroups > 0 ? `${outcome.skippedOutOfScopeGroups} nhóm lớp không thuộc quyền bạn` : '',
+      ].filter(Boolean)
+      const skipNote = skipNotes.length > 0 ? ` Bỏ qua ${skipNotes.join(', ')}.` : ''
+
       if (outcome.assignedCount > 0) {
-        toast.success(`Đã giao bài kiểm tra cho ${outcome.assignedCount} học sinh.`)
+        toast.success(`Đã giao bài kiểm tra cho ${outcome.assignedCount} học sinh.${skipNote}`)
       } else if (outcome.scheduleUpdatedCount > 0) {
-        toast.success(`Đã đổi khung giờ cho ${outcome.scheduleUpdatedCount} học sinh.`)
+        toast.success(`Đã đổi khung giờ cho ${outcome.scheduleUpdatedCount} học sinh.${skipNote}`)
       } else {
         toast.info('Không có lượt giao mới nào được tạo.')
       }

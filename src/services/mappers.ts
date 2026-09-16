@@ -57,6 +57,9 @@ export interface StudentExamItemDto {
   topic: string
   durationMinutes: number
   totalQuestions: number
+  pointPerQuestion: number
+  shuffleQuestions: boolean
+  shuffleAnswers: boolean
   openAt: string
   closeAt: string
   teacherName: string
@@ -176,6 +179,9 @@ export function toStudentExamItem(dto: StudentExamItemDto): StudentExamItem {
     teacher: dto.teacherName,
     durationMinutes: dto.durationMinutes,
     totalQuestions: dto.totalQuestions,
+    pointPerQuestion: dto.pointPerQuestion,
+    shuffleQuestions: dto.shuffleQuestions,
+    shuffleAnswers: dto.shuffleAnswers,
     status: toDisplayStatus(dto.status, dto.lifecycle),
     canStart: dto.canStart,
     showResultAfterSubmit: dto.showResultAfterSubmit,

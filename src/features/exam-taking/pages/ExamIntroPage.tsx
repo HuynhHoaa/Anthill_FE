@@ -1,7 +1,7 @@
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, PlayCircle, Clock, FileText, Trophy,
-  CalendarClock, Lock, Timer, ListChecks, Save, Eye,
+  ArrowLeft, PlayCircle, Clock, FileText, Trophy, Award,
+  CalendarClock, Lock, Timer, ListChecks, Save, Shuffle, Eye,
   AlertTriangle, CheckCircle2, ShieldCheck, Hourglass, RefreshCw,
   type LucideIcon,
 } from 'lucide-react'
@@ -13,7 +13,7 @@ import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { StatusBadge, TopicBadge } from '../../../components/common/Badge'
 import { useAsync } from '../../../hooks/useAsync'
 import { getAssignment, listMyExams } from '../../../services/attemptService'
-import { formatDateTime, formatDuration, formatScore, parseDateTime } from '../../../lib/format'
+import { formatDateTime, formatDuration, formatScore, parseDateTime, roundToOneDecimal } from '../../../lib/format'
 import { useCountdown } from '../hooks/useCountdown'
 
 const urgentThresholdMs = 3 * 3600000
@@ -93,13 +93,10 @@ export default function ExamIntroPage() {
     if (!myExams.some(item => item.assignmentId === assignment.assignmentId)) {
       throw new Error('Bài kiểm tra này không được giao cho bạn nên bạn không thể xem hoặc làm bài.')
     }
-    // Cấu hình đầy đủ của đề (tỷ lệ độ khó, cờ xáo trộn, điểm mỗi câu) sống ở `GET /api/exams/{id}`,
-    // đường dẫn chỉ giáo viên/quản trị viên gọi được — biết trước cấu trúc đề là đoán được đề. Trang
-    // này chỉ cần những gì `StudentExamItemDto` cố ý hé lộ cho học sinh.
-    return { assignment }
+    return assignment
   }, [numericAssignmentId])
 
-  const assignment = data?.assignment
+  const assignment = data
   const openDate = assignment ? parseDateTime(assignment.openAt) : null
   const closeDate = assignment ? (parseDateTime(assignment.closeAt) ?? assignment.deadline) : null
   const closeCountdown = useCountdown(closeDate, 'Đã hết hạn')
@@ -147,9 +144,7 @@ export default function ExamIntroPage() {
     const isExpired = assignment.status === 'expired' || justClosed
     const isUrgent = canStart && remainingMs < urgentThresholdMs
     const openTimeReached = openDate !== null && openDate.getTime() <= Date.now()
-    // Điểm mỗi câu và điểm tối đa chỉ lộ ra khi bài đã có kết quả (`AttemptSessionDto`/chấm bài) —
-    // trước đó `StudentExamItemDto` cố ý không mang theo, nên chưa làm thì chưa có gì để hiện.
-    const maxScore = assignment.maxScore
+    const maxScore = assignment.maxScore ?? roundToOneDecimal(assignment.totalQuestions * assignment.pointPerQuestion)
     // Bài đã chấm vẫn có thể bị giấu điểm, nên "đã chấm" chưa đủ để kết luận là có điểm để hiện.
     const hasVisibleScore = isGraded && assignment.score !== null
     const resultLink = assignment.attemptId ? `/hoc-sinh/ket-qua/${assignment.attemptId}` : '/hoc-sinh/ket-qua'
@@ -172,8 +167,12 @@ export default function ExamIntroPage() {
         text: 'Đáp án được lưu tự động trong lúc làm, nếu lỡ tải lại trang thì bài làm vẫn còn nguyên.',
       },
     ]
-    // Cờ xáo trộn câu hỏi/đáp án thuộc cấu hình đề — cố ý không lộ ra ở đây (xem ghi chú tại nơi tải
-    // dữ liệu), nên trang này không đoán và không nói gì về việc đề có bị xáo trộn hay không.
+    if (assignment.shuffleQuestions || assignment.shuffleAnswers) {
+      notes.push({
+        icon: Shuffle,
+        text: 'Thứ tự câu hỏi và đáp án được xáo trộn riêng cho từng học sinh, đề của bạn không giống bạn bên cạnh.',
+      })
+    }
     notes.push({
       icon: Eye,
       text: assignment.showResultAfterSubmit
@@ -212,7 +211,7 @@ export default function ExamIntroPage() {
             {/* Cấu trúc đề */}
             <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 animate-fade-in-up">
               <h2 className="text-base font-bold text-slate-800 mb-4">Thông tin đề bài</h2>
-              <div className={`grid grid-cols-1 sm:grid-cols-2 ${maxScore !== null ? 'xl:grid-cols-3' : ''} gap-3`}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                 <InfoTile
                   icon={FileText}
                   label="Số câu hỏi"
@@ -227,17 +226,20 @@ export default function ExamIntroPage() {
                   iconBg="bg-violet-50"
                   iconColor="text-violet-600"
                 />
-                {/* Chỉ có sau khi bài đã có kết quả — trước đó server cố ý không gửi điểm tối đa,
-                    nên hiện một tile trống hay đoán bừa đều tệ hơn là không hiện gì. */}
-                {maxScore !== null && (
-                  <InfoTile
-                    icon={Trophy}
-                    label="Điểm tối đa"
-                    value={`${formatScore(maxScore)} điểm`}
-                    iconBg="bg-amber-50"
-                    iconColor="text-amber-600"
-                  />
-                )}
+                <InfoTile
+                  icon={Trophy}
+                  label="Điểm tối đa"
+                  value={`${formatScore(maxScore)} điểm`}
+                  iconBg="bg-amber-50"
+                  iconColor="text-amber-600"
+                />
+                <InfoTile
+                  icon={Award}
+                  label="Điểm mỗi câu"
+                  value={`${formatScore(assignment.pointPerQuestion)} điểm`}
+                  iconBg="bg-emerald-50"
+                  iconColor="text-emerald-600"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
