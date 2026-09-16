@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { NavLink, useNavigate, useParams } from 'react-router-dom'
+import { NavLink, useParams } from 'react-router-dom'
 import {
   AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, Clock, FileText, Layers,
   Search, SearchX, Send, Shuffle, UserCheck, Users, X,
@@ -13,13 +13,15 @@ import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import {
-  assignExam, getExam, listExamAssignments, updateExam, type ExamPayload,
+  assignExam, getExam, listExamAssignments, type AssignClassTarget, type AssignExamResult,
 } from '../../../services/examService'
 import { listGroups } from '../../../services/groupService'
 import { listStudents } from '../../../services/studentService'
 import { formatDateTime, getInitials, matchesSearch } from '../../../lib/format'
-import type { Exam, Student } from '../../../types'
-import { isCloseAfterOpen, toDateTimeLocalValue, toServiceDateTime } from '../utils/examScheduleFormat'
+import type { AssignmentWindow, Exam, Student } from '../../../types'
+import {
+  isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
+} from '../utils/examScheduleFormat'
 
 /** Đủ lớn để lấy trọn danh sách học sinh trong một lần gọi, tránh phải phân trang khi giao bài. */
 const STUDENT_FETCH_SIZE = 500
@@ -30,35 +32,44 @@ const inputClass =
 const secondaryButtonClass =
   'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed'
 
+/**
+ * Khung giờ giáo viên đang soạn cho một lớp trong lần giao này.
+ *
+ * `enabled = false` nghĩa là lớp làm bài theo lịch chung của đề — và với một lớp đang có giờ riêng thì
+ * đó là một thay đổi thật: gửi đi sẽ **gỡ** giờ riêng của những em chưa bắt đầu.
+ */
+interface ClassWindowDraft {
+  enabled: boolean
+  openAtLocal: string
+  closeAtLocal: string
+  /** Khung giờ riêng lớp đang theo trước lần giao này, để cảnh báo khi giáo viên bỏ nó đi. */
+  hadOverride: boolean
+}
+
 function toErrorMessage(caught: unknown, fallback: string): string {
   return caught instanceof Error && caught.message ? caught.message : fallback
 }
 
+/** Khung giờ đang áp cho một lớp, nếu lớp đó đã được giao đề này. */
+function findClassWindow(exam: Exam, groupId: number): AssignmentWindow | undefined {
+  return exam.assignmentWindows.find(window => window.groupId === groupId)
+}
+
 /**
- * Giữ nguyên toàn bộ cấu hình đề, chỉ thay những thứ trang giao bài được phép sửa.
+ * Khung giờ soạn sẵn cho một lớp vừa được chọn.
  *
- * Sửa đề là ghi đè **cả** payload, nên mọi trường không đổi vẫn phải chép lại nguyên vẹn; thiếu
- * một trường là âm thầm đặt nó về mặc định của server.
+ * Lớp đã có giờ riêng thì mở sẵn đúng giờ đó: mặc định về lịch chung sẽ khiến một lần giao bổ sung
+ * lặng lẽ kéo cả lớp về lịch cả tuần. Lớp chưa có gì thì lấy lịch đề làm điểm xuất phát.
  */
-function buildExamOverridePayload(
-  exam: Exam,
-  changes: { openAt: string; closeAt: string },
-): ExamPayload {
+function buildClassDraft(exam: Exam, groupId: number): ClassWindowDraft {
+  const existing = findClassWindow(exam, groupId)
+  const hasOwnWindow = existing?.hasScheduleOverride ?? false
+
   return {
-    title: exam.title,
-    description: exam.description,
-    durationMinutes: exam.durationMinutes,
-    totalQuestions: exam.totalQuestions,
-    easyPercentage: exam.easyPercentage,
-    mediumPercentage: exam.mediumPercentage,
-    hardPercentage: exam.hardPercentage,
-    pointPerQuestion: exam.pointPerQuestion,
-    topic: exam.topic,
-    shuffleQuestions: exam.shuffleQuestions,
-    shuffleAnswers: exam.shuffleAnswers,
-    openAt: changes.openAt,
-    closeAt: changes.closeAt,
-    showResultAfterSubmit: exam.showResultAfterSubmit,
+    enabled: hasOwnWindow,
+    openAtLocal: toDateTimeLocalValue(existing?.openAt ?? exam.openAt),
+    closeAtLocal: toDateTimeLocalValue(existing?.closeAt ?? exam.closeAt),
+    hadOverride: hasOwnWindow,
   }
 }
 
@@ -76,6 +87,69 @@ function SummaryRow({ label, value, tone = 'default' }: {
     <div className="flex items-center justify-between gap-3 py-2 border-b border-slate-50 last:border-b-0">
       <span className="text-sm text-slate-500">{label}</span>
       <span className={`${valueClass} text-right`}>{value}</span>
+    </div>
+  )
+}
+
+interface WindowFieldsProps {
+  idPrefix: string
+  draft: { openAtLocal: string; closeAtLocal: string }
+  durationMinutes: number
+  onChange: (changes: Partial<{ openAtLocal: string; closeAtLocal: string }>) => void
+}
+
+/** Cặp ô giờ mở – giờ đóng, kèm lời cảnh báo khi khung ngắn hơn thời lượng làm bài. */
+function WindowFields({ idPrefix, draft, durationMinutes, onChange }: WindowFieldsProps) {
+  const filled = draft.openAtLocal !== '' && draft.closeAtLocal !== ''
+  const ordered = isCloseAfterOpen(draft.openAtLocal, draft.closeAtLocal)
+  const span = minutesBetween(draft.openAtLocal, draft.closeAtLocal)
+
+  // Cùng hai phép kiểm của server, hiện ngay tại chỗ đang gõ: đợi tới lúc bấm giao mới báo thì giáo
+  // viên phải dò lại xem lớp nào trong năm lớp vừa chọn đang sai.
+  const problem = !filled
+    ? 'Hãy chọn cả giờ mở và giờ đóng.'
+    : !ordered
+      ? 'Giờ đóng phải sau giờ mở.'
+      : span < durationMinutes
+        ? `Khung này chỉ dài ${span} phút, không chứa trọn ${durationMinutes} phút làm bài.`
+        : null
+
+  return (
+    <div className="mt-3 space-y-3 rounded-xl bg-white border border-slate-100 p-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label htmlFor={`${idPrefix}-open`} className="block text-xs font-semibold text-slate-600 mb-1.5">
+            Mở bài lúc
+          </label>
+          <input
+            id={`${idPrefix}-open`}
+            type="datetime-local"
+            value={draft.openAtLocal}
+            onChange={event => onChange({ openAtLocal: event.target.value })}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label htmlFor={`${idPrefix}-close`} className="block text-xs font-semibold text-slate-600 mb-1.5">
+            Đóng bài lúc
+          </label>
+          <input
+            id={`${idPrefix}-close`}
+            type="datetime-local"
+            value={draft.closeAtLocal}
+            onChange={event => onChange({ closeAtLocal: event.target.value })}
+            className={inputClass}
+          />
+        </div>
+      </div>
+      {problem ? (
+        <p className="text-xs font-medium text-red-500 flex items-start gap-1.5">
+          <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
+          {problem}
+        </p>
+      ) : (
+        <p className="text-xs text-slate-400">Khung dài {span} phút cho bài {durationMinutes} phút.</p>
+      )}
     </div>
   )
 }
@@ -126,7 +200,7 @@ function StudentPickerRow({
         )}
         {isCoveredByGroup && (
           <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-700">
-            Theo nhóm
+            Theo lớp
           </span>
         )}
       </div>
@@ -175,25 +249,85 @@ function AssignSkeleton() {
   )
 }
 
+/** Những con số server trả về sau một lần giao, mỗi con số kèm việc cần làm tiếp. */
+function ResultPanel({ result, examId }: { result: AssignExamResult; examId: number }) {
+  const skipped: Array<{ key: string; text: string }> = [
+    { key: 'assigned', text: `${result.skippedAlreadyAssigned} em đã có bài này từ trước` },
+    { key: 'locked', text: `${result.skippedLocked} em đang bị khoá tài khoản — mở khoá rồi giao lại` },
+    // Tách khỏi "bị khoá": tài khoản chờ xoá không mở khoá được, chỉ quản trị viên khôi phục được.
+    { key: 'retired', text: `${result.skippedRetired} em có tài khoản đang chờ xoá` },
+    { key: 'scope', text: `${result.skippedOutOfScope} em không thuộc lớp bạn phụ trách` },
+    { key: 'scopeGroups', text: `${result.skippedOutOfScopeGroups} lớp không thuộc quyền của bạn` },
+    { key: 'notFound', text: `${result.skippedNotFound} em không còn trong hệ thống` },
+  ].filter(item => {
+    const count = Number(item.text.split(' ')[0])
+    return count > 0
+  })
+
+  return (
+    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+      <div className="flex items-start gap-3">
+        <CheckCircle2 size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+        <div className="min-w-0 space-y-2">
+          <p className="text-sm font-bold text-emerald-800">
+            {result.assignedCount > 0
+              ? `Đã giao bài cho ${result.assignedCount} học sinh.`
+              : 'Không có lượt giao mới nào được tạo.'}
+          </p>
+
+          {result.scheduleUpdatedCount > 0 && (
+            <p className="text-sm text-emerald-700 leading-relaxed">
+              {result.scheduleUpdatedCount} em được chuyển sang khung giờ mới và đã nhận thông báo đổi lịch.
+            </p>
+          )}
+
+          {result.scheduleKeptStartedCount > 0 && (
+            <p className="text-sm text-amber-700 leading-relaxed">
+              {result.scheduleKeptStartedCount} em giữ khung giờ cũ vì đã bắt đầu làm bài — hạn nộp của các
+              em đã chốt lúc vào thi.
+            </p>
+          )}
+
+          {skipped.length > 0 && (
+            <div className="text-sm text-emerald-700 leading-relaxed">
+              <p className="font-semibold">Đã bỏ qua:</p>
+              <ul className="mt-0.5 space-y-0.5">
+                {skipped.map(item => (
+                  <li key={item.key}>· {item.text}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <NavLink
+            to={`/giao-vien/bai-kiem-tra/${examId}`}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-800 hover:underline"
+          >
+            Xem chi tiết bài kiểm tra
+          </NavLink>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ExamAssignPage() {
   const { id } = useParams()
-  const navigate = useNavigate()
   const toast = useToast()
   const examId = Number(id)
 
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([])
+  const [classWindows, setClassWindows] = useState<Record<number, ClassWindowDraft>>({})
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([])
+  const [studentWindow, setStudentWindow] = useState({ enabled: false, openAtLocal: '', closeAtLocal: '' })
   const [search, setSearch] = useState('')
   // Khởi tạo false rồi để hiệu ứng bên dưới đồng bộ theo đề: bật sẵn một ô tích không phản ánh
   // cấu hình thật của đề là nói với giáo viên rằng đề đang sinh riêng trong khi có thể nó không.
   const [randomizePerStudent, setRandomizePerStudent] = useState(false)
   const [notify, setNotify] = useState(true)
-  const [scheduleOverrideEnabled, setScheduleOverrideEnabled] = useState(false)
-  const [openAtLocal, setOpenAtLocal] = useState('')
-  const [closeAtLocal, setCloseAtLocal] = useState('')
-  const [scheduleError, setScheduleError] = useState<string | undefined>(undefined)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [result, setResult] = useState<AssignExamResult | null>(null)
 
   const { data, loading, error, reload } = useAsync(async () => {
     const exam = await getExam(examId)
@@ -210,12 +344,14 @@ export default function ExamAssignPage() {
   const students = useMemo(() => data?.students ?? [], [data])
   const assignments = useMemo(() => data?.assignments ?? [], [data])
 
-  // Lịch ghi đè luôn khởi tạo từ lịch hiện có của bài kiểm tra.
   useEffect(() => {
     if (!exam) return
-    setOpenAtLocal(toDateTimeLocalValue(exam.openAt))
-    setCloseAtLocal(toDateTimeLocalValue(exam.closeAt))
     setRandomizePerStudent(exam.randomizePerStudent)
+    setStudentWindow(current => ({
+      enabled: current.enabled,
+      openAtLocal: current.openAtLocal || toDateTimeLocalValue(exam.openAt),
+      closeAtLocal: current.closeAtLocal || toDateTimeLocalValue(exam.closeAt),
+    }))
   }, [exam])
 
   const assignedStudentIds = useMemo(
@@ -232,7 +368,7 @@ export default function ExamAssignPage() {
     return covered
   }, [selectedGroupIds, students])
 
-  /** Người nhận thật sự: hợp của học sinh chọn lẻ và học sinh thuộc nhóm đã chọn, không đếm trùng. */
+  /** Người nhận thật sự: hợp của học sinh chọn lẻ và học sinh thuộc lớp đã chọn, không đếm trùng. */
   const recipientIds = useMemo(() => {
     const existingIds = new Set(students.map(student => student.id))
     const recipients = new Set(groupCoveredStudentIds)
@@ -259,7 +395,7 @@ export default function ExamAssignPage() {
     [search, students],
   )
 
-  /** Học sinh đang hiện trên danh sách và còn có thể chọn lẻ (không nằm trong nhóm đã chọn). */
+  /** Học sinh đang hiện trên danh sách và còn có thể chọn lẻ (không nằm trong lớp đã chọn). */
   const selectableFilteredIds = useMemo(
     () => filteredStudents
       .filter(student => !groupCoveredStudentIds.has(student.id))
@@ -280,12 +416,25 @@ export default function ExamAssignPage() {
     [filteredStudents, selectedStudentIds],
   )
 
+  /** Em chọn đích danh mà không đi kèm lớp nào — chỉ những em này nhận khung giờ ở ô bên dưới. */
+  const individualCount = useMemo(
+    () => selectedStudentIds.filter(studentId => !groupCoveredStudentIds.has(studentId)).length,
+    [selectedStudentIds, groupCoveredStudentIds],
+  )
+
   const toggleGroup = (groupId: number) => {
-    setSelectedGroupIds(current =>
-      current.includes(groupId)
-        ? current.filter(item => item !== groupId)
-        : [...current, groupId],
-    )
+    if (!exam) return
+    setSelectedGroupIds(current => {
+      if (current.includes(groupId)) {
+        return current.filter(item => item !== groupId)
+      }
+      setClassWindows(windows => ({ ...windows, [groupId]: buildClassDraft(exam, groupId) }))
+      return [...current, groupId]
+    })
+  }
+
+  const updateClassWindow = (groupId: number, changes: Partial<ClassWindowDraft>) => {
+    setClassWindows(current => ({ ...current, [groupId]: { ...current[groupId], ...changes } }))
   }
 
   const toggleStudent = (studentId: number) => {
@@ -315,14 +464,45 @@ export default function ExamAssignPage() {
     ).length
   }
 
-  const openConfirm = () => {
-    if (recipientIds.size === 0) return
-    if (scheduleOverrideEnabled && !isCloseAfterOpen(openAtLocal, closeAtLocal)) {
-      setScheduleError('Thời gian đóng bài phải sau thời gian mở bài.')
-      toast.error('Lịch mở bài ghi đè chưa hợp lệ.')
-      return
+  /** Khung giờ nào đang sai — dùng để chặn nút giao và nói rõ lớp nào cần sửa. */
+  const windowProblems = useMemo(() => {
+    if (!exam) return []
+    const problems: string[] = []
+
+    const check = (label: string, draft: { openAtLocal: string; closeAtLocal: string }) => {
+      if (!isCloseAfterOpen(draft.openAtLocal, draft.closeAtLocal)) {
+        problems.push(`${label}: giờ đóng phải sau giờ mở.`)
+        return
+      }
+      if (minutesBetween(draft.openAtLocal, draft.closeAtLocal) < exam.durationMinutes) {
+        problems.push(`${label}: khung giờ ngắn hơn ${exam.durationMinutes} phút làm bài.`)
+      }
     }
-    setScheduleError(undefined)
+
+    selectedGroupIds.forEach(groupId => {
+      const draft = classWindows[groupId]
+      if (!draft?.enabled) return
+      const group = groups.find(item => item.id === groupId)
+      check(`Lớp ${group?.name ?? groupId}`, draft)
+    })
+
+    if (studentWindow.enabled && individualCount > 0) {
+      check('Học sinh chọn riêng', studentWindow)
+    }
+
+    return problems
+  }, [exam, selectedGroupIds, classWindows, groups, studentWindow, individualCount])
+
+  /** Lớp sắp bị gỡ khung giờ riêng — hệ quả nặng nhất của trang này, phải nói trước khi bấm. */
+  const classesLosingWindow = useMemo(
+    () => selectedGroupIds
+      .filter(groupId => classWindows[groupId]?.hadOverride && !classWindows[groupId]?.enabled)
+      .map(groupId => groups.find(group => group.id === groupId)?.name ?? `lớp ${groupId}`),
+    [selectedGroupIds, classWindows, groups],
+  )
+
+  const openConfirm = () => {
+    if (recipientIds.size === 0 || windowProblems.length > 0) return
     setConfirmOpen(true)
   }
 
@@ -331,49 +511,57 @@ export default function ExamAssignPage() {
 
     setSubmitting(true)
     try {
-      if (scheduleOverrideEnabled) {
-        await updateExam(exam.id, buildExamOverridePayload(exam, {
-          openAt: toServiceDateTime(openAtLocal),
-          closeAt: toServiceDateTime(closeAtLocal),
-        }))
-      }
+      const classes: AssignClassTarget[] = selectedGroupIds.map(groupId => {
+        const draft = classWindows[groupId]
+        return draft?.enabled
+          ? {
+            groupId,
+            openAt: toServiceDateTime(draft.openAtLocal),
+            closeAt: toServiceDateTime(draft.closeAtLocal),
+          }
+          // Không kèm giờ nghĩa là lớp theo lịch chung của đề — và với lớp đang có giờ riêng thì đây
+          // chính là lệnh gỡ nó, đúng như dòng cảnh báo trong hộp xác nhận đã nói.
+          : { groupId }
+      })
 
-      // "Sinh đề riêng cho từng học sinh" đi trong payload GIAO BÀI, không qua updateExam: đây là
-      // endpoint duy nhất ghi được cờ này, vì nó chỉ có nghĩa tại thời điểm sinh đề. Gửi kèm mới
-      // là thứ làm nó thành điều khiển thật — trước đây nó nằm sai chỗ nên bấm vào không có tác
-      // dụng gì. Chỉ gửi khi khác giá trị hiện tại, để lần giao bổ sung không vô cớ đụng vào đề.
-      const result = await assignExam(exam.id, {
+      const individualWindow = studentWindow.enabled && individualCount > 0
+        ? {
+          openAt: toServiceDateTime(studentWindow.openAtLocal),
+          closeAt: toServiceDateTime(studentWindow.closeAtLocal),
+        }
+        : {}
+
+      // "Sinh đề riêng cho từng học sinh" đi trong payload GIAO BÀI: đây là endpoint duy nhất ghi được
+      // cờ này, vì nó chỉ có nghĩa tại thời điểm sinh đề. Chỉ gửi khi khác giá trị hiện tại, để lần
+      // giao bổ sung không vô cớ đụng vào đề.
+      const outcome = await assignExam(exam.id, {
         studentIds: selectedStudentIds,
-        groupIds: selectedGroupIds,
+        groupIds: [],
+        classes,
         notify,
         randomizePerStudent: randomizePerStudent === exam.randomizePerStudent
           ? undefined
           : randomizePerStudent,
+        ...individualWindow,
       })
 
       setConfirmOpen(false)
+      setResult(outcome)
 
-      // Mỗi lý do bị bỏ qua đòi một hành động khác nhau — mở khoá tài khoản, chọn lại lớp, hay
-      // không cần làm gì — nên gộp chúng thành một con số là lấy mất thông tin giáo viên cần.
-      const skipNotes = [
-        result.skippedAlreadyAssigned > 0 ? `${result.skippedAlreadyAssigned} em đã có bài này từ trước` : '',
-        result.skippedLocked > 0 ? `${result.skippedLocked} em đang bị khoá tài khoản` : '',
-        // Tách khỏi dòng "bị khoá": tài khoản chờ xoá không mở khoá được, chỉ quản trị viên khôi phục được.
-        // Chỉ nói trạng thái tài khoản, không đoán lý do — hệ thống không biết em đã nghỉ học hay chỉ bị
-        // xoá nhầm, và "rời trường" không hợp với một trung tâm.
-        result.skippedRetired > 0 ? `${result.skippedRetired} em có tài khoản đang chờ xoá` : '',
-        result.skippedOutOfScope > 0 ? `${result.skippedOutOfScope} em ngoài phạm vi lớp bạn phụ trách` : '',
-        result.skippedOutOfScopeGroups > 0 ? `${result.skippedOutOfScopeGroups} nhóm lớp không thuộc quyền bạn` : '',
-        result.skippedNotFound > 0 ? `${result.skippedNotFound} em không còn trong hệ thống` : '',
-      ].filter(Boolean)
-      const skipNote = skipNotes.length > 0 ? ` Bỏ qua ${skipNotes.join(', ')}.` : ''
-
-      if (result.assignedCount > 0) {
-        toast.success(`Đã giao bài kiểm tra cho ${result.assignedCount} học sinh.${skipNote}`)
+      if (outcome.assignedCount > 0) {
+        toast.success(`Đã giao bài kiểm tra cho ${outcome.assignedCount} học sinh.`)
+      } else if (outcome.scheduleUpdatedCount > 0) {
+        toast.success(`Đã đổi khung giờ cho ${outcome.scheduleUpdatedCount} học sinh.`)
       } else {
-        toast.info(`Không có lượt giao mới nào được tạo.${skipNote}`)
+        toast.info('Không có lượt giao mới nào được tạo.')
       }
-      navigate(`/giao-vien/bai-kiem-tra/${exam.id}`)
+
+      // Ở lại trang và đọc lại dữ liệu: bảng kết quả bên dưới là thứ duy nhất nói được em nào bị bỏ
+      // qua và vì sao, còn giáo viên thường giao tiếp lớp thứ hai ngay sau đó.
+      setSelectedGroupIds([])
+      setClassWindows({})
+      setSelectedStudentIds([])
+      reload()
     } catch (caught) {
       toast.error(toErrorMessage(caught, 'Không giao được bài kiểm tra. Vui lòng thử lại.'))
     } finally {
@@ -385,16 +573,18 @@ export default function ExamAssignPage() {
     ? [
       `Giao bài “${exam.title}” cho ${recipientIds.size} học sinh.`,
       duplicateCount > 0
-        ? `${duplicateCount} học sinh đã có bài này từ trước sẽ được bỏ qua, hệ thống chỉ tạo mới ${newRecipientCount} lượt giao.`
+        ? `${duplicateCount} em đã có bài này từ trước sẽ được bỏ qua, hệ thống chỉ tạo mới ${newRecipientCount} lượt giao.`
         : '',
-      scheduleOverrideEnabled
-        ? `Lịch mở bài được cập nhật thành ${toServiceDateTime(openAtLocal)} – ${toServiceDateTime(closeAtLocal)}.`
+      classesLosingWindow.length > 0
+        ? `Khung giờ riêng của ${classesLosingWindow.join(', ')} sẽ bị gỡ: những em chưa bắt đầu chuyển về lịch chung của đề.`
         : '',
-      notify ? 'Học sinh sẽ nhận được thông báo ngay sau khi giao.' : 'Học sinh sẽ không nhận thông báo.',
+      notify ? 'Học sinh nhận bài mới sẽ được thông báo.' : 'Học sinh nhận bài mới sẽ không được thông báo.',
+      'Em nào bị dời giờ đều được báo, kể cả khi bạn tắt thông báo giao bài.',
     ].filter(Boolean).join(' ')
     : ''
 
-  const pageSubtitle = exam ? exam.title : 'Chọn học sinh hoặc nhóm lớp sẽ nhận bài kiểm tra'
+  const pageSubtitle = exam ? exam.title : 'Chọn lớp hoặc học sinh sẽ nhận bài kiểm tra'
+  const hasNoClass = groups.length === 0
 
   return (
     <TeacherLayout pageTitle="Giao bài kiểm tra" pageSubtitle={pageSubtitle}>
@@ -431,7 +621,7 @@ export default function ExamAssignPage() {
                   <Clock size={13} /> {exam.durationMinutes} phút
                 </span>
                 <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1.5 rounded-lg">
-                  <CalendarClock size={13} /> {formatDateTime(exam.openAt)} – {formatDateTime(exam.closeAt)}
+                  <CalendarClock size={13} /> Lịch chung {formatDateTime(exam.openAt)} – {formatDateTime(exam.closeAt)}
                 </span>
                 <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1.5 rounded-lg">
                   <UserCheck size={13} /> Đã giao {exam.assignedCount}
@@ -439,21 +629,22 @@ export default function ExamAssignPage() {
               </div>
             </section>
 
+            {result && <ResultPanel result={result} examId={exam.id} />}
+
             {exam.lifecycle === 'draft' && (
               <div className="rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4 flex items-start gap-3">
                 <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-amber-700 mb-0.5">Bài kiểm tra vẫn đang là bản nháp</p>
                   <p className="text-sm text-amber-700 leading-relaxed">
-                    Học sinh sẽ nhận được bài nhưng chưa vào làm được cho tới khi bài được mở. Hãy bật
-                    “Ghi đè lịch mở – đóng bài” ở cột bên phải để đặt lịch ngay khi giao, hoặc{' '}
+                    Bản nháp chưa giao được cho ai.{' '}
                     <NavLink
                       to={`/giao-vien/bai-kiem-tra/${exam.id}/sua`}
                       className="font-semibold underline underline-offset-2 hover:text-amber-800"
                     >
-                      quay lại trang sửa để xuất bản đề
+                      Quay lại trang sửa để xuất bản đề
                     </NavLink>
-                    .
+                    , rồi giao và đặt khung giờ cho từng lớp ở đây.
                   </p>
                 </div>
               </div>
@@ -467,162 +658,244 @@ export default function ExamAssignPage() {
                     {duplicateCount} học sinh đã được giao bài này trước đó
                   </p>
                   <p className="text-sm text-amber-700 leading-relaxed">
-                    Hệ thống sẽ bỏ qua những học sinh này để không tạo lượt giao trùng, chỉ{' '}
-                    {newRecipientCount} học sinh còn lại nhận bài mới.
+                    Hệ thống bỏ qua các em này để không tạo lượt giao trùng, chỉ {newRecipientCount} em còn
+                    lại nhận bài mới. Khung giờ của lớp thì vẫn được cập nhật cho những em chưa bắt đầu.
                   </p>
                 </div>
               </div>
             )}
 
-            <section className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
-                  <Layers size={20} />
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-base font-bold text-slate-800">Chọn nhóm lớp</h2>
-                  <p className="text-sm text-slate-400">
-                    Có thể chọn nhiều nhóm cùng lúc và bổ sung thêm học sinh lẻ bên dưới.
-                  </p>
-                </div>
-              </div>
+            {/* Giáo viên chưa được phân công lớp nào thì cả hai danh sách bên dưới đều rỗng. Hiện một
+                trạng thái rỗng duy nhất, nói đúng bước tiếp theo, thay vì hai ô trống chồng nhau. */}
+            {hasNoClass ? (
+              <EmptyState
+                icon={Layers}
+                title="Bạn chưa được phân công lớp nào"
+                description="Lớp học do quản trị viên lập, xếp học sinh rồi phân công giáo viên phụ trách. Hãy đề nghị quản trị viên phân công bạn vào lớp; ngay sau đó lớp sẽ hiện ở đây và bạn giao được bài."
+                action={
+                  <NavLink
+                    to="/giao-vien/nhom-lop"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                  >
+                    <Layers size={15} /> Xem danh sách lớp của tôi
+                  </NavLink>
+                }
+              />
+            ) : (
+              <>
+                <section className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                      <Layers size={20} />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-base font-bold text-slate-800">Chọn lớp và khung giờ</h2>
+                      <p className="text-sm text-slate-400">
+                        Chọn nhiều lớp cùng lúc; mỗi lớp có thể làm bài vào một khung giờ riêng.
+                      </p>
+                    </div>
+                  </div>
 
-              {groups.length === 0 ? (
-                <EmptyState
-                  icon={Layers}
-                  title="Bạn chưa được phân công lớp nào"
-                  description="Lớp học do quản trị viên lập và phân công giáo viên phụ trách. Hãy liên hệ quản trị viên để được phân công vào lớp."
-                />
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {groups.map(group => {
-                    const isSelected = selectedGroupIds.includes(group.id)
-                    const assignedInGroup = countAssignedInGroup(group.id)
-                    return (
-                      <button
-                        key={group.id}
-                        type="button"
-                        onClick={() => toggleGroup(group.id)}
-                        className={`text-left rounded-2xl border p-4 transition-all shadow-sm hover:shadow-md ${
-                          isSelected
-                            ? 'border-indigo-300 bg-indigo-50'
-                            : 'border-slate-100 bg-white hover:border-indigo-200'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-bold text-slate-800 truncate">{group.name}</p>
-                            <p className="text-xs text-slate-400 mt-1">{group.studentCount} học sinh</p>
-                            {assignedInGroup > 0 && (
-                              <p className="text-xs text-amber-600 font-medium mt-1">
-                                {assignedInGroup} đã được giao
-                              </p>
-                            )}
-                          </div>
-                          {isSelected && <CheckCircle2 size={18} className="text-indigo-600 flex-shrink-0" />}
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    {groups.map(group => {
+                      const isSelected = selectedGroupIds.includes(group.id)
+                      const draft = classWindows[group.id]
+                      const assignedInGroup = countAssignedInGroup(group.id)
+                      const current = findClassWindow(exam, group.id)
+
+                      return (
+                        <div
+                          key={group.id}
+                          className={`rounded-2xl border p-4 transition-all shadow-sm ${
+                            isSelected ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-100 bg-white'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(group.id)}
+                            aria-pressed={isSelected}
+                            className="w-full text-left"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800 truncate">{group.name}</p>
+                                <p className="text-xs text-slate-400 mt-1">{group.studentCount} học sinh</p>
+                                {assignedInGroup > 0 && (
+                                  <p className="text-xs text-amber-600 font-medium mt-1">
+                                    {assignedInGroup} em đã được giao
+                                  </p>
+                                )}
+                                {current && (
+                                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                    Đang làm: {formatDateTime(current.openAt)} – {formatDateTime(current.closeAt)}
+                                    {current.hasScheduleOverride ? ' (khung riêng)' : ' (lịch chung)'}
+                                  </p>
+                                )}
+                              </div>
+                              {isSelected && <CheckCircle2 size={18} className="text-indigo-600 flex-shrink-0" />}
+                            </div>
+                          </button>
+
+                          {isSelected && draft && (
+                            <div className="mt-3 pt-3 border-t border-indigo-100">
+                              <label className="flex items-start gap-2.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={draft.enabled}
+                                  onChange={event => updateClassWindow(group.id, { enabled: event.target.checked })}
+                                  className="w-4 h-4 accent-indigo-600 mt-0.5 flex-shrink-0"
+                                />
+                                <span className="min-w-0">
+                                  <span className="text-sm font-medium text-slate-700">
+                                    Khung giờ riêng cho lớp này
+                                  </span>
+                                  <span className="block text-xs text-slate-500 mt-0.5 leading-relaxed">
+                                    Bỏ trống thì lớp làm bài theo lịch chung của đề.
+                                  </span>
+                                </span>
+                              </label>
+
+                              {draft.enabled ? (
+                                <WindowFields
+                                  idPrefix={`class-${group.id}`}
+                                  draft={draft}
+                                  durationMinutes={exam.durationMinutes}
+                                  onChange={changes => updateClassWindow(group.id, changes)}
+                                />
+                              ) : draft.hadOverride && (
+                                <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 leading-relaxed">
+                                  <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
+                                  Lớp này đang có khung giờ riêng. Giao bài lúc này sẽ gỡ nó và đưa những em
+                                  chưa bắt đầu về lịch chung của đề.
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
+                      )
+                    })}
+                  </div>
+                </section>
+
+                <section className="space-y-4">
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-11 h-11 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center flex-shrink-0">
+                        <Users size={20} />
+                      </div>
+                      <div className="min-w-0">
+                        <h2 className="text-base font-bold text-slate-800">Chọn thêm học sinh</h2>
+                        <p className="text-sm text-slate-400">
+                          Đang chọn riêng {selectedStudentIds.length} học sinh
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={selectAllFiltered}
+                        disabled={addableFilteredIds.length === 0}
+                        className={secondaryButtonClass}
+                      >
+                        <CheckCircle2 size={14} /> Chọn tất cả ({addableFilteredIds.length})
                       </button>
-                    )
-                  })}
-                </div>
-              )}
-            </section>
+                      <button
+                        type="button"
+                        onClick={clearFilteredSelection}
+                        disabled={selectedFilteredIds.length === 0}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <X size={14} /> Bỏ chọn ({selectedFilteredIds.length})
+                      </button>
+                    </div>
+                  </div>
 
-            <section className="space-y-4">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center flex-shrink-0">
-                    <Users size={20} />
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={search}
+                      onChange={event => setSearch(event.target.value)}
+                      className={`${inputClass} pl-10`}
+                      placeholder="Tìm theo tên, mã học sinh, email hoặc lớp"
+                    />
                   </div>
-                  <div className="min-w-0">
-                    <h2 className="text-base font-bold text-slate-800">Chọn học sinh</h2>
-                    <p className="text-sm text-slate-400">
-                      Đang chọn riêng {selectedStudentIds.length} học sinh
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={selectAllFiltered}
-                    disabled={addableFilteredIds.length === 0}
-                    className={secondaryButtonClass}
-                  >
-                    <CheckCircle2 size={14} /> Chọn tất cả ({addableFilteredIds.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={clearFilteredSelection}
-                    disabled={selectedFilteredIds.length === 0}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <X size={14} /> Bỏ chọn ({selectedFilteredIds.length})
-                  </button>
-                </div>
-              </div>
 
-              <div className="relative">
-                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={event => setSearch(event.target.value)}
-                  className={`${inputClass} pl-10`}
-                  placeholder="Tìm theo tên, mã học sinh, email hoặc nhóm lớp"
-                />
-              </div>
+                  {students.length === 0 ? (
+                    <EmptyState
+                      icon={Users}
+                      title="Lớp của bạn chưa có học sinh nào"
+                      description="Tài khoản học sinh do quản trị viên tạo và xếp vào lớp. Hãy đề nghị quản trị viên xếp học sinh vào lớp bạn phụ trách."
+                    />
+                  ) : filteredStudents.length === 0 ? (
+                    <EmptyState
+                      icon={SearchX}
+                      title="Không tìm thấy học sinh phù hợp"
+                      description={`Không có học sinh nào khớp với từ khoá “${search}”. Thử tìm bằng mã học sinh hoặc tên lớp.`}
+                      action={
+                        <button
+                          type="button"
+                          onClick={() => setSearch('')}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                        >
+                          <X size={15} /> Xoá tìm kiếm
+                        </button>
+                      }
+                    />
+                  ) : (
+                    <div className={`${cardClass} overflow-hidden`}>
+                      <div className="max-h-[520px] overflow-y-auto divide-y divide-slate-50">
+                        {filteredStudents.map(student => (
+                          <StudentPickerRow
+                            key={student.id}
+                            student={student}
+                            isChecked={selectedStudentIds.includes(student.id)}
+                            isCoveredByGroup={groupCoveredStudentIds.has(student.id)}
+                            isAlreadyAssigned={assignedStudentIds.has(student.id)}
+                            onToggle={toggleStudent}
+                          />
+                        ))}
+                      </div>
+                      <div className="px-5 py-3 bg-slate-50/60 border-t border-slate-100">
+                        <p className="text-xs text-slate-500">
+                          Hiển thị {filteredStudents.length} trong {students.length} học sinh
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
-              {students.length === 0 ? (
-                <EmptyState
-                  icon={Users}
-                  title="Chưa có học sinh nào"
-                  description="Tài khoản học sinh do quản trị viên tạo và xếp vào lớp. Hãy liên hệ quản trị viên, hoặc kiểm tra lại nhóm lớp."
-                  action={
-                    <NavLink
-                      to="/giao-vien/nhom-lop"
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm"
-                      style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
-                    >
-                      <Users size={15} /> Mở nhóm lớp
-                    </NavLink>
-                  }
-                />
-              ) : filteredStudents.length === 0 ? (
-                <EmptyState
-                  icon={SearchX}
-                  title="Không tìm thấy học sinh phù hợp"
-                  description={`Không có học sinh nào khớp với từ khoá “${search}”. Thử tìm bằng mã học sinh hoặc tên nhóm lớp.`}
-                  action={
-                    <button
-                      type="button"
-                      onClick={() => setSearch('')}
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
-                    >
-                      <X size={15} /> Xoá tìm kiếm
-                    </button>
-                  }
-                />
-              ) : (
-                <div className={`${cardClass} overflow-hidden`}>
-                  <div className="max-h-[520px] overflow-y-auto divide-y divide-slate-50">
-                    {filteredStudents.map(student => (
-                      <StudentPickerRow
-                        key={student.id}
-                        student={student}
-                        isChecked={selectedStudentIds.includes(student.id)}
-                        isCoveredByGroup={groupCoveredStudentIds.has(student.id)}
-                        isAlreadyAssigned={assignedStudentIds.has(student.id)}
-                        onToggle={toggleStudent}
-                      />
-                    ))}
-                  </div>
-                  <div className="px-5 py-3 bg-slate-50/60 border-t border-slate-100">
-                    <p className="text-xs text-slate-500">
-                      Hiển thị {filteredStudents.length} trong {students.length} học sinh
-                    </p>
-                  </div>
-                </div>
-              )}
-            </section>
+                  {individualCount > 0 && (
+                    <div className={`${cardClass} p-5`}>
+                      <label className="flex items-start gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={studentWindow.enabled}
+                          onChange={event =>
+                            setStudentWindow(current => ({ ...current, enabled: event.target.checked }))}
+                          className="w-4 h-4 accent-indigo-600 mt-0.5 flex-shrink-0"
+                        />
+                        <span className="min-w-0">
+                          <span className="text-sm font-medium text-slate-700">
+                            Khung giờ riêng cho {individualCount} em chọn riêng
+                          </span>
+                          <span className="block text-xs text-slate-500 mt-0.5 leading-relaxed">
+                            Dành cho em thi bù hay thi muộn. Bỏ trống thì các em theo lịch chung của đề; sau
+                            khi giao, mỗi em vẫn dời giờ riêng được ở trang chi tiết.
+                          </span>
+                        </span>
+                      </label>
+                      {studentWindow.enabled && (
+                        <WindowFields
+                          idPrefix="individual"
+                          draft={studentWindow}
+                          durationMinutes={exam.durationMinutes}
+                          onChange={changes => setStudentWindow(current => ({ ...current, ...changes }))}
+                        />
+                      )}
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
           </div>
 
           <aside className="space-y-4 xl:sticky xl:top-6 min-w-0">
@@ -636,10 +909,14 @@ export default function ExamAssignPage() {
                   Tổng người nhận
                 </p>
                 <p className="text-3xl font-bold text-indigo-700 mt-0.5">{recipientIds.size}</p>
-                <p className="text-xs text-indigo-500 mt-1">Đã loại bỏ trùng lặp giữa nhóm và cá nhân</p>
+                <p className="text-xs text-indigo-500 mt-1">Đã loại bỏ trùng lặp giữa lớp và cá nhân</p>
               </div>
 
-              <SummaryRow label="Nhóm lớp đã chọn" value={selectedGroupIds.length} />
+              <SummaryRow label="Lớp đã chọn" value={selectedGroupIds.length} />
+              <SummaryRow
+                label="Lớp có khung giờ riêng"
+                value={selectedGroupIds.filter(groupId => classWindows[groupId]?.enabled).length}
+              />
               <SummaryRow label="Học sinh chọn riêng" value={selectedStudentIds.length} />
               <SummaryRow label="Sẽ giao mới" value={newRecipientCount} tone="primary" />
               <SummaryRow
@@ -672,9 +949,9 @@ export default function ExamAssignPage() {
 
               <label className="flex items-start justify-between gap-3 py-2.5 cursor-pointer border-t border-slate-50">
                 <span className="min-w-0">
-                  <span className="text-sm text-slate-700 font-medium">Gửi thông báo cho học sinh</span>
+                  <span className="text-sm text-slate-700 font-medium">Báo cho học sinh nhận bài mới</span>
                   <span className="block text-xs text-slate-400 mt-0.5 leading-relaxed">
-                    Học sinh thấy bài mới ngay trên trang thông báo.
+                    Em nào bị dời giờ vẫn luôn được báo — đó là giờ thi của em đã đổi.
                   </span>
                 </span>
                 <input
@@ -685,71 +962,25 @@ export default function ExamAssignPage() {
                 />
               </label>
 
-              <label className="flex items-start justify-between gap-3 py-2.5 cursor-pointer border-t border-slate-50">
-                <span className="min-w-0">
-                  <span className="text-sm text-slate-700 font-medium">Ghi đè lịch mở – đóng bài</span>
-                  <span className="block text-xs text-slate-400 mt-0.5 leading-relaxed">
-                    Cập nhật lại lịch của bài kiểm tra ngay khi giao.
-                  </span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={scheduleOverrideEnabled}
-                  onChange={event => {
-                    setScheduleOverrideEnabled(event.target.checked)
-                    setScheduleError(undefined)
-                  }}
-                  className="w-4 h-4 accent-indigo-600 mt-1 flex-shrink-0"
-                />
-              </label>
-
-              {scheduleOverrideEnabled && (
-                <div className="mt-2 space-y-3 rounded-xl bg-slate-50 p-4">
-                  <div>
-                    <label htmlFor="assign-open-at" className="block text-xs font-semibold text-slate-600 mb-1.5">
-                      Mở bài lúc
-                    </label>
-                    <input
-                      id="assign-open-at"
-                      type="datetime-local"
-                      value={openAtLocal}
-                      onChange={event => {
-                        setOpenAtLocal(event.target.value)
-                        setScheduleError(undefined)
-                      }}
-                      className={`${inputClass} bg-white`}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="assign-close-at" className="block text-xs font-semibold text-slate-600 mb-1.5">
-                      Đóng bài lúc
-                    </label>
-                    <input
-                      id="assign-close-at"
-                      type="datetime-local"
-                      value={closeAtLocal}
-                      onChange={event => {
-                        setCloseAtLocal(event.target.value)
-                        setScheduleError(undefined)
-                      }}
-                      className={`${inputClass} bg-white`}
-                    />
-                  </div>
-                  {scheduleError && (
-                    <p className="text-xs font-medium text-red-500 flex items-center gap-1.5">
-                      <AlertTriangle size={13} className="flex-shrink-0" />
-                      {scheduleError}
-                    </p>
-                  )}
-                </div>
-              )}
+              {/* Lịch chung của đề không sửa ở đây nữa: sửa nó là dời giờ của MỌI lớp đang theo lịch
+                  chung, trong khi việc người dùng định làm gần như luôn là đổi giờ của một lớp. */}
+              <p className="mt-2 pt-3 border-t border-slate-50 text-xs text-slate-400 leading-relaxed">
+                Lịch chung của đề ({formatDateTime(exam.openAt)} – {formatDateTime(exam.closeAt)}) đổi ở{' '}
+                <NavLink
+                  to={`/giao-vien/bai-kiem-tra/${exam.id}/sua`}
+                  className="font-semibold text-indigo-600 hover:underline"
+                >
+                  trang sửa đề
+                </NavLink>
+                ; đổi nó là dời giờ của mọi lớp đang theo lịch chung.
+              </p>
             </div>
 
             <div className={`${cardClass} p-5`}>
               <button
                 type="button"
                 onClick={openConfirm}
-                disabled={recipientIds.size === 0 || submitting}
+                disabled={recipientIds.size === 0 || windowProblems.length > 0 || submitting}
                 className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-white font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
               >
@@ -757,8 +988,18 @@ export default function ExamAssignPage() {
               </button>
               {recipientIds.size === 0 && (
                 <p className="text-xs text-slate-400 leading-relaxed mt-3 text-center">
-                  Chọn ít nhất một nhóm lớp hoặc một học sinh để bật nút giao bài.
+                  Chọn ít nhất một lớp hoặc một học sinh để bật nút giao bài.
                 </p>
+              )}
+              {windowProblems.length > 0 && (
+                <ul className="mt-3 space-y-1">
+                  {windowProblems.map(problem => (
+                    <li key={problem} className="text-xs text-red-500 leading-relaxed flex items-start gap-1.5">
+                      <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
+                      {problem}
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           </aside>

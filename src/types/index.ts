@@ -192,10 +192,45 @@ export interface Exam {
   blueprintFrozen: boolean
 
   lifecycle: ExamLifecycle
+
+  /**
+   * Lịch **mặc định** của đề. Lớp nào không đặt khung giờ riêng thì làm bài theo hai mốc này; lớp có
+   * khung riêng thì xem `assignmentWindows`.
+   */
   openAt: string
   closeAt: string
+
+  /**
+   * Khung giờ thật của từng lớp đã được giao đề này, cộng thêm các học sinh chọn đích danh gom theo giờ.
+   *
+   * Có mặt vì lịch phía trên chỉ là mặc định: một đề chạy cho 12A1 sáng thứ Ba và 12A2 chiều thứ Năm mà
+   * màn hình chỉ hiện lịch chung thì giáo viên không trả lời được câu hỏi đơn giản nhất — "lớp nào đang
+   * làm bài lúc này?". Mảng rỗng khi đề chưa giao cho ai.
+   */
+  assignmentWindows: AssignmentWindow[]
+
   showResultAfterSubmit: boolean
   createdAt: string
+}
+
+/** Một khung giờ đang áp cho một lớp, hoặc cho một nhóm học sinh chọn lẻ cùng giờ. */
+export interface AssignmentWindow {
+  /** Không có với học sinh được chọn đích danh — các em đó không đến từ lớp nào. */
+  groupId?: number
+  groupName?: string
+
+  /** Giờ đã phân giải: khung riêng nếu lớp có, ngược lại là lịch chung của đề. */
+  openAt: string
+  closeAt: string
+
+  /** `false` khi khung này chính là lịch chung — sửa lịch đề sẽ kéo nó theo. */
+  hasScheduleOverride: boolean
+
+  /** Server tính theo cùng phép so với phía học sinh, để hai bên không nói hai điều khác nhau. */
+  lifecycle: ExamLifecycle
+
+  assignedCount: number
+  startedCount: number
 }
 
 export interface ExamAssignment {
@@ -216,6 +251,19 @@ export interface ExamAssignment {
   score?: number
   startedAt?: string
   submittedAt?: string
+
+  /** Giờ làm bài thật của riêng em này — khung của lớp nếu có, ngược lại là lịch chung của đề. */
+  openAt: string
+  closeAt: string
+
+  /** `true` khi em có khung giờ riêng; `false` nghĩa là em đang theo lịch chung. */
+  hasScheduleOverride: boolean
+
+  /**
+   * Lớp mà em được giao bài qua đó. Vắng mặt khi giáo viên chọn đích danh em — và chỉ những em đó mới
+   * dời được giờ riêng, vì giờ của em theo lớp thuộc về cả lớp.
+   */
+  assignedViaGroupId?: number
 }
 
 /** Kết quả tổng hợp một lượt làm bài, dùng cho cả màn hình giáo viên và học sinh. */
