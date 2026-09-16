@@ -25,7 +25,9 @@ interface ScoreRingProps {
 
 /** Vòng tròn điểm, chạy từ 0 tới tỷ lệ thật khi vào trang để tạo cảm giác chúc mừng. */
 function ScoreRing({ score, maxScore }: ScoreRingProps) {
-  const tone = getScoreTone(score)
+  // Quy về thang 10 theo điểm tối đa của chính đề này trước khi xếp loại (H7) — nếu không, cùng một
+  // bài làm có thể xếp "Giỏi" ở đây mà "Yếu" ở trang danh sách bài kiểm tra, hay ngược lại.
+  const tone = getScoreTone(score, maxScore)
   const ratio = maxScore > 0 ? Math.min(1, Math.max(0, score / maxScore)) : 0
   const [progress, setProgress] = useState(0)
 
@@ -170,7 +172,7 @@ export default function ExamSubmittedPage() {
 
   // Vắng điểm (`null`) là "chưa được phép xem", không phải 0 — và nó tách rời với quyền xem đáp án,
   // nên vòng tròn điểm bám vào chính sự có mặt của điểm chứ không bám vào `showAnswers`.
-  const scoreTone = detail.score === null ? null : getScoreTone(detail.score)
+  const scoreTone = detail.score === null ? null : getScoreTone(detail.score, detail.maxScore)
 
   return (
     <StudentLayout>

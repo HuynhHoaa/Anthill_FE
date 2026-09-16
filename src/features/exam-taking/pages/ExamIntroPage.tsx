@@ -98,18 +98,54 @@ export default function ExamIntroPage() {
 
   const assignment = data
   const openDate = assignment ? parseDateTime(assignment.openAt) : null
-  const closeDate = assignment ? (parseDateTime(assignment.closeAt) ?? assignment.deadline) : null
+  // `assignment.deadline` đã là mốc đúng cho cả hai trường hợp — giờ đóng đề khi bài chưa bắt đầu,
+  // giờ hết giờ của chính lượt làm khi đang dở (xem toStudentExamItem) — khớp với cách
+  // StudentExamListPage/StudentDashboardPage đọc cùng trường này. Trước đây trang này tự tính lại
+  // từ `assignment.closeAt`, mà chuỗi đó luôn parse được nên nhánh `?? assignment.deadline` không
+  // bao giờ chạy tới trong thực tế — một bài đang làm dở bị đếm ngược nhầm sang giờ đóng đề của cả
+  // lớp, dài hơn hẳn giờ hết bài thật của lượt đang chạy.
+  const closeDate = assignment ? assignment.deadline : null
   const closeCountdown = useCountdown(closeDate, 'Đã hết hạn')
   const openCountdown = useCountdown(openDate, 'Đã mở')
 
+  // H23: server chốt ExpiresAt = min(bắt đầu + thời lượng, giờ đóng đề) — đúng và cần thiết để một
+  // bài không chạy quá cửa sổ được giao, nhưng trang này trước đây luôn quảng cáo trọn thời lượng
+  // cấu hình dù cửa sổ sắp đóng, nên đồng hồ thật sự chạy ngắn hơn hẳn con số vừa hứa. Đây thuần là
+  // hiển thị: không đổi cách server chốt hạn, chỉ tính trước và nói thật với học sinh trước khi họ
+  // bấm bắt đầu.
+  const closeRemainingMs = closeDate !== null ? closeDate.getTime() - Date.now() : Number.POSITIVE_INFINITY
+  // Chỉ có ý nghĩa cảnh báo trước khi bắt đầu: bài đã làm dở/đã nộp/hết hạn thì `closeAt - now` có
+  // thể đã âm (cửa sổ đã đóng từ lâu) và không còn là một "cảnh báo sắp đóng" nào cả.
+  const isDurationClampedByCloseTime =
+    assignment !== undefined &&
+    (assignment.status === 'open' || assignment.status === 'upcoming') &&
+    Number.isFinite(closeRemainingMs) &&
+    closeRemainingMs < assignment.durationMinutes * 60000
+  const effectiveDurationMinutes = assignment
+    ? (isDurationClampedByCloseTime ? Math.max(0, Math.ceil(closeRemainingMs / 60000)) : assignment.durationMinutes)
+    : 0
+  // Bài đã bắt đầu rồi (F5, mở lại từ máy khác…) thì bấm nút không phải "bắt đầu" mà là quay lại
+  // một đồng hồ đã chạy từ trước — hộp xác nhận và nút hành động phải nói đúng việc đó, không phải
+  // lặp lại nguyên văn lời hứa "đồng hồ sẽ chạy ngay khi bạn xác nhận" cho một đồng hồ đã chạy rồi.
+  const isInProgressAssignment = assignment?.status === 'inprogress'
+
   const requestStart = async () => {
     if (!assignment) return
-    const ready = await confirm({
-      title: 'Bắt đầu làm bài ngay?',
-      message: `Đồng hồ sẽ chạy ngay khi bạn xác nhận và không thể tạm dừng, kể cả khi bạn đóng trang. Bạn có ${formatDuration(assignment.durationMinutes)} để hoàn thành ${assignment.totalQuestions} câu hỏi; hết giờ hệ thống tự động nộp phần bài bạn đã làm.`,
-      confirmLabel: 'Bắt đầu ngay',
-      cancelLabel: 'Để sau',
-    })
+    const ready = isInProgressAssignment
+      ? await confirm({
+          title: 'Tiếp tục làm bài?',
+          message: `Bạn đang làm dở bài này, đồng hồ vẫn đang chạy từ lúc bắt đầu. Bạn sẽ được đưa lại đúng bài làm với các câu đã trả lời còn nguyên; hết giờ hệ thống tự động nộp phần bài bạn đã làm.`,
+          confirmLabel: 'Tiếp tục',
+          cancelLabel: 'Để sau',
+        })
+      : await confirm({
+          title: 'Bắt đầu làm bài ngay?',
+          message: isDurationClampedByCloseTime
+            ? `Đề đóng lúc ${formatDateTime(assignment.closeAt)} — nếu bắt đầu ngay bây giờ, bạn chỉ có ${formatDuration(effectiveDurationMinutes)} để làm bài (ngắn hơn thời lượng ${formatDuration(assignment.durationMinutes)} thông thường), không phải trọn thời lượng. Đồng hồ sẽ chạy ngay khi bạn xác nhận và không thể tạm dừng, kể cả khi bạn đóng trang; hết giờ hệ thống tự động nộp phần bài bạn đã làm.`
+            : `Đồng hồ sẽ chạy ngay khi bạn xác nhận và không thể tạm dừng, kể cả khi bạn đóng trang. Bạn có ${formatDuration(assignment.durationMinutes)} để hoàn thành ${assignment.totalQuestions} câu hỏi; hết giờ hệ thống tự động nộp phần bài bạn đã làm.`,
+          confirmLabel: 'Bắt đầu ngay',
+          cancelLabel: 'Để sau',
+        })
     if (!ready) return
 
     // Cửa sổ làm bài có thể đóng ngay trong lúc hộp xác nhận đang mở. Đồng hồ trên trang đã tắt
@@ -137,7 +173,12 @@ export default function ExamIntroPage() {
     const isDone = isSubmitted || isGraded
     // Đồng hồ đếm ngược nhịp mỗi giây, nên các mốc so với hiện tại luôn được tính lại khi render.
     const remainingMs = closeDate !== null ? closeDate.getTime() - Date.now() : Number.POSITIVE_INFINITY
-    const justClosed = assignment.status === 'open' && remainingMs <= 0
+    // Cả bài chưa vào ('open') lẫn bài đang làm dở ('inprogress') đều có thể hết giờ trước khi
+    // trang kịp tải lại. Thiếu nhánh 'inprogress' ở đây từng khiến bảng hành động trống trơn —
+    // không nút, không dòng chữ nào — cho một lượt đã quá hạn thật (canStart server trả về false)
+    // nhưng job nền dọn hạn chưa kịp chạy nên status vẫn còn 'inprogress': không nhánh
+    // canStart/isUpcoming/isDone/isExpired nào khớp.
+    const justClosed = (assignment.status === 'open' || isInProgressAssignment) && remainingMs <= 0
     // Quyền vào làm do server chốt: nó biết cả những điều kiện trang này không thấy. `justClosed`
     // chỉ để nút tắt ngay khi đồng hồ đếm về 0 mà không phải chờ tải lại trang.
     const canStart = assignment.canStart && !justClosed
@@ -195,6 +236,7 @@ export default function ExamIntroPage() {
                       <AlertTriangle size={11} /> Sắp hết hạn
                     </span>
                   )}
+                  {isInProgressAssignment && <StatusBadge status="inprogress" />}
                   {isSubmitted && <StatusBadge status="submitted" />}
                   {isGraded && <StatusBadge status="graded" />}
                   {isExpired && <StatusBadge status="expired" />}
@@ -221,10 +263,14 @@ export default function ExamIntroPage() {
                 />
                 <InfoTile
                   icon={Clock}
-                  label="Thời gian làm bài"
-                  value={formatDuration(assignment.durationMinutes)}
-                  iconBg="bg-violet-50"
-                  iconColor="text-violet-600"
+                  label={isDurationClampedByCloseTime ? 'Thời gian làm bài (rút ngắn)' : 'Thời gian làm bài'}
+                  value={
+                    isDurationClampedByCloseTime
+                      ? `${formatDuration(effectiveDurationMinutes)} — đề sắp đóng`
+                      : formatDuration(assignment.durationMinutes)
+                  }
+                  iconBg={isDurationClampedByCloseTime ? 'bg-red-50' : 'bg-violet-50'}
+                  iconColor={isDurationClampedByCloseTime ? 'text-red-600' : 'text-violet-600'}
                 />
                 <InfoTile
                   icon={Trophy}
@@ -285,22 +331,45 @@ export default function ExamIntroPage() {
           <aside className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 lg:sticky lg:top-24 animate-fade-in-up">
             {canStart && (
               <>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Thời gian còn lại để nộp</p>
-                <p className={`text-3xl font-bold mt-1.5 ${isUrgent ? 'text-red-600' : 'text-indigo-600'}`}>
+                {isDurationClampedByCloseTime && (
+                  <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 flex items-start gap-2.5">
+                    <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-700 leading-relaxed">
+                      Đề đóng lúc {formatDateTime(assignment.closeAt)}. Nếu bắt đầu ngay bây giờ, bạn chỉ có{' '}
+                      <strong>{formatDuration(effectiveDurationMinutes)}</strong> để làm bài — ngắn hơn thời lượng{' '}
+                      {formatDuration(assignment.durationMinutes)} thông thường của đề này.
+                    </p>
+                  </div>
+                )}
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  {isInProgressAssignment ? 'Đang làm — thời gian còn lại' : 'Thời gian còn lại để nộp'}
+                </p>
+                <p className={`text-3xl font-bold mt-1.5 ${isUrgent ? 'text-red-600' : isInProgressAssignment ? 'text-amber-600' : 'text-indigo-600'}`}>
                   {closeCountdown}
                 </p>
-                <p className="text-xs text-slate-400 mt-1.5">Đóng lúc {formatDateTime(assignment.closeAt)}</p>
+                <p className="text-xs text-slate-400 mt-1.5">
+                  {/* closeDate = assignment.deadline: giờ hết bài thật của lượt đang dở, không phải
+                      giờ đóng đề của cả lớp — hai mốc có thể khác nhau (H23/xem chú thích closeDate
+                      ở trên), nên chú thích ở đây phải khớp đúng con số đang đếm ngược phía trên. */}
+                  {isInProgressAssignment ? 'Hết giờ lúc' : 'Đóng lúc'} {closeDate ? formatDateTime(closeDate.toISOString()) : formatDateTime(assignment.closeAt)}
+                </p>
 
                 <button
                   type="button"
                   onClick={() => void requestStart()}
                   className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl text-white font-bold text-sm shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
-                  style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                  style={{
+                    background: isInProgressAssignment
+                      ? 'linear-gradient(135deg,#F59E0B,#EA580C)'
+                      : 'linear-gradient(135deg,#6366F1,#8B5CF6)',
+                  }}
                 >
-                  <PlayCircle size={18} /> Bắt đầu làm bài
+                  <PlayCircle size={18} /> {isInProgressAssignment ? 'Tiếp tục làm bài' : 'Bắt đầu làm bài'}
                 </button>
                 <p className="text-xs text-slate-400 leading-relaxed mt-3 text-center">
-                  Hệ thống bắt đầu tính giờ ngay khi bạn xác nhận.
+                  {isInProgressAssignment
+                    ? 'Đồng hồ đã chạy từ lúc bạn bắt đầu, không dừng lại được.'
+                    : 'Hệ thống bắt đầu tính giờ ngay khi bạn xác nhận.'}
                 </p>
               </>
             )}

@@ -7,14 +7,6 @@ interface ScoreRingProps {
   size?: 'md' | 'lg'
 }
 
-/** Màu viền khớp đúng ngưỡng xếp loại của getScoreTone. */
-function getRingBorderClass(score: number): string {
-  if (score >= 8) return 'border-emerald-200'
-  if (score >= 6.5) return 'border-amber-200'
-  if (score >= 5) return 'border-orange-200'
-  return 'border-red-200'
-}
-
 export default function ScoreRing({ score, maxScore, size = 'md' }: ScoreRingProps) {
   const circleClass = size === 'lg' ? 'w-20 h-20 text-2xl' : 'w-16 h-16 text-xl'
 
@@ -33,12 +25,15 @@ export default function ScoreRing({ score, maxScore, size = 'md' }: ScoreRingPro
     )
   }
 
-  const tone = getScoreTone(score)
+  // Quy về thang 10 theo chính điểm tối đa của đề này trước khi xếp loại — xem chú thích ở
+  // getScoreTone (H7). Không làm vậy thì vòng điểm ở đây có thể xếp khác màu với cùng một điểm số
+  // hiện ở nơi khác.
+  const tone = getScoreTone(score, maxScore)
 
   return (
     <div className="flex flex-col items-center gap-1 flex-shrink-0">
       <div
-        className={`${circleClass} ${tone.bg} ${tone.color} ${getRingBorderClass(score)} rounded-full border-2 flex items-center justify-center font-bold`}
+        className={`${circleClass} ${tone.bg} ${tone.color} ${tone.ring} rounded-full border-2 flex items-center justify-center font-bold`}
       >
         {formatScore(score)}
       </div>
