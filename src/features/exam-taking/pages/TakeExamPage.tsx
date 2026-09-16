@@ -14,6 +14,7 @@ import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
+import { resolveMediaUrl } from '../../../lib/apiClient'
 import { formatClock } from '../../../lib/format'
 import { saveAnswers, startAttempt, submitAttempt } from '../../../services/attemptService'
 import type { AttemptQuestion, AttemptSession } from '../../../types'
@@ -707,7 +708,7 @@ export default function TakeExamPage() {
 
           {currentQuestion.imageUrl && (
             <img
-              src={currentQuestion.imageUrl}
+              src={resolveMediaUrl(currentQuestion.imageUrl)}
               alt="Hình minh hoạ câu hỏi"
               className="mb-5 max-h-72 rounded-xl border border-slate-100"
             />
@@ -743,8 +744,8 @@ export default function TakeExamPage() {
                       </span>
                       {answer.imageUrl && (
                         <img
-                          src={answer.imageUrl}
-                          alt=""
+                          src={resolveMediaUrl(answer.imageUrl)}
+                          alt={answer.content ? '' : `Hình minh hoạ đáp án ${String.fromCharCode(65 + index)}`}
                           className="mt-2.5 max-h-40 rounded-lg border border-slate-100"
                         />
                       )}

@@ -13,6 +13,7 @@ import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { getCurrentUser } from '../../../services/authService'
 import { getAttemptDetail } from '../../../services/resultService'
+import { resolveMediaUrl } from '../../../lib/apiClient'
 import { formatDateTime, formatDuration, formatScore } from '../../../lib/format'
 import type { AttemptAnswerDetail, AttemptDetail, ResultAudience } from '../../../types'
 import ScoreRing from '../components/ScoreRing'
@@ -315,14 +316,14 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
 
                   {question.imageUrl && (
                     <img
-                      src={question.imageUrl}
+                      src={resolveMediaUrl(question.imageUrl)}
                       alt={`Hình minh họa câu ${number}`}
                       className="mb-3 rounded-xl border border-slate-100 max-h-56 object-contain"
                     />
                   )}
 
                   <div className="space-y-2">
-                    {question.answers.map(answer => {
+                    {question.answers.map((answer, answerIndex) => {
                       const isCorrectAnswer = answer.id === question.correctAnswerId
                       const isSelected = answer.id === question.selectedAnswerId
 
@@ -356,8 +357,12 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                           </div>
                           {answer.imageUrl && (
                             <img
-                              src={answer.imageUrl}
-                              alt={`Hình minh họa đáp án: ${answer.content}`}
+                              src={resolveMediaUrl(answer.imageUrl)}
+                              alt={
+                                answer.content
+                                  ? `Hình minh họa đáp án: ${answer.content}`
+                                  : `Hình minh hoạ đáp án ${String.fromCharCode(65 + answerIndex)}`
+                              }
                               className="mt-2 rounded-lg border border-white/60 max-h-28 object-contain"
                             />
                           )}
