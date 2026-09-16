@@ -362,9 +362,12 @@ export default function ExamAssignPage() {
         // Chỉ nói trạng thái tài khoản, không đoán lý do — hệ thống không biết em đã nghỉ học hay chỉ bị
         // xoá nhầm, và "rời trường" không hợp với một trung tâm.
         result.skippedRetired > 0 ? `${result.skippedRetired} em có tài khoản đang chờ xoá` : '',
-        result.skippedOutOfScope > 0 ? `${result.skippedOutOfScope} em ngoài phạm vi lớp bạn phụ trách` : '',
+        // Một dòng cho cả "ngoài phạm vi" lẫn "không còn trong hệ thống": server trả về một con số
+        // duy nhất, vì hai con số riêng cho phép dò ra id nào là học sinh thật của lớp người khác.
+        result.skippedOutOfScope > 0
+          ? `${result.skippedOutOfScope} em không thuộc lớp bạn phụ trách hoặc không còn trong hệ thống`
+          : '',
         result.skippedOutOfScopeGroups > 0 ? `${result.skippedOutOfScopeGroups} nhóm lớp không thuộc quyền bạn` : '',
-        result.skippedNotFound > 0 ? `${result.skippedNotFound} em không còn trong hệ thống` : '',
       ].filter(Boolean)
       const skipNote = skipNotes.length > 0 ? ` Bỏ qua ${skipNotes.join(', ')}.` : ''
 
