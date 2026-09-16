@@ -27,12 +27,18 @@ export type ExamStatus = 'assigned' | 'inprogress' | 'submitted' | 'graded' | 'e
 /** Vòng đời của bài kiểm tra dưới góc nhìn giáo viên. */
 export type ExamLifecycle = 'draft' | 'scheduled' | 'open' | 'closed'
 
+/**
+ * Khớp nguyên văn chuỗi server trả ở `type` (`NotificationMappingExtensions.ToNotificationTypeString`),
+ * trùng luôn tên sự kiện SignalR — một bộ tên duy nhất cho cả nạp lại trang lẫn đẩy realtime, đúng ý
+ * đồ của backend. Trước đây union này viết snake_case theo bản giả lập cũ; một type server gửi mà
+ * không khớp bảng tra thì `.icon` trên `undefined` làm sập cả trang, không có error boundary nào đỡ.
+ */
 export type NotificationType =
-  | 'exam_assigned'
-  | 'exam_submitted'
-  | 'exam_updated'
-  | 'deadline_soon'
-  | 'auto_submitted'
+  | 'examAssigned'
+  | 'examSubmitted'
+  | 'examUpdated'
+  | 'deadlineSoon'
+  | 'autoSubmitted'
 
 /** Trạng thái hiển thị trên màn hình danh sách bài kiểm tra của học sinh. */
 /**
@@ -540,11 +546,11 @@ export const difficultyLabels: Record<DifficultyLevel, string> = {
 }
 
 export const notificationTypeLabels: Record<NotificationType, string> = {
-  exam_assigned: 'Bài kiểm tra mới',
-  exam_submitted: 'Học sinh nộp bài',
-  exam_updated: 'Cập nhật bài kiểm tra',
-  deadline_soon: 'Sắp hết hạn',
-  auto_submitted: 'Tự động nộp bài',
+  examAssigned: 'Bài kiểm tra mới',
+  examSubmitted: 'Học sinh nộp bài',
+  examUpdated: 'Cập nhật bài kiểm tra',
+  deadlineSoon: 'Sắp hết hạn',
+  autoSubmitted: 'Tự động nộp bài',
 }
 
 export const studentExamItemStatusLabels: Record<StudentExamItemStatus, string> = {
