@@ -367,6 +367,10 @@ export interface StudentExamItem {
   teacher: string
   durationMinutes: number
   totalQuestions: number
+  pointPerQuestion: number
+  shuffleQuestions: boolean
+  shuffleAnswers: boolean
+  showResultAfterSubmit: boolean
   status: StudentExamItemStatus
   /** Server quyết định bài này có vào làm được ngay bây giờ không — không phải giao diện tự suy. */
   canStart: boolean
