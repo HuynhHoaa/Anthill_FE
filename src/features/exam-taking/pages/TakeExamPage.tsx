@@ -279,13 +279,33 @@ export default function TakeExamPage() {
         clientSeqRef.current += 1
         const result = await submitAttempt(session.attemptId, answers, clientSeqRef.current)
         clearAttemptProgress(session.attemptId)
-        if (autoSubmitted) {
+
+        // Server có thể đã nhận ít câu hơn số câu học sinh vừa chọn (nộp chạm ngưỡng cuối cửa sổ
+        // gia hạn ở lateSubmit). answeredCount ở đây là bộ đếm tại-thời-điểm-nộp, chụp trước khi
+        // effect nạp lại session nào khác có thể chạy — so nó với con số server trả về là cách duy
+        // nhất để biết có bị rớt câu hay không, vì response 200 không tự nói điều đó.
+        const missingAnswers = Math.max(0, answeredCount - result.answeredCount)
+
+        if (missingAnswers > 0) {
+          // Đây là phần trung thực: đừng để một toast ba giây làm chỗ duy nhất nói sự thật này,
+          // vì học sinh auto-submit có thể đã rời máy. Trang "đã nộp" mang cảnh báo bền hơn qua
+          // query param; toast chỉ là tín hiệu tức thời cho ai còn đang ngồi nhìn màn hình.
+          toast.error(
+            `Nộp bài chưa trọn vẹn: hệ thống chỉ ghi nhận được ${result.answeredCount}/${answeredCount} câu bạn đã chọn.`,
+          )
+        } else if (autoSubmitted) {
           toast.info('Đã hết thời gian làm bài, hệ thống tự động nộp bài giúp bạn.')
         } else {
           toast.success('Nộp bài thành công.')
         }
+
+        const query = new URLSearchParams()
+        if (autoSubmitted) query.set('tu-dong', '1')
+        if (missingAnswers > 0) query.set('thieu-dap-an', String(missingAnswers))
+        const queryString = query.toString()
+
         navigate(
-          `/hoc-sinh/bai-kiem-tra/${result.attemptId}/da-nop${autoSubmitted ? '?tu-dong=1' : ''}`,
+          `/hoc-sinh/bai-kiem-tra/${result.attemptId}/da-nop${queryString ? `?${queryString}` : ''}`,
           { replace: true },
         )
       } catch (caught) {
@@ -305,7 +325,7 @@ export default function TakeExamPage() {
         throw caught
       }
     },
-    [session, answers, navigate, toast, confirm],
+    [session, answers, answeredCount, navigate, toast, confirm],
   )
 
   // Giữ tham chiếu mới nhất tới hàm nộp bài để đồng hồ không phải khởi động lại
