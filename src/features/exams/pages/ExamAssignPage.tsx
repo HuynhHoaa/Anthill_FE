@@ -572,7 +572,7 @@ export default function ExamAssignPage() {
       } else if (outcome.scheduleUpdatedCount > 0) {
         toast.success(`Đã đổi khung giờ cho ${outcome.scheduleUpdatedCount} học sinh.${skipNote}`)
       } else {
-        toast.info('Không có lượt giao mới nào được tạo.')
+        toast.info(`Không có lượt giao mới nào được tạo.${skipNote}`)
       }
 
       // Ở lại trang và đọc lại dữ liệu: bảng kết quả bên dưới là thứ duy nhất nói được em nào bị bỏ
@@ -582,6 +582,10 @@ export default function ExamAssignPage() {
       setSelectedStudentIds([])
       reload()
     } catch (caught) {
+      // Đóng hộp xác nhận thay vì để nó treo: lỗi giao bài (ví dụ đề còn là bản nháp) không sửa được
+      // gì bên trong hộp, nên giữ hộp mở chỉ khiến giáo viên tưởng bấm lại là thử lại được. Toast báo
+      // đúng lý do server từ chối, giáo viên quay lại sửa rồi giao lại từ đầu.
+      setConfirmOpen(false)
       toast.error(toErrorMessage(caught, 'Không giao được bài kiểm tra. Vui lòng thử lại.'))
     } finally {
       setSubmitting(false)
