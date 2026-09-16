@@ -7,13 +7,37 @@
  * tham số vai trò nữa.
  */
 import { apiClient } from '../lib/apiClient'
-import type { AppNotification } from '../types'
+import type { AppNotification, NotificationType } from '../types'
 
 interface PagedResponse<T> {
   items: T[]
   total: number
   page: number
   pageSize: number
+}
+
+/**
+ * Server gọi tên loại thông báo theo kiểu camelCase, trùng tên sự kiện SignalR; các type ở đây có từ
+ * bản giả lập nên viết kiểu snake_case.
+ *
+ * Quy đổi ở đúng cửa vào này thay vì đổi tên khắp giao diện: mọi màn hình đã tra bảng nhãn và bảng
+ * biểu tượng theo tên cũ, và một tên lạ lọt qua là cả trang thông báo trắng trơn.
+ */
+const notificationTypeByServerName: Record<string, NotificationType> = {
+  examAssigned: 'exam_assigned',
+  examSubmitted: 'exam_submitted',
+  examUpdated: 'exam_updated',
+  deadlineSoon: 'deadline_soon',
+  autoSubmitted: 'auto_submitted',
+}
+
+/** Thông báo như server gửi: `type` là chuỗi tự do cho tới khi được quy đổi. */
+type NotificationResponse = Omit<AppNotification, 'type'> & { type: string }
+
+function toNotification(row: NotificationResponse): AppNotification {
+  // Loại lạ — server mới thêm một loại mà giao diện chưa biết — vẫn phải hiện được nội dung, nên nó
+  // mượn hình thức của thông báo về bài kiểm tra thay vì làm hỏng cả danh sách.
+  return { ...row, type: notificationTypeByServerName[row.type] ?? 'exam_updated' }
 }
 
 export interface ListNotificationsParams {
@@ -32,13 +56,13 @@ export interface ListNotificationsParams {
 export async function listNotifications(
   params: ListNotificationsParams = {},
 ): Promise<AppNotification[]> {
-  const response = await apiClient.get<PagedResponse<AppNotification>>('/api/notifications', {
+  const response = await apiClient.get<PagedResponse<NotificationResponse>>('/api/notifications', {
     unreadOnly: params.unreadOnly ? 'true' : undefined,
     page: params.page,
     pageSize: params.pageSize ?? 50,
   })
 
-  return response.items
+  return response.items.map(toNotification)
 }
 
 export function getUnreadCount(): Promise<number> {
