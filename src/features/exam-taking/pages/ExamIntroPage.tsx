@@ -13,7 +13,6 @@ import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { StatusBadge, TopicBadge } from '../../../components/common/Badge'
 import { useAsync } from '../../../hooks/useAsync'
 import { getAssignment, listMyExams } from '../../../services/attemptService'
-import { getExam } from '../../../services/examService'
 import { formatDateTime, formatDuration, formatScore, parseDateTime, roundToOneDecimal } from '../../../lib/format'
 import { useCountdown } from '../hooks/useCountdown'
 
@@ -94,22 +93,20 @@ export default function ExamIntroPage() {
     if (!myExams.some(item => item.assignmentId === assignment.assignmentId)) {
       throw new Error('Bài kiểm tra này không được giao cho bạn nên bạn không thể xem hoặc làm bài.')
     }
-    const exam = await getExam(assignment.examId)
-    return { assignment, exam }
+    return assignment
   }, [numericAssignmentId])
 
-  const assignment = data?.assignment
-  const exam = data?.exam
+  const assignment = data
   const openDate = assignment ? parseDateTime(assignment.openAt) : null
   const closeDate = assignment ? (parseDateTime(assignment.closeAt) ?? assignment.deadline) : null
   const closeCountdown = useCountdown(closeDate, 'Đã hết hạn')
   const openCountdown = useCountdown(openDate, 'Đã mở')
 
   const requestStart = async () => {
-    if (!exam) return
+    if (!assignment) return
     const ready = await confirm({
       title: 'Bắt đầu làm bài ngay?',
-      message: `Đồng hồ sẽ chạy ngay khi bạn xác nhận và không thể tạm dừng, kể cả khi bạn đóng trang. Bạn có ${formatDuration(exam.durationMinutes)} để hoàn thành ${exam.totalQuestions} câu hỏi; hết giờ hệ thống tự động nộp phần bài bạn đã làm.`,
+      message: `Đồng hồ sẽ chạy ngay khi bạn xác nhận và không thể tạm dừng, kể cả khi bạn đóng trang. Bạn có ${formatDuration(assignment.durationMinutes)} để hoàn thành ${assignment.totalQuestions} câu hỏi; hết giờ hệ thống tự động nộp phần bài bạn đã làm.`,
       confirmLabel: 'Bắt đầu ngay',
       cancelLabel: 'Để sau',
     })
@@ -130,7 +127,7 @@ export default function ExamIntroPage() {
     if (error) {
       return <ErrorState message={error} onRetry={reload} />
     }
-    if (loading || !assignment || !exam) {
+    if (loading || !assignment) {
       return <IntroSkeleton />
     }
 
@@ -147,7 +144,7 @@ export default function ExamIntroPage() {
     const isExpired = assignment.status === 'expired' || justClosed
     const isUrgent = canStart && remainingMs < urgentThresholdMs
     const openTimeReached = openDate !== null && openDate.getTime() <= Date.now()
-    const maxScore = assignment.maxScore ?? roundToOneDecimal(exam.totalQuestions * exam.pointPerQuestion)
+    const maxScore = assignment.maxScore ?? roundToOneDecimal(assignment.totalQuestions * assignment.pointPerQuestion)
     // Bài đã chấm vẫn có thể bị giấu điểm, nên "đã chấm" chưa đủ để kết luận là có điểm để hiện.
     const hasVisibleScore = isGraded && assignment.score !== null
     const resultLink = assignment.attemptId ? `/hoc-sinh/ket-qua/${assignment.attemptId}` : '/hoc-sinh/ket-qua'
@@ -159,7 +156,7 @@ export default function ExamIntroPage() {
       },
       {
         icon: AlertTriangle,
-        text: `Hết ${formatDuration(exam.durationMinutes)} làm bài, hệ thống sẽ tự động nộp phần bài bạn đã làm.`,
+        text: `Hết ${formatDuration(assignment.durationMinutes)} làm bài, hệ thống sẽ tự động nộp phần bài bạn đã làm.`,
       },
       {
         icon: ListChecks,
@@ -170,7 +167,7 @@ export default function ExamIntroPage() {
         text: 'Đáp án được lưu tự động trong lúc làm, nếu lỡ tải lại trang thì bài làm vẫn còn nguyên.',
       },
     ]
-    if (exam.shuffleQuestions || exam.shuffleAnswers) {
+    if (assignment.shuffleQuestions || assignment.shuffleAnswers) {
       notes.push({
         icon: Shuffle,
         text: 'Thứ tự câu hỏi và đáp án được xáo trộn riêng cho từng học sinh, đề của bạn không giống bạn bên cạnh.',
@@ -178,7 +175,7 @@ export default function ExamIntroPage() {
     }
     notes.push({
       icon: Eye,
-      text: exam.showResultAfterSubmit
+      text: assignment.showResultAfterSubmit
         ? 'Điểm và đáp án đúng sẽ hiển thị ngay sau khi bạn nộp bài.'
         : 'Điểm sẽ hiển thị sau khi giáo viên chấm bài, không xem được đáp án ngay khi nộp.',
     })
@@ -218,14 +215,14 @@ export default function ExamIntroPage() {
                 <InfoTile
                   icon={FileText}
                   label="Số câu hỏi"
-                  value={`${exam.totalQuestions} câu`}
+                  value={`${assignment.totalQuestions} câu`}
                   iconBg="bg-indigo-50"
                   iconColor="text-indigo-600"
                 />
                 <InfoTile
                   icon={Clock}
                   label="Thời gian làm bài"
-                  value={formatDuration(exam.durationMinutes)}
+                  value={formatDuration(assignment.durationMinutes)}
                   iconBg="bg-violet-50"
                   iconColor="text-violet-600"
                 />
@@ -239,7 +236,7 @@ export default function ExamIntroPage() {
                 <InfoTile
                   icon={Award}
                   label="Điểm mỗi câu"
-                  value={`${formatScore(exam.pointPerQuestion)} điểm`}
+                  value={`${formatScore(assignment.pointPerQuestion)} điểm`}
                   iconBg="bg-emerald-50"
                   iconColor="text-emerald-600"
                 />
