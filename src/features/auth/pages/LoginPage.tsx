@@ -100,9 +100,13 @@ export default function LoginPage() {
   const location = useLocation()
 
   // RequireRole gửi kèm địa chỉ đang muốn vào; luồng 401 giữa phiên thì gửi cờ sessionExpired.
-  const routeState = location.state as { from?: string; sessionExpired?: boolean; reason?: string } | null
+  // ForceChangePasswordPage gửi cờ passwordChanged sau khi đổi mật khẩu bắt buộc thành công.
+  const routeState = location.state as
+    | { from?: string; sessionExpired?: boolean; reason?: string; passwordChanged?: boolean }
+    | null
   const returnTo = typeof routeState?.from === 'string' ? routeState.from : undefined
   const sessionExpired = routeState?.sessionExpired === true
+  const passwordChanged = routeState?.passwordChanged === true
   // Lý do server gửi kèm 401 ("tài khoản đã bị khoá, liên hệ quản trị viên"...). Có thì nói đúng lý
   // do: một em bị khoá mà chỉ đọc "hãy đăng nhập lại" sẽ đăng nhập lại và gặp thêm một lỗi khó hiểu.
   const sessionReason = typeof routeState?.reason === 'string' && routeState.reason ? routeState.reason : undefined
@@ -248,7 +252,19 @@ export default function LoginPage() {
             văng ra và tưởng hệ thống lỗi. Nhường chỗ cho serverError khi có lỗi đăng nhập mới,
             vì lúc đó thông điệp kia mới là thứ đang cần đọc.
           */}
-          {sessionExpired && !serverError && (
+          {passwordChanged && !serverError && (
+            <div
+              role="status"
+              className="mb-5 flex items-start gap-3 px-4 py-3 rounded-2xl bg-emerald-50 border border-emerald-200 animate-fade-in"
+            >
+              <AlertCircle size={17} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-emerald-700 leading-relaxed">
+                Đổi mật khẩu thành công. Hãy đăng nhập lại bằng mật khẩu mới.
+              </p>
+            </div>
+          )}
+
+          {sessionExpired && !serverError && !passwordChanged && (
             <div
               role="status"
               className="mb-5 flex items-start gap-3 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 animate-fade-in"
