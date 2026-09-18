@@ -129,6 +129,15 @@ function AssignmentRow({ assignment, onReschedule, onRevoke }: AssignmentRowProp
   // (status 'expired') vẫn dời được: đó chính là cách cứu một em đã lỡ khung giờ.
   const canReschedule = assignment.assignedViaGroupId === undefined && assignment.attemptId === undefined
 
+  // Cùng lý do và cùng câu chữ server dùng khi từ chối (409) — hiện nút ở dạng mờ kèm lý do thay vì ẩn
+  // hẳn, để giáo viên không phải tự đoán "ủa sao em này không dời được, có phải lỗi không?".
+  const rescheduleBlockedReason =
+    assignment.assignedViaGroupId !== undefined
+      ? `Em được giao bài qua lớp ${assignment.group}, nên làm bài theo khung giờ của cả lớp. Hãy đổi khung giờ của lớp ở trang giao bài.`
+      : assignment.attemptId !== undefined
+        ? 'Em đã bắt đầu làm bài nên hạn nộp đã chốt lúc vào thi, không dời giờ được nữa.'
+        : undefined
+
   // Thu hồi thì rộng hơn dời giờ một bước: server (RevokeAsync) chỉ chặn khi em đã có Attempt, không
   // quan tâm em được giao đích danh hay qua cả lớp — thu hồi một dòng trong bảng này không đụng tới
   // các bạn cùng lớp khác.
@@ -174,16 +183,19 @@ function AssignmentRow({ assignment, onReschedule, onRevoke }: AssignmentRowProp
         )}
       </td>
       <td className={`${cellClass} text-right whitespace-nowrap`}>
-        {canReschedule && (
-          <button
-            type="button"
-            onClick={() => onReschedule(assignment)}
-            title="Đặt khung giờ riêng cho em này"
-            className="inline-flex items-center gap-1.5 px-3 py-2 mr-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
-          >
-            <CalendarClock size={14} /> Dời giờ
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => canReschedule && onReschedule(assignment)}
+          disabled={!canReschedule}
+          title={canReschedule ? 'Đặt khung giờ riêng cho em này' : rescheduleBlockedReason}
+          className={`inline-flex items-center gap-1.5 px-3 py-2 mr-2 rounded-xl text-xs font-semibold transition-colors ${
+            canReschedule
+              ? 'text-slate-600 bg-slate-100 hover:bg-slate-200'
+              : 'text-slate-300 bg-slate-50 cursor-not-allowed'
+          }`}
+        >
+          <CalendarClock size={14} /> Dời giờ
+        </button>
         <button
           type="button"
           onClick={() => onRevoke(assignment)}

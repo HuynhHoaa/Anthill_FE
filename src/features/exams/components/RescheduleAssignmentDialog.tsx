@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, CalendarClock, Loader2 } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CalendarClock, Loader2 } from 'lucide-react'
 import Modal from '../../../components/common/Modal'
 import { formatDateTime } from '../../../lib/format'
 import type { Exam, ExamAssignment } from '../../../types'
@@ -72,6 +72,13 @@ export default function RescheduleAssignmentDialog({
   }
 
   const shownError = localError ?? error
+
+  // Gõ nhầm ngày (ví dụ ngày trong tháng) là cực dễ xảy ra với ô datetime-local, và hậu quả là khoá
+  // luôn học sinh khỏi bài thi ngay khi lưu — không ai biết cho tới khi có người hỏi. Không chặn hẳn
+  // vì giáo viên có thể cố ý tạo bài thi bù đã đóng để chấm điểm 0, nhưng phải nói trước khi bấm lưu.
+  const closeAtDate = !followExam ? new Date(closeAtLocal) : null
+  const isPastWindow =
+    closeAtDate !== null && !Number.isNaN(closeAtDate.getTime()) && closeAtDate.getTime() < Date.now()
 
   return (
     <Modal
@@ -168,6 +175,19 @@ export default function RescheduleAssignmentDialog({
               <CalendarClock size={13} className="flex-shrink-0 mt-0.5" />
               Khung giờ phải chứa trọn {exam.durationMinutes} phút làm bài, nếu không em sẽ bị cắt bài giữa chừng.
             </p>
+
+            {isPastWindow && (
+              <div
+                role="alert"
+                className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex items-start gap-2 text-sm text-amber-700"
+              >
+                <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+                <span className="leading-relaxed">
+                  Khung giờ này đã kết thúc, em sẽ không làm được bài nếu chưa bắt đầu. Vẫn lưu được nếu
+                  bạn cố ý tạo khung giờ đã đóng để chấm điểm 0 cho em.
+                </span>
+              </div>
+            )}
           </div>
         )}
 
