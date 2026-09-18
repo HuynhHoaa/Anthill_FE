@@ -17,27 +17,31 @@ interface PagedResponse<T> {
 }
 
 /**
- * Server gọi tên loại thông báo theo kiểu camelCase, trùng tên sự kiện SignalR; các type ở đây có từ
- * bản giả lập nên viết kiểu snake_case.
+ * `NotificationType` khớp nguyên văn chuỗi server gửi (cùng camelCase, xem chú thích ở khai báo type),
+ * nên đây chỉ còn là một phép kiểm tra tại cửa vào chứ không phải quy đổi tên nữa.
  *
- * Quy đổi ở đúng cửa vào này thay vì đổi tên khắp giao diện: mọi màn hình đã tra bảng nhãn và bảng
- * biểu tượng theo tên cũ, và một tên lạ lọt qua là cả trang thông báo trắng trơn.
+ * Vẫn giữ bước này thay vì ép kiểu thẳng `row.type as NotificationType`: server thêm một loại thông
+ * báo mới mà bản build hiện tại của giao diện chưa biết là chuyện hoàn toàn có thể xảy ra (hai phía
+ * triển khai độc lập), và một type lạ lọt thẳng vào state thì mọi bảng tra ở NotificationsPage vẫn có
+ * nguy cơ thiếu khoá. Chặn ở đây, kèm một loại chung chung để vẫn hiện được nội dung, là tuyến phòng
+ * thủ thứ nhất; error boundary quanh route /thong-bao là tuyến thứ hai cho bất cứ thứ gì lọt qua đây.
  */
-const notificationTypeByServerName: Record<string, NotificationType> = {
-  examAssigned: 'exam_assigned',
-  examSubmitted: 'exam_submitted',
-  examUpdated: 'exam_updated',
-  deadlineSoon: 'deadline_soon',
-  autoSubmitted: 'auto_submitted',
-}
+const knownNotificationTypes = new Set<NotificationType>([
+  'examAssigned',
+  'examSubmitted',
+  'examUpdated',
+  'deadlineSoon',
+  'autoSubmitted',
+])
 
-/** Thông báo như server gửi: `type` là chuỗi tự do cho tới khi được quy đổi. */
+/** Thông báo như server gửi: `type` là chuỗi tự do cho tới khi được kiểm tra. */
 type NotificationResponse = Omit<AppNotification, 'type'> & { type: string }
 
 function toNotification(row: NotificationResponse): AppNotification {
-  // Loại lạ — server mới thêm một loại mà giao diện chưa biết — vẫn phải hiện được nội dung, nên nó
-  // mượn hình thức của thông báo về bài kiểm tra thay vì làm hỏng cả danh sách.
-  return { ...row, type: notificationTypeByServerName[row.type] ?? 'exam_updated' }
+  const type = knownNotificationTypes.has(row.type as NotificationType)
+    ? (row.type as NotificationType)
+    : 'examUpdated'
+  return { ...row, type }
 }
 
 export interface ListNotificationsParams {
