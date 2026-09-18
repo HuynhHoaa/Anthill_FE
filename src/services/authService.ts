@@ -25,7 +25,6 @@ const MUST_CHANGE_PASSWORD_STORAGE_KEY = 'anthill.mustChangePassword'
 export interface LoginPayload {
   username: string
   password: string
-  role: UserRole
 }
 
 export interface ChangePasswordPayload {
@@ -145,7 +144,6 @@ export async function login(payload: LoginPayload): Promise<UserProfile> {
   const response = await apiClient.post<LoginResponse>('/api/auth/login', {
     username,
     password: payload.password,
-    role: payload.role,
   })
 
   // Lưu token TRƯỚC hồ sơ: apiClient đọc token cho mọi lời gọi sau, và một phiên có hồ sơ mà

@@ -14,35 +14,6 @@ const dashboardPath: Record<UserRole, string> = {
   admin: '/quan-tri',
 }
 
-const roleLabels: Record<UserRole, string> = {
-  teacher: 'Giáo viên',
-  student: 'Học sinh',
-  admin: 'Quản trị viên',
-}
-
-const roleTabLabels: Record<UserRole, string> = {
-  teacher: '👨‍🏫 Giáo viên',
-  student: '👨‍🎓 Học sinh',
-  admin: '🧑‍💼 Quản trị viên',
-}
-
-/** Ô nhập tên đăng nhập đổi theo vai trò: chỉ học sinh dùng username, còn lại dùng email. */
-const identityLabels: Record<UserRole, string> = {
-  teacher: 'Email',
-  student: 'Tên đăng nhập',
-  admin: 'Email',
-}
-
-const identityPlaceholders: Record<UserRole, string> = {
-  teacher: 'giaovien@truong.edu.vn',
-  student: 'Mã học sinh hoặc tên đăng nhập',
-  admin: 'quantri@truong.edu.vn',
-}
-
-// Dẫn xuất từ roleLabels để thêm một vai trò là tab và thẻ tài khoản demo tự có mặt.
-const roleOptions = Object.keys(roleLabels) as UserRole[]
-
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const minPasswordLength = 4
 
 interface LoginFieldErrors {
@@ -50,14 +21,17 @@ interface LoginFieldErrors {
   password?: string
 }
 
-function validateLoginForm(role: UserRole, username: string, password: string): LoginFieldErrors {
+/**
+ * Không phân biệt vai trò: server tự dò một chuỗi đăng nhập qua cả ba dạng định danh (email,
+ * username, mã học sinh — xem `LoginRequest.Role`, "chỉ để đối chiếu"), nên form không cần hỏi
+ * trước "bạn là ai" mới biết chấp nhận định dạng gì.
+ */
+function validateLoginForm(username: string, password: string): LoginFieldErrors {
   const errors: LoginFieldErrors = {}
   const trimmedUsername = username.trim()
 
   if (!trimmedUsername) {
-    errors.username = role === 'student' ? 'Vui lòng nhập tên đăng nhập.' : 'Vui lòng nhập email.'
-  } else if (role !== 'student' && !emailPattern.test(trimmedUsername)) {
-    errors.username = `Email chưa đúng định dạng, ví dụ: ${identityPlaceholders[role]}`
+    errors.username = 'Vui lòng nhập email hoặc tên đăng nhập.'
   }
 
   if (!password) {
@@ -110,7 +84,6 @@ export default function LoginPage() {
   // do: một em bị khoá mà chỉ đọc "hãy đăng nhập lại" sẽ đăng nhập lại và gặp thêm một lỗi khó hiểu.
   const sessionReason = typeof routeState?.reason === 'string' && routeState.reason ? routeState.reason : undefined
   const [showPassword, setShowPassword] = useState(false)
-  const [role, setRole] = useState<UserRole>('teacher')
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({ username: '', password: '' })
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({})
@@ -125,22 +98,16 @@ export default function LoginPage() {
     }
   }, [navigate])
 
-  const changeRole = (nextRole: UserRole) => {
-    setRole(nextRole)
-    setFieldErrors({})
-    setServerError(undefined)
-  }
-
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault()
-    const nextErrors = validateLoginForm(role, form.username, form.password)
+    const nextErrors = validateLoginForm(form.username, form.password)
     setFieldErrors(nextErrors)
     setServerError(undefined)
     if (nextErrors.username || nextErrors.password) return
 
     setLoading(true)
     try {
-      const profile = await login({ username: form.username.trim(), password: form.password, role })
+      const profile = await login({ username: form.username.trim(), password: form.password })
 
       navigate(resolveReturnPath(returnTo, dashboardPath[profile.role]), { replace: true })
     } catch (caught) {
@@ -216,23 +183,6 @@ export default function LoginPage() {
             <p className="text-slate-500">Chào mừng bạn trở lại! 👋</p>
           </div>
 
-          {/* Role Selector */}
-          <div className="flex bg-slate-200 rounded-2xl p-1 mb-8">
-            {roleOptions.map(roleOption => (
-              <button
-                key={roleOption}
-                type="button"
-                aria-pressed={role === roleOption}
-                onClick={() => changeRole(roleOption)}
-                className={`flex-1 min-w-0 truncate px-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                  role === roleOption ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {roleTabLabels[roleOption]}
-              </button>
-            ))}
-          </div>
-
           {/*
             Phiên chết giữa chừng — tài khoản bị khoá, hoặc mật khẩu vừa được đổi ở nơi khác nên
             backend đã xoay SecurityStamp. Không nói gì thì người dùng chỉ thấy mình đột nhiên bị
@@ -278,15 +228,15 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-5" noValidate>
             <div>
               <label htmlFor="login-username" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                {identityLabels[role]}
+                Email hoặc tên đăng nhập
               </label>
               <input
                 id="login-username"
-                type={role === 'student' ? 'text' : 'email'}
+                type="text"
                 autoComplete="username"
                 aria-invalid={Boolean(fieldErrors.username)}
                 className={`${baseInputClass} ${fieldToneClass(Boolean(fieldErrors.username))}`}
-                placeholder={identityPlaceholders[role]}
+                placeholder="giaovien@truong.edu.vn hoặc mã học sinh"
                 value={form.username}
                 onChange={event => {
                   setForm({ ...form, username: event.target.value })
