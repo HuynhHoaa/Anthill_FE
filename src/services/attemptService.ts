@@ -179,17 +179,33 @@ export async function getAttemptTime(attemptId: number): Promise<{
 }
 
 /**
+ * Kết quả một lần lưu nháp.
+ *
+ * `applied: false` nghĩa là gói vừa gửi bị server bỏ qua vì `clientSeq` không lớn hơn số nó đã
+ * ghi — không phải lỗi, nhưng cũng không phải "đã lưu". Bên gọi phải tự chỉnh `clientSeq` về
+ * `lastAppliedSeq + 1` rồi gửi lại, thay vì coi HTTP 200 là bằng chứng dữ liệu đã nằm trong
+ * database (xem `TakeExamPage`).
+ */
+export interface SaveAnswersResult {
+  applied: boolean
+  lastAppliedSeq: number
+  savedCount: number
+}
+
+/**
  * Lưu nháp.
  *
  * `clientSeq` tăng dần do trang gọi truyền vào. Server chỉ ghi khi số này lớn hơn số nó đã nhận,
- * nên một gói tin đi vòng qua mạng chậm rồi về sau không thể ghi đè lựa chọn mới hơn.
+ * nên một gói tin đi vòng qua mạng chậm rồi về sau không thể ghi đè lựa chọn mới hơn — thay vào
+ * đó server trả `applied: false` cho gói đến muộn, và bên gọi phải tự đọc trường này để biết có
+ * thật sự ghi được hay không.
  */
 export async function saveAnswers(
   attemptId: number,
   answers: Record<number, number>,
   clientSeq: number,
-): Promise<void> {
-  await apiClient.put(`/api/exam-attempts/${attemptId}/answers`, {
+): Promise<SaveAnswersResult> {
+  return apiClient.put<SaveAnswersResult>(`/api/exam-attempts/${attemptId}/answers`, {
     clientSeq,
     answers: Object.entries(answers).map(([questionId, answerId]) => ({
       questionId: Number(questionId),

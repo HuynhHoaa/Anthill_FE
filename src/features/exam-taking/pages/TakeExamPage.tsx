@@ -395,13 +395,27 @@ export default function TakeExamPage() {
     let cancelled = false
     setSaveState('saving')
 
-    const timer = window.setTimeout(() => {
-      // Bài đã nộp thì phiên làm bài không còn, gọi lưu nháp chỉ sinh ra lỗi giả trên giao diện.
-      if (hasSubmittedRef.current) return
-      clientSeqRef.current += 1
-      saveAnswers(session.attemptId, answers, clientSeqRef.current)
-        .then(() => {
+    const attemptId = session.attemptId
+
+    // Gửi một lượt lưu và đọc `applied` trong response thay vì tin vào HTTP 200: server trả 200
+    // ngay cả khi bỏ qua gói vì `clientSeq` đã lệch (ví dụ cùng lượt làm bài đang mở ở tab khác).
+    // Gặp `applied: false` thì chỉnh lại clientSeqRef theo đúng số server đang giữ và gửi lại
+    // ngay — không để giao diện hiện "đã lưu" cho một gói thật ra chưa hề được ghi. Giới hạn số
+    // lần thử lại để một cuộc đua dai dẳng giữa hai tab không biến thành vòng lặp vô tận.
+    const send = (retriesLeft: number): void => {
+      const seq = clientSeqRef.current
+      saveAnswers(attemptId, answers, seq)
+        .then(response => {
           if (cancelled) return
+          if (!response.applied) {
+            if (retriesLeft <= 0) {
+              setSaveState('error')
+              return
+            }
+            clientSeqRef.current = response.lastAppliedSeq + 1
+            send(retriesLeft - 1)
+            return
+          }
           setSaveState('saved')
           setLastSavedLabel(formatTimeOfDay(new Date()))
           setSaveErrorReason(null)
@@ -415,6 +429,13 @@ export default function TakeExamPage() {
           const expiresAt = expiresAtRef.current
           setSaveErrorReason(expiresAt !== null && Date.now() >= expiresAt ? 'expired' : 'network')
         })
+    }
+
+    const timer = window.setTimeout(() => {
+      // Bài đã nộp thì phiên làm bài không còn, gọi lưu nháp chỉ sinh ra lỗi giả trên giao diện.
+      if (hasSubmittedRef.current) return
+      clientSeqRef.current += 1
+      send(3)
     }, AUTO_SAVE_DELAY_MS)
 
     return () => {
