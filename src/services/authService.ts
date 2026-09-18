@@ -15,6 +15,12 @@ import { apiClient, clearStoredToken, setStoredToken } from '../lib/apiClient'
 import type { UserProfile, UserRole } from '../types'
 
 const SESSION_STORAGE_KEY = 'anthill.session'
+/**
+ * Cờ "phải đổi mật khẩu" của phiên hiện tại — cùng chỗ lưu với `anthill.session`, theo đúng cách
+ * phiên đang được giữ (§5). Tách khoá riêng thay vì nhét vào `UserProfile` vì backend cũng để nó
+ * là một trường ngang hàng `user` trong `LoginResponse`, không phải một cột của hồ sơ.
+ */
+const MUST_CHANGE_PASSWORD_STORAGE_KEY = 'anthill.mustChangePassword'
 
 export interface LoginPayload {
   username: string
@@ -127,6 +133,23 @@ export function getCurrentUser(): UserProfile | null {
 }
 
 /**
+ * Tài khoản đang phải đổi mật khẩu trước khi làm bất cứ việc gì khác (§5) — mật khẩu do quản trị
+ * viên cấp lúc tạo tài khoản hoặc cấp lại. Hàm đồng bộ cùng lý do với `getCurrentUser`: route guard
+ * cần biết ngay khi render, không đợi một lượt gọi API.
+ *
+ * Đọc hỏng hay thiếu thì coi là `false` chứ không chặn nhầm: nguồn sự thật thật sự nằm ở server —
+ * `MustChangePasswordMiddleware` vẫn chặn mọi endpoint nghiệp vụ nếu cờ database còn bật, dù màn
+ * hình này có lỡ không hiện ra. Guard ở đây chỉ là trải nghiệm, không phải hàng rào an toàn duy nhất.
+ */
+export function getMustChangePassword(): boolean {
+  return readStorage(MUST_CHANGE_PASSWORD_STORAGE_KEY) === '1'
+}
+
+function saveMustChangePassword(value: boolean): void {
+  writeStorage(MUST_CHANGE_PASSWORD_STORAGE_KEY, value ? '1' : '0')
+}
+
+/**
  * Xoá phiên khỏi máy.
  *
  * Cố ý **không** gọi `POST /api/auth/logout`: token JWT không thu hồi được ở phía server, endpoint
@@ -135,6 +158,7 @@ export function getCurrentUser(): UserProfile | null {
  */
 export function logout(): void {
   removeStorage(SESSION_STORAGE_KEY)
+  removeStorage(MUST_CHANGE_PASSWORD_STORAGE_KEY)
   clearStoredToken()
 }
 
@@ -167,6 +191,9 @@ export async function login(payload: LoginPayload): Promise<UserProfile> {
   // không có token sẽ trông như đã đăng nhập trong khi mọi thao tác đều nhận 401.
   setStoredToken(response.accessToken)
   saveSession(response.user)
+  // Ghi đúng giá trị server trả — kể cả `false`: một phiên đăng nhập lại sau khi đã đổi mật khẩu
+  // phải xoá cờ cũ, không được để sót giá trị `true` của lần đăng nhập trước.
+  saveMustChangePassword(response.mustChangePassword)
 
   return response.user
 }
@@ -206,6 +233,12 @@ export async function updateProfile(payload: Partial<UserProfile>): Promise<User
  * để mật khẩu bị lộ không còn dùng được ở nơi khác. Vì vậy hàm này xoá phiên: mọi lời gọi tiếp theo
  * đều sẽ nhận 401, và đưa người dùng về trang đăng nhập ngay còn tử tế hơn để họ bấm vào một giao
  * diện đã chết.
+ *
+ * Cùng lúc đó server cũng tắt `MustChangePassword` (đúng chỗ đổi mật khẩu thành công — không có
+ * nhánh nào trả 200 mà cờ đó còn bật). `logout()` xoá luôn bản sao cờ này ở máy thay vì tự đặt nó
+ * thành `false`: không có gì để "lạc quan hoá" — token cũ đã chết nên không gọi lại `/auth/me` để
+ * đọc giá trị mới được nữa, và giá trị đúng chỉ có sau khi đăng nhập lại bằng mật khẩu mới, lúc đó
+ * `login()` ghi lại từ chính response của server.
  */
 export async function changePassword(payload: ChangePasswordPayload): Promise<void> {
   await apiClient.post('/api/auth/change-password', {
