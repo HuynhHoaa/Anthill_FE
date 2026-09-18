@@ -9,6 +9,7 @@ import StudentLayout from '../../../components/layout/StudentLayout'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import { StatusBadge, TopicBadge } from '../../../components/common/Badge'
+import Modal from '../../../components/common/Modal'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { getCurrentUser } from '../../../services/authService'
@@ -66,6 +67,10 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
   const { attemptId } = useParams()
   const attemptIdNumber = Number(attemptId)
   const [questionFilter, setQuestionFilter] = useState<QuestionFilter>('all')
+  // Lightbox đơn giản dùng chung cho ảnh câu hỏi và ảnh đáp án: bấm vào ảnh mở cỡ lớn, có nút đóng —
+  // cùng cơ chế và cùng component Modal như trang làm bài, không viết lại từ đầu.
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null)
+  const openLightbox = (url: string, alt: string) => setLightboxImage({ url, alt })
 
   const { data: detail, loading, error, reload } = useAsync<AttemptDetail>(
     () =>
@@ -276,6 +281,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
           <div className="space-y-4">
             {visibleQuestions.map(({ question, number }) => {
               const isBlank = question.selectedAnswerId === null
+              const questionImageUrl = resolveMediaUrl(question.imageUrl)
 
               return (
                 <div
@@ -314,18 +320,30 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                     </span>
                   </div>
 
-                  {question.imageUrl && (
-                    <img
-                      src={resolveMediaUrl(question.imageUrl)}
-                      alt={`Hình minh họa câu ${number}`}
-                      className="mb-3 rounded-xl border border-slate-100 max-h-56 object-contain"
-                    />
+                  {questionImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => openLightbox(questionImageUrl, `Hình minh hoạ câu ${number}`)}
+                      aria-label={`Xem hình minh hoạ câu ${number} cỡ lớn`}
+                      className="mb-3 block rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-indigo-100"
+                    >
+                      <img
+                        src={questionImageUrl}
+                        alt={`Hình minh họa câu ${number}`}
+                        className="rounded-xl border border-slate-100 max-h-56 object-contain cursor-zoom-in hover:opacity-90 transition-opacity"
+                      />
+                    </button>
                   )}
 
                   <div className="space-y-2">
                     {question.answers.map((answer, answerIndex) => {
                       const isCorrectAnswer = answer.id === question.correctAnswerId
                       const isSelected = answer.id === question.selectedAnswerId
+                      const answerImageUrl = resolveMediaUrl(answer.imageUrl)
+                      const answerLetter = String.fromCharCode(65 + answerIndex)
+                      const answerImageAlt = answer.content
+                        ? `Hình minh họa đáp án: ${answer.content}`
+                        : `Hình minh hoạ đáp án ${answerLetter}`
 
                       return (
                         <div
@@ -355,16 +373,19 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                               )}
                             </span>
                           </div>
-                          {answer.imageUrl && (
-                            <img
-                              src={resolveMediaUrl(answer.imageUrl)}
-                              alt={
-                                answer.content
-                                  ? `Hình minh họa đáp án: ${answer.content}`
-                                  : `Hình minh hoạ đáp án ${String.fromCharCode(65 + answerIndex)}`
-                              }
-                              className="mt-2 rounded-lg border border-white/60 max-h-28 object-contain"
-                            />
+                          {answerImageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => openLightbox(answerImageUrl, answerImageAlt)}
+                              aria-label={`Xem hình minh hoạ đáp án ${answerLetter} cỡ lớn`}
+                              className="mt-2 block rounded-lg outline-none focus-visible:ring-4 focus-visible:ring-indigo-100"
+                            >
+                              <img
+                                src={answerImageUrl}
+                                alt={answerImageAlt}
+                                className="rounded-lg border border-white/60 max-h-28 object-contain cursor-zoom-in hover:opacity-90 transition-opacity"
+                              />
+                            </button>
                           )}
                         </div>
                       )
@@ -573,6 +594,17 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
           )}
         </aside>
       </div>
+
+      <Modal
+        open={lightboxImage !== null}
+        title={lightboxImage?.alt ?? 'Hình minh hoạ'}
+        onClose={() => setLightboxImage(null)}
+        size="lg"
+      >
+        {lightboxImage && (
+          <img src={lightboxImage.url} alt={lightboxImage.alt} className="w-full h-auto rounded-xl" />
+        )}
+      </Modal>
     </DetailShell>
   )
 }

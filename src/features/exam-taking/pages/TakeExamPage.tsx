@@ -11,6 +11,7 @@ import {
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
+import Modal from '../../../components/common/Modal'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
@@ -33,7 +34,16 @@ const AUTO_SUBMIT_RETRY_MS = 5000
 const WARNING_SECONDS = 5 * 60
 const CRITICAL_SECONDS = 60
 
+/**
+ * Lỗi lưu nháp đứng yên bao lâu thì đổi từ dòng chữ nhỏ sang một dải cảnh báo hẳn hoi.
+ *
+ * Đủ ngắn để không bỏ sót một sự cố kéo dài trong lúc học sinh cắm cúi đọc câu hỏi, đủ dài để
+ * không doạ học sinh vì một lượt lưu chập chờn tự phục hồi ngay sau đó.
+ */
+const DRAFT_SAVE_ERROR_BANNER_DELAY_MS = 20_000
+
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+type SaveErrorReason = 'network' | 'expired'
 type QuestionMarkState = 'current' | 'flagged' | 'answered' | 'pending'
 
 function formatTimeOfDay(value: Date): string {
@@ -205,6 +215,11 @@ export default function TakeExamPage() {
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null)
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [lastSavedLabel, setLastSavedLabel] = useState('')
+  /** Lý do lưu nháp thất bại, khi tự suy ra được rẻ — dùng để đổi câu chữ, không bắt buộc phải có. */
+  const [saveErrorReason, setSaveErrorReason] = useState<SaveErrorReason | null>(null)
+  /** Lỗi lưu nháp đã đứng yên đủ lâu để đáng lên một dải cảnh báo, không chỉ dòng chữ nhỏ. */
+  const [saveErrorPersistent, setSaveErrorPersistent] = useState(false)
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null)
   const [navigatorOpen, setNavigatorOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [autoSubmitting, setAutoSubmitting] = useState(false)
@@ -263,6 +278,8 @@ export default function TakeExamPage() {
     setRemainingSeconds(session.remainingSeconds)
     setSaveState('idle')
     setLastSavedLabel('')
+    setSaveErrorReason(null)
+    setLightboxImage(null)
   }, [session])
 
   const finishAttempt = useCallback(
@@ -387,10 +404,16 @@ export default function TakeExamPage() {
           if (cancelled) return
           setSaveState('saved')
           setLastSavedLabel(formatTimeOfDay(new Date()))
+          setSaveErrorReason(null)
         })
         .catch(() => {
           if (cancelled) return
           setSaveState('error')
+          // Không có mã lỗi riêng cho "hết hạn" từ service lưu nháp, nhưng mốc hết giờ phía client
+          // (đã trừ lệch đồng hồ máy/server) là dữ liệu rẻ có sẵn: đủ hết giờ rồi thì gần như chắc
+          // chắn lỗi này là do bài đã đóng, không phải một trục trặc mạng thoáng qua.
+          const expiresAt = expiresAtRef.current
+          setSaveErrorReason(expiresAt !== null && Date.now() >= expiresAt ? 'expired' : 'network')
         })
     }, AUTO_SAVE_DELAY_MS)
 
@@ -399,6 +422,17 @@ export default function TakeExamPage() {
       window.clearTimeout(timer)
     }
   }, [session, answers])
+
+  // Lỗi lưu nháp chỉ đổi từ dòng chữ nhỏ sang dải cảnh báo sau khi đứng yên đủ lâu — một lượt lưu
+  // hỏng rồi tự phục hồi ngay ở lần đổi đáp án kế tiếp không đáng để làm phiền bằng một banner.
+  useEffect(() => {
+    if (saveState !== 'error') {
+      setSaveErrorPersistent(false)
+      return
+    }
+    const timer = window.setTimeout(() => setSaveErrorPersistent(true), DRAFT_SAVE_ERROR_BANNER_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [saveState])
 
   // Cảnh báo khi học sinh tải lại hoặc đóng tab giữa chừng.
   useEffect(() => {
@@ -417,6 +451,8 @@ export default function TakeExamPage() {
     answersDirtyRef.current = true
     setAnswers(current => ({ ...current, [questionId]: answerId }))
   }
+
+  const openLightbox = (url: string, alt: string) => setLightboxImage({ url, alt })
 
   const handleToggleFlag = (questionId: number) => {
     setFlaggedQuestionIds(current =>
@@ -510,6 +546,7 @@ export default function TakeExamPage() {
 
   const isCurrentFlagged = flaggedQuestionIds.includes(currentQuestion.id)
   const isLastQuestion = safeIndex === totalQuestions - 1
+  const questionImageUrl = resolveMediaUrl(currentQuestion.imageUrl)
   const clockToneClass = isCritical
     ? 'bg-red-50 text-red-600 border-red-200 animate-pulse'
     : isWarning
@@ -561,6 +598,32 @@ export default function TakeExamPage() {
         </div>
       )}
 
+      {/*
+        Dòng chữ nhỏ đổi màu trong thanh trạng thái dễ lọt qua mắt khi đang tập trung đọc câu hỏi.
+        Dải cảnh báo này chỉ nổi lên sau khi lỗi lưu nháp đứng yên đủ lâu (không phải ngay lập
+        tức), để một lượt lưu chập chờn rồi tự phục hồi không biến thành một cảnh báo giả.
+      */}
+      {saveState === 'error' && saveErrorPersistent && (
+        <div
+          role="alert"
+          className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3 animate-fade-in-up"
+        >
+          <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="font-semibold text-amber-700">
+              {saveErrorReason === 'expired'
+                ? 'Bài đã hết hạn, không lưu được bản nháp nữa'
+                : 'Chưa lưu được bản nháp trong ít lâu'}
+            </p>
+            <p className="text-sm text-amber-600 mt-0.5">
+              {saveErrorReason === 'expired'
+                ? 'Khung giờ làm bài đã kết thúc. Nếu bạn vẫn đang làm bài, hãy nộp ngay để không mất thêm bài làm.'
+                : 'Có thể do mất kết nối mạng. Hệ thống sẽ tự lưu lại khi bạn đổi đáp án tiếp theo và mạng ổn định trở lại.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Thanh điều khiển: đồng hồ, tiến độ, nộp bài */}
       <div className="mb-5 bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sticky top-16 z-20 animate-fade-in-up">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -593,7 +656,8 @@ export default function TakeExamPage() {
                 )}
                 {saveState === 'error' && (
                   <>
-                    <AlertTriangle size={13} /> Chưa lưu được bản nháp
+                    <AlertTriangle size={13} />
+                    {saveErrorReason === 'expired' ? 'Bài đã hết hạn, không lưu được' : 'Chưa lưu được bản nháp'}
                   </>
                 )}
               </span>
@@ -706,17 +770,26 @@ export default function TakeExamPage() {
             </button>
           </div>
 
-          {currentQuestion.imageUrl && (
-            <img
-              src={resolveMediaUrl(currentQuestion.imageUrl)}
-              alt="Hình minh hoạ câu hỏi"
-              className="mb-5 max-h-72 rounded-xl border border-slate-100"
-            />
+          {questionImageUrl && (
+            <button
+              type="button"
+              onClick={() => openLightbox(questionImageUrl, 'Hình minh hoạ câu hỏi')}
+              aria-label="Xem hình minh hoạ câu hỏi cỡ lớn"
+              className="mb-5 block rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-indigo-100"
+            >
+              <img
+                src={questionImageUrl}
+                alt="Hình minh hoạ câu hỏi"
+                className="max-h-72 rounded-xl border border-slate-100 cursor-zoom-in hover:opacity-90 transition-opacity"
+              />
+            </button>
           )}
 
           <div className="space-y-3">
             {currentQuestion.answers.map((answer, index) => {
               const isSelected = answers[currentQuestion.id] === answer.id
+              const answerImageUrl = resolveMediaUrl(answer.imageUrl)
+              const answerLetter = String.fromCharCode(65 + index)
               return (
                 <button
                   key={answer.id}
@@ -742,12 +815,32 @@ export default function TakeExamPage() {
                       <span className="block font-medium text-slate-700 leading-relaxed">
                         {answer.content}
                       </span>
-                      {answer.imageUrl && (
-                        <img
-                          src={resolveMediaUrl(answer.imageUrl)}
-                          alt={answer.content ? '' : `Hình minh hoạ đáp án ${String.fromCharCode(65 + index)}`}
-                          className="mt-2.5 max-h-40 rounded-lg border border-slate-100"
-                        />
+                      {answerImageUrl && (
+                        // Đáp án bên ngoài đã là một <button> chọn đáp án; HTML không cho phép lồng
+                        // <button> trong <button>, nên ảnh tự đóng vai trò phần tử bấm được qua
+                        // role="button" thay vì bọc thêm một <button> thật.
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Xem hình minh hoạ đáp án ${answerLetter} cỡ lớn`}
+                          onClick={event => {
+                            event.stopPropagation()
+                            openLightbox(answerImageUrl, `Hình minh hoạ đáp án ${answerLetter}`)
+                          }}
+                          onKeyDown={event => {
+                            if (event.key !== 'Enter' && event.key !== ' ') return
+                            event.preventDefault()
+                            event.stopPropagation()
+                            openLightbox(answerImageUrl, `Hình minh hoạ đáp án ${answerLetter}`)
+                          }}
+                          className="mt-2.5 inline-block rounded-lg outline-none focus-visible:ring-4 focus-visible:ring-indigo-100"
+                        >
+                          <img
+                            src={answerImageUrl}
+                            alt={answer.content ? '' : `Hình minh hoạ đáp án ${answerLetter}`}
+                            className="max-h-40 rounded-lg border border-slate-100 cursor-zoom-in"
+                          />
+                        </span>
                       )}
                     </span>
                     {isSelected && <CheckCircle2 size={18} className="text-indigo-600 flex-shrink-0 mt-1" />}
@@ -820,6 +913,21 @@ export default function TakeExamPage() {
           </div>
         </div>
       )}
+
+      {/*
+        Lightbox đơn giản cho ảnh câu hỏi/đáp án: chụm ngón tay phóng to cả trang kéo theo cả thanh
+        tiêu đề, đồng hồ đếm giờ và danh sách đáp án — bấm vào ảnh mở riêng nó, cỡ lớn, có nút đóng.
+      */}
+      <Modal
+        open={lightboxImage !== null}
+        title={lightboxImage?.alt ?? 'Hình minh hoạ'}
+        onClose={() => setLightboxImage(null)}
+        size="lg"
+      >
+        {lightboxImage && (
+          <img src={lightboxImage.url} alt={lightboxImage.alt} className="w-full h-auto rounded-xl" />
+        )}
+      </Modal>
     </StudentLayout>
   )
 }
