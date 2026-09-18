@@ -33,45 +33,6 @@ export interface ChangePasswordPayload {
   newPassword: string
 }
 
-/** Mật khẩu dùng chung cho ba tài khoản demo được in sẵn trên trang đăng nhập. */
-export const DEMO_PASSWORD = 'anthill123'
-
-export interface DemoAccount {
-  role: UserRole
-  /** Chuỗi cần gõ vào ô đăng nhập: chỉ học sinh dùng tên đăng nhập, hai vai trò còn lại dùng email. */
-  username: string
-  password: string
-  fullName: string
-}
-
-/**
- * Ba tài khoản demo, khớp với `DbSeeder` của backend.
- *
- * Viết cứng ở đây thay vì đọc từ dữ liệu giả lập như trước: sau khi nối API thật, dữ liệu giả lập
- * không còn là nguồn sự thật nào cả, và một trang đăng nhập in ra tài khoản không đăng nhập được
- * là thứ tệ nhất người xem thử có thể gặp. Đổi bên `DbSeeder` thì phải đổi cả ở đây.
- */
-export const demoAccounts: Record<UserRole, DemoAccount> = {
-  teacher: {
-    role: 'teacher',
-    username: 'an.nv@anthill.edu.vn',
-    password: DEMO_PASSWORD,
-    fullName: 'Nguyễn Văn An',
-  },
-  student: {
-    role: 'student',
-    username: 'lan.tt',
-    password: DEMO_PASSWORD,
-    fullName: 'Trần Thị Lan',
-  },
-  admin: {
-    role: 'admin',
-    username: 'huy.pq@anthill.edu.vn',
-    password: DEMO_PASSWORD,
-    fullName: 'Phạm Quốc Huy',
-  },
-}
-
 const roles: Record<UserRole, true> = { teacher: true, student: true, admin: true }
 
 interface LoginResponse {

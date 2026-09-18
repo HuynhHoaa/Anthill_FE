@@ -2,11 +2,10 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   GraduationCap, Eye, EyeOff, BookOpen, Users, Award,
-  AlertCircle, Sparkles,
+  AlertCircle,
 } from 'lucide-react'
 import Modal from '../../../components/common/Modal'
-import { useToast } from '../../../components/common/Toast'
-import { DEMO_PASSWORD, demoAccounts, getCurrentUser, login } from '../../../services/authService'
+import { getCurrentUser, login } from '../../../services/authService'
 import type { UserRole } from '../../../types'
 
 const dashboardPath: Record<UserRole, string> = {
@@ -110,7 +109,6 @@ export default function LoginPage() {
   // Lý do server gửi kèm 401 ("tài khoản đã bị khoá, liên hệ quản trị viên"...). Có thì nói đúng lý
   // do: một em bị khoá mà chỉ đọc "hãy đăng nhập lại" sẽ đăng nhập lại và gặp thêm một lỗi khó hiểu.
   const sessionReason = typeof routeState?.reason === 'string' && routeState.reason ? routeState.reason : undefined
-  const toast = useToast()
   const [showPassword, setShowPassword] = useState(false)
   const [role, setRole] = useState<UserRole>('teacher')
   const [loading, setLoading] = useState(false)
@@ -131,17 +129,6 @@ export default function LoginPage() {
     setRole(nextRole)
     setFieldErrors({})
     setServerError(undefined)
-  }
-
-  // Điền sẵn tài khoản mẫu và chuyển luôn sang tab vai trò tương ứng
-  const applyDemoAccount = (demoRole: UserRole) => {
-    const account = demoAccounts[demoRole]
-    setRole(demoRole)
-    setForm({ username: account.username, password: account.password })
-    setFieldErrors({})
-    setServerError(undefined)
-    setForgotOpen(false)
-    toast.info(`Đã điền tài khoản ${roleLabels[demoRole].toLowerCase()} mẫu. Bấm “Đăng nhập” để vào.`)
   }
 
   const handleLogin = async (event: FormEvent) => {
@@ -366,46 +353,6 @@ export default function LoginPage() {
               ) : 'Đăng nhập'}
             </button>
           </form>
-
-          {/* Tài khoản demo — in thẳng thông tin đăng nhập kèm nút điền sẵn */}
-          <div className="mt-6 p-4 rounded-2xl bg-indigo-50 border border-indigo-100">
-            <p className="text-xs font-semibold text-indigo-700 mb-1 flex items-center gap-1.5">
-              <Sparkles size={13} />
-              Tài khoản demo
-            </p>
-            <p className="text-xs text-indigo-600 leading-relaxed">
-              Bấm “Điền sẵn” để tự điền tài khoản và chuyển đúng tab vai trò. Cả ba tài khoản dùng chung
-              mật khẩu <strong className="font-semibold">{DEMO_PASSWORD}</strong>.
-            </p>
-
-            <ul className="mt-3 space-y-2">
-              {roleOptions.map(demoRole => {
-                const account = demoAccounts[demoRole]
-                return (
-                  <li
-                    key={demoRole}
-                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-white border border-indigo-100"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-700">
-                        {roleTabLabels[demoRole]} · {account.fullName}
-                      </p>
-                      <p className="text-xs text-slate-500 font-mono break-all mt-0.5">
-                        {account.username} / {account.password}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => applyDemoAccount(demoRole)}
-                      className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition-colors flex-shrink-0"
-                    >
-                      Điền sẵn
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
         </div>
       </div>
 
@@ -416,34 +363,19 @@ export default function LoginPage() {
         onClose={() => setForgotOpen(false)}
         size="sm"
         footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setForgotOpen(false)}
-              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
-            >
-              Đóng
-            </button>
-            <button
-              type="button"
-              onClick={() => applyDemoAccount(role)}
-              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-              style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
-            >
-              Điền tài khoản {roleLabels[role].toLowerCase()} mẫu
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => setForgotOpen(false)}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+          >
+            Đóng
+          </button>
         }
       >
         <div className="space-y-3 text-sm text-slate-600 leading-relaxed">
           <p>
             Ở bản hiện tại, mật khẩu do quản trị viên cấp phát. Nếu bạn quên mật khẩu, hãy liên hệ
             quản trị viên hệ thống để được cấp lại.
-          </p>
-          <p>
-            Đang xem bản demo? Ba tài khoản mẫu dùng chung mật khẩu{' '}
-            <strong className="font-mono text-slate-700">{DEMO_PASSWORD}</strong>. Bấm nút bên dưới để
-            điền sẵn và đăng nhập ngay.
           </p>
           <p className="text-slate-500">
             Sau khi đăng nhập, bạn có thể tự đổi mật khẩu trong mục{' '}
