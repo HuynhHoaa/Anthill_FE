@@ -368,7 +368,7 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
             <button
               type="button"
               disabled
-              title="Cần lưu bài kiểm tra trước khi giao"
+              title="Cần xuất bản đề trước khi giao"
               className={`${rowActionClass} text-slate-300 bg-slate-50 cursor-not-allowed`}
             >
               Giao bài

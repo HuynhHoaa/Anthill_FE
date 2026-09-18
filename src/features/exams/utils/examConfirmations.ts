@@ -141,3 +141,22 @@ export function examDuplicateConfirmCopy(
     tone: 'primary' as const,
   }
 }
+
+/**
+ * Thu hồi một lượt giao bài của đúng một học sinh.
+ *
+ * Chỉ bật được khi em chưa bắt đầu làm — nút gọi hàm này đã bị ẩn/khoá trước đó cho em đã có lượt
+ * làm bài, nhưng vẫn hỏi lại ở đây vì thu hồi không quay lại được: giao lại là một lượt giao mới,
+ * không phải khôi phục lượt cũ.
+ */
+export function examRevokeAssignmentConfirmCopy(
+  assignment: { studentName: string },
+  examTitle: string,
+) {
+  return {
+    title: 'Thu hồi bài đã giao',
+    message: `Gỡ bài kiểm tra "${examTitle}" khỏi danh sách bài của ${assignment.studentName}. Em sẽ không còn thấy bài này nữa, và muốn giao lại thì phải giao như một lượt mới.`,
+    confirmLabel: 'Thu hồi',
+    tone: 'danger' as const,
+  }
+}

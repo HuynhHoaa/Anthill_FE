@@ -196,7 +196,7 @@ export default function ImageUploader({
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           onClick={() => inputRef.current?.click()}
-          className={`w-full rounded-2xl border-2 border-dashed cursor-pointer transition-colors flex flex-col items-center justify-center text-center outline-none focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-50 ${
+          className={`group w-full rounded-2xl border-2 border-dashed cursor-pointer transition-colors flex flex-col items-center justify-center text-center outline-none focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-50 ${
             compact ? 'px-3 py-3 gap-1' : 'px-4 py-8 gap-2'
           } ${isDragging ? 'border-indigo-400 bg-indigo-50/60' : 'border-slate-200 bg-slate-50/60 hover:border-indigo-300 hover:bg-indigo-50/40'}`}
         >
@@ -205,6 +205,17 @@ export default function ImageUploader({
             {compact ? 'Thêm ảnh' : 'Kéo thả ảnh vào đây hoặc bấm để chọn'}
           </p>
           {!compact && <p className="text-xs text-slate-400">Định dạng PNG, JPG, GIF, WEBP — tối đa 4 MB</p>}
+          {/*
+            "bấm để chọn" đọc như một thao tác chuột/chạm. Ô này thực ra dùng được trọn vẹn bằng bàn
+            phím (đây là <button> thật, tự nằm trong thứ tự Tab) — chỉ là không có gì nói cho người
+            dùng bàn phím biết trước. Dòng này chỉ hiện khi đang focus bằng bàn phím, không chiếm chỗ
+            lúc bình thường.
+          */}
+          <p
+            className={`hidden group-focus-visible:block font-semibold text-indigo-500 ${compact ? 'text-[10px]' : 'text-xs'}`}
+          >
+            Nhấn Enter hoặc Space để chọn ảnh
+          </p>
         </button>
       )}
 

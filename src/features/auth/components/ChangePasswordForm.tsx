@@ -107,7 +107,19 @@ function PasswordField({ id, label, placeholder, autoComplete, value, error, onC
   )
 }
 
-export default function ChangePasswordForm() {
+interface ChangePasswordFormProps {
+  /** Tiêu đề và mô tả khác nhau giữa "đổi định kỳ" (hồ sơ cá nhân) và "bắt buộc đổi trước khi vào". */
+  heading?: string
+  description?: string
+  /**
+   * Gọi sau khi đổi thành công, sau `toast.success`. `changePassword()` đã tự xoá phiên (token cũ
+   * chết ngay do SecurityStamp xoay — xem authService), nên chỗ gọi component này chỉ cần điều
+   * hướng, không cần tự xoá gì thêm.
+   */
+  onSuccess?: () => void
+}
+
+export default function ChangePasswordForm({ heading, description, onSuccess }: ChangePasswordFormProps = {}) {
   const toast = useToast()
   const [values, setValues] = useState<PasswordFormValues>(emptyValues)
   const [fieldErrors, setFieldErrors] = useState<PasswordFieldErrors>({})
@@ -132,6 +144,7 @@ export default function ChangePasswordForm() {
       })
       setValues(emptyValues)
       toast.success('Đổi mật khẩu thành công.')
+      onSuccess?.()
     } catch (caught) {
       // Sai mật khẩu hiện tại, hay mật khẩu mới không đạt: server trả 400 kèm lỗi theo từng ô, nên hiện
       // ngay dưới ô đó như lỗi kiểm ở trình duyệt. Chỉ lỗi không gắn với ô nào mới lên toast.
@@ -153,8 +166,10 @@ export default function ChangePasswordForm() {
           <KeyRound size={19} className="text-violet-600" />
         </div>
         <div>
-          <h2 className="text-base font-bold text-slate-800">Đổi mật khẩu</h2>
-          <p className="text-sm text-slate-500">Nên đổi mật khẩu định kỳ để giữ an toàn tài khoản.</p>
+          <h2 className="text-base font-bold text-slate-800">{heading ?? 'Đổi mật khẩu'}</h2>
+          <p className="text-sm text-slate-500">
+            {description ?? 'Nên đổi mật khẩu định kỳ để giữ an toàn tài khoản.'}
+          </p>
         </div>
       </div>
 

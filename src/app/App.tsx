@@ -3,7 +3,9 @@ import { Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom'
 import { setUnauthorizedHandler } from '../lib/apiClient'
 import { logout } from '../services/authService'
 import RequireRole from './RequireRole'
+import RequireMustChangePassword from './RequireMustChangePassword'
 import LoginPage from '../features/auth/pages/LoginPage'
+import ForceChangePasswordPage from '../features/auth/pages/ForceChangePasswordPage'
 import ProfilePage from '../features/auth/pages/ProfilePage'
 import AdminDashboardPage from '../features/admin/pages/AdminDashboardPage'
 import TeacherDashboardPage from '../features/dashboard/pages/TeacherDashboardPage'
@@ -64,6 +66,17 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/dang-nhap" replace />} />
       <Route path="/dang-nhap" element={<LoginPage />} />
+
+      {/* Mật khẩu do quản trị viên cấp còn hiệu lực (§5): RequireRole đưa mọi khu vực về đây. Đứng
+          ngoài ba nhóm route bên dưới — role nào cũng có thể tới đây, không riêng một vai trò. */}
+      <Route
+        path="/doi-mat-khau"
+        element={
+          <RequireMustChangePassword>
+            <ForceChangePasswordPage />
+          </RequireMustChangePassword>
+        }
+      />
 
       {/* ===== Giáo viên ===== */}
       <Route

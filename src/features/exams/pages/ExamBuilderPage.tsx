@@ -366,7 +366,8 @@ function BlueprintPreviewCard({
         <div className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 px-4 py-3">
           <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm font-semibold text-emerald-700 leading-relaxed">
-            Ngân hàng đủ câu hỏi, hệ thống có thể sinh đề tự động cho từng học sinh.
+            Ngân hàng đủ câu hỏi để sinh đề. Mặc định cả lớp dùng chung một đề; bật "Sinh đề riêng cho
+            từng học sinh" ở trang giao bài nếu muốn mỗi em nhận một đề khác nhau.
           </p>
         </div>
       ) : frozen ? (
@@ -762,7 +763,7 @@ export default function ExamBuilderPage() {
   const pageTitle = isEditing ? 'Sửa bài kiểm tra' : 'Tạo bài kiểm tra'
   const pageSubtitle = isEditing
     ? loadedExam?.title ?? 'Đang tải cấu hình bài kiểm tra'
-    : 'Cấu hình Exam Blueprint để hệ thống tự sinh đề cho từng học sinh'
+    : 'Cấu hình ma trận đề. Mặc định cả lớp dùng chung một đề (câu hỏi và đáp án vẫn xáo trộn theo tuỳ chọn bên dưới); bật "Sinh đề riêng cho từng học sinh" ở bước giao bài nếu muốn mỗi em một đề khác nhau.'
 
   // Chỉ quay về trang chi tiết khi id thật sự là số, tránh dẫn tới '/bai-kiem-tra/NaN'.
   const hasValidExamId = examId !== undefined && Number.isFinite(examId)

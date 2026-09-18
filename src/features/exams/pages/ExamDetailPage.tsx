@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Award, BarChart3, CalendarClock, CheckCircle2, Clock, Copy, Eye, FileText,
-  Hourglass, Layers, Lock, Pencil, RefreshCw, Search, Send, Shuffle, Target, Trash2, Users,
+  Hourglass, Layers, Lock, Pencil, RefreshCw, Search, Send, Shuffle, Target, Trash2, UserX, Users,
   XCircle, type LucideIcon,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
@@ -17,6 +17,7 @@ import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import {
   deleteExam, duplicateExam, getExam, listExamAssignments, previewBlueprint, rescheduleAssignment,
+  revokeAssignment,
 } from '../../../services/examService'
 import {
   formatDate, formatDateTime, formatDuration, formatScore, getScoreTone, normalizeText,
@@ -25,7 +26,9 @@ import {
 import { getTopicLabel } from '../../../lib/topicTheme'
 import { difficultyLabels, examStatusLabels } from '../../../types'
 import type { DifficultyLevel, Exam, ExamAssignment, ExamStatus } from '../../../types'
-import { examDeleteConfirmCopy, examDuplicateConfirmCopy } from '../utils/examConfirmations'
+import {
+  examDeleteConfirmCopy, examDuplicateConfirmCopy, examRevokeAssignmentConfirmCopy,
+} from '../utils/examConfirmations'
 import AssignmentWindowList from '../components/AssignmentWindowList'
 import RescheduleAssignmentDialog from '../components/RescheduleAssignmentDialog'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
@@ -111,9 +114,10 @@ function describeMissingAttempt(status: ExamStatus): string {
 interface AssignmentRowProps {
   assignment: ExamAssignment
   onReschedule: (assignment: ExamAssignment) => void
+  onRevoke: (assignment: ExamAssignment) => void
 }
 
-function AssignmentRow({ assignment, onReschedule }: AssignmentRowProps) {
+function AssignmentRow({ assignment, onReschedule, onRevoke }: AssignmentRowProps) {
   const canViewAttempt =
     assignment.attemptId !== undefined &&
     (assignment.status === 'submitted' || assignment.status === 'graded')
@@ -133,6 +137,11 @@ function AssignmentRow({ assignment, onReschedule }: AssignmentRowProps) {
       : assignment.attemptId !== undefined
         ? 'Em đã bắt đầu làm bài nên hạn nộp đã chốt lúc vào thi, không dời giờ được nữa.'
         : undefined
+
+  // Thu hồi thì rộng hơn dời giờ một bước: server (RevokeAsync) chỉ chặn khi em đã có Attempt, không
+  // quan tâm em được giao đích danh hay qua cả lớp — thu hồi một dòng trong bảng này không đụng tới
+  // các bạn cùng lớp khác.
+  const canRevoke = assignment.attemptId === undefined
 
   return (
     <tr className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -186,6 +195,19 @@ function AssignmentRow({ assignment, onReschedule }: AssignmentRowProps) {
           }`}
         >
           <CalendarClock size={14} /> Dời giờ
+        </button>
+        <button
+          type="button"
+          onClick={() => onRevoke(assignment)}
+          disabled={!canRevoke}
+          title={canRevoke ? 'Gỡ bài kiểm tra này khỏi danh sách của em' : 'Em đã bắt đầu làm bài nên không thu hồi được nữa'}
+          className={`inline-flex items-center gap-1.5 px-3 py-2 mr-2 rounded-xl text-xs font-semibold transition-colors ${
+            canRevoke
+              ? 'text-red-500 bg-red-50 hover:bg-red-100'
+              : 'text-slate-300 bg-slate-50 cursor-not-allowed'
+          }`}
+        >
+          <UserX size={14} /> Thu hồi
         </button>
         {canViewAttempt ? (
           <NavLink
@@ -299,6 +321,21 @@ export default function ExamDetailPage() {
     }
   }
 
+  // Giao nhầm lớp hay nhầm học sinh là chuyện thường, và trước bản vá này thứ duy nhất giáo viên làm
+  // được là xoá cả đề — nặng hơn nhiều so với việc chỉ cần gỡ một dòng. Nút này chỉ hiện được khi em
+  // chưa bắt đầu làm (server RevokeAsync cũng từ chối 409 đúng lúc đó), nên hộp xác nhận ở đây không
+  // cần nhắc chuyện mất bài làm — chưa có bài làm nào để mất.
+  const requestRevoke = async (assignment: ExamAssignment) => {
+    if (!data) return
+    const revoked = await confirm({
+      ...examRevokeAssignmentConfirmCopy(assignment, data.exam.title),
+      onConfirm: () => revokeAssignment(assignment.examId, assignment.id),
+    })
+    if (!revoked) return
+    toast.success(`Đã thu hồi bài kiểm tra của ${assignment.studentName}.`)
+    reload()
+  }
+
   const handleDelete = async () => {
     if (!data) return
     const target = data.exam
@@ -331,6 +368,9 @@ export default function ExamDetailPage() {
 
   const exam = data?.exam
   const hasSubmission = exam !== undefined && exam.submittedCount > 0
+  // Bản nháp chưa giao được cho ai — server từ chối 409. Chặn ngay từ nút bấm để không dẫn giáo viên
+  // tới trang giao bài rồi mới báo lỗi, khớp với cách ExamListPage đã chặn nút này.
+  const isDraft = exam?.lifecycle === 'draft'
   const submittedRatio =
     exam && exam.assignedCount > 0 ? Math.round((exam.submittedCount / exam.assignedCount) * 100) : 0
 
@@ -394,13 +434,24 @@ export default function ExamDetailPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 lg:flex-shrink-0">
-                  <NavLink
-                    to={`/giao-vien/bai-kiem-tra/${exam.id}/giao-bai`}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-                    style={{ background: primaryGradient }}
-                  >
-                    <Send size={16} /> Giao bài
-                  </NavLink>
+                  {isDraft ? (
+                    <button
+                      type="button"
+                      disabled
+                      title="Cần xuất bản đề trước khi giao"
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-300 bg-slate-50 cursor-not-allowed"
+                    >
+                      <Send size={16} /> Giao bài
+                    </button>
+                  ) : (
+                    <NavLink
+                      to={`/giao-vien/bai-kiem-tra/${exam.id}/giao-bai`}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
+                      style={{ background: primaryGradient }}
+                    >
+                      <Send size={16} /> Giao bài
+                    </NavLink>
+                  )}
                   {hasSubmission ? (
                     <NavLink
                       to={`/giao-vien/ket-qua?bai-kiem-tra=${exam.id}`}
@@ -550,15 +601,28 @@ export default function ExamDetailPage() {
                   <EmptyState
                     icon={Users}
                     title="Chưa giao bài cho học sinh nào"
-                    description="Giao bài kiểm tra cho học sinh hoặc nhóm lớp để bắt đầu theo dõi tiến độ làm bài."
+                    description={
+                      isDraft
+                        ? 'Bài kiểm tra vẫn đang là bản nháp nên chưa giao được. Xuất bản đề trước, rồi quay lại đây để giao.'
+                        : 'Giao bài kiểm tra cho học sinh hoặc nhóm lớp để bắt đầu theo dõi tiến độ làm bài.'
+                    }
                     action={
-                      <NavLink
-                        to={`/giao-vien/bai-kiem-tra/${exam.id}/giao-bai`}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-                        style={{ background: primaryGradient }}
-                      >
-                        <Send size={16} /> Giao bài ngay
-                      </NavLink>
+                      isDraft ? (
+                        <NavLink
+                          to={`/giao-vien/bai-kiem-tra/${exam.id}/sua`}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                        >
+                          <Pencil size={16} /> Xuất bản đề
+                        </NavLink>
+                      ) : (
+                        <NavLink
+                          to={`/giao-vien/bai-kiem-tra/${exam.id}/giao-bai`}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
+                          style={{ background: primaryGradient }}
+                        >
+                          <Send size={16} /> Giao bài ngay
+                        </NavLink>
+                      )
                     }
                   />
                 </div>
@@ -602,6 +666,7 @@ export default function ExamDetailPage() {
                             key={assignment.id}
                             assignment={assignment}
                             onReschedule={setRescheduling}
+                            onRevoke={target => void requestRevoke(target)}
                           />
                         ))}
                       </tbody>
