@@ -99,16 +99,33 @@ export interface ScoreTone {
   color: string
   /** Lớp màu nền nhạt đi kèm, dùng cho huy hiệu điểm. */
   bg: string
+  /** Lớp màu viền Tailwind, khớp đúng ngưỡng bên dưới — dùng cho các vòng tròn điểm. */
+  ring: string
   label: string
 }
 
-/** Xếp loại điểm theo thang 10. */
-export function getScoreTone(score: number): ScoreTone {
+/**
+ * Xếp loại điểm theo thang 10 — nguồn duy nhất cho mọi màn hình.
+ *
+ * Truyền `maxScore` (điểm tối đa của chính đề đó) để điểm được quy về thang 10 trước khi so ngưỡng:
+ * hai đề khác điểm tối đa nhau thì không được xếp loại theo cùng một mốc điểm thô, nếu không cùng
+ * một bài làm sẽ hiện "Giỏi" ở màn hình này và "Yếu" ở màn hình khác (từng xảy ra thật giữa đây và
+ * `ScoreRing` cũ của trang danh sách bài kiểm tra học sinh). Bỏ trống `maxScore` khi điểm truyền vào
+ * đã sẵn ở thang 10 — ví dụ điểm trung bình nhiều đề mà server đã quy đổi trước khi gộp.
+ */
+export function getScoreTone(score: number, maxScore?: number | null): ScoreTone {
   const safeScore = Number.isFinite(score) ? score : 0
-  if (safeScore >= 8) return { color: 'text-emerald-600', bg: 'bg-emerald-50', label: 'Giỏi' }
-  if (safeScore >= 6.5) return { color: 'text-amber-600', bg: 'bg-amber-50', label: 'Khá' }
-  if (safeScore >= 5) return { color: 'text-orange-600', bg: 'bg-orange-50', label: 'Trung bình' }
-  return { color: 'text-red-500', bg: 'bg-red-50', label: 'Yếu' }
+  const scoreOnTenScale = maxScore && maxScore > 0 ? (safeScore / maxScore) * 10 : safeScore
+  if (scoreOnTenScale >= 8) {
+    return { color: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'border-emerald-200', label: 'Giỏi' }
+  }
+  if (scoreOnTenScale >= 6.5) {
+    return { color: 'text-amber-600', bg: 'bg-amber-50', ring: 'border-amber-200', label: 'Khá' }
+  }
+  if (scoreOnTenScale >= 5) {
+    return { color: 'text-orange-600', bg: 'bg-orange-50', ring: 'border-orange-200', label: 'Trung bình' }
+  }
+  return { color: 'text-red-500', bg: 'bg-red-50', ring: 'border-red-200', label: 'Yếu' }
 }
 
 /** Khoảng thời gian tương đối, dùng cho danh sách thông báo. */

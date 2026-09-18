@@ -352,7 +352,9 @@ export default function TeacherResultsPage() {
               <tbody>
                 {items.map(result => {
                   // Điểm vắng mặt nghĩa là đề đang giấu kết quả, chưa có gì để tô màu xếp loại.
-                  const scoreTone = result.score === null ? null : getScoreTone(result.score)
+                  // Quy về thang 10 theo điểm tối đa của chính đề — hai đề khác điểm tối đa không bị
+                  // xếp loại lệch nhau (H7).
+                  const scoreTone = result.score === null ? null : getScoreTone(result.score, result.maxScore)
                   const isGraded = result.status === 'graded'
                   const groupId = groupIdByName.get(result.group)
 

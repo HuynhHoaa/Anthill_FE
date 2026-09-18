@@ -13,7 +13,7 @@ import { SkeletonCards } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { listMyExams } from '../../../services/attemptService'
-import { formatDateTime, formatScore, normalizeText, parseDateTime } from '../../../lib/format'
+import { formatDateTime, formatDuration, formatScore, getScoreTone, normalizeText, parseDateTime } from '../../../lib/format'
 import { useCountdown } from '../hooks/useCountdown'
 import type { StudentExamItem } from '../../../types'
 
@@ -58,26 +58,27 @@ const urgentRefreshMs = 30000
 function matchesTab(status: StudentExamItem['status'], tab: FilterTab): boolean {
   if (tab === 'all') return true
   if (tab === 'done') return status === 'submitted' || status === 'graded'
+  // Bài đang làm dở gộp vào "Đang mở": đó là mục học sinh sẽ mở lên khi nhớ ra mình còn một bài
+  // chưa nộp, và đồng hồ của nó cũng đang chạy thật — để nó lọt qua mọi tab trừ "Tất cả" (như trước
+  // khi sửa H16) sẽ khiến một bài đã bắt đầu biến mất khỏi tầm mắt.
+  if (tab === 'open') return status === 'open' || status === 'inprogress'
   return status === tab
 }
 
 // ===== Score Ring =====
 function ScoreRing({ score, maxScore }: { score: number; maxScore?: number | null }) {
-  // Quy về thang 10 để xếp loại không phụ thuộc điểm tối đa của từng đề.
-  const scoreOnTenScale = maxScore && maxScore > 0 ? (score / maxScore) * 10 : score
-  const { color, label } =
-    scoreOnTenScale >= 8   ? { color: '#10B981', label: 'Giỏi' } :
-    scoreOnTenScale >= 6.5 ? { color: '#F59E0B', label: 'Khá' } :
-                             { color: '#EF4444', label: 'TB' }
+  // Xếp loại qua đúng một nguồn dùng chung toàn hệ thống (getScoreTone), quy về thang 10 theo điểm
+  // tối đa của chính đề này — trước đây hàm này tự tính ngưỡng riêng (chỉ 3 mức, không có "Trung
+  // bình") nên cùng một bài làm có thể xếp khác màu ở đây so với trang kết quả (H7).
+  const tone = getScoreTone(score, maxScore)
   return (
     <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
       <div
-        className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-base"
-        style={{ background: `${color}18`, color, border: `2px solid ${color}` }}
+        className={`w-12 h-12 rounded-full border-2 flex items-center justify-center font-bold text-base ${tone.bg} ${tone.color} ${tone.ring}`}
       >
         {formatScore(score)}
       </div>
-      <span className="text-[10px] font-semibold" style={{ color }}>{label}</span>
+      <span className={`text-[10px] font-semibold ${tone.color}`}>{tone.label}</span>
     </div>
   )
 }
@@ -85,23 +86,37 @@ function ScoreRing({ score, maxScore }: { score: number; maxScore?: number | nul
 // ===== Exam Card =====
 function ExamCard({ exam }: { exam: StudentExamItem }) {
   const isOpen = exam.status === 'open'
-  // Đồng hồ nhịp mỗi giây nên các mốc so với thời điểm hiện tại luôn được tính lại.
-  const countdown = useCountdown(isOpen ? exam.deadline : null, 'Đã hết hạn')
+  const isInProgress = exam.status === 'inprogress'
+  // Bài đang làm dở đếm ngược tới hạn của chính lượt làm đó (exam.deadline = expiresAt khi
+  // inprogress — xem toStudentExamItem), không phải tới giờ đóng đề: đồng hồ nhịp mỗi giây nên các
+  // mốc so với thời điểm hiện tại luôn được tính lại.
+  const countdown = useCountdown(isOpen || isInProgress ? exam.deadline : null, 'Đã hết hạn')
   const isUpcoming = exam.status === 'upcoming'
   const isSubmitted = exam.status === 'submitted'
   const isGraded = exam.status === 'graded'
   const isDone = isSubmitted || isGraded
   const remainingMs = exam.deadline.getTime() - Date.now()
-  const justClosed = isOpen && remainingMs <= 0
+  const justClosed = (isOpen || isInProgress) && remainingMs <= 0
   const isExpired = exam.status === 'expired' || justClosed
-  const isUrgent = isOpen && !justClosed && remainingMs < urgentThresholdMs
+  const isUrgent = (isOpen || isInProgress) && !justClosed && remainingMs < urgentThresholdMs
   const openDate = parseDateTime(exam.openAt)
+
+  // H23: cửa sổ giao bài có thể đóng trước khi hết trọn thời lượng — chỉ tính lúc bài CHƯA bắt đầu
+  // (isOpen), vì một khi đã vào làm thì đồng hồ đếm ngược phía dưới đã tự nói đúng thời gian còn
+  // lại rồi. Đây thuần là hiển thị: không đổi cách chốt `ExpiresAt` ở server, chỉ ngừng giấu con số
+  // thật khỏi học sinh trước khi họ bấm "Vào làm bài".
+  const nominalDurationMs = exam.durationMinutes * 60000
+  const isDurationClampedByCloseTime = isOpen && !justClosed && remainingMs < nominalDurationMs
+  const effectiveDurationMinutes = isDurationClampedByCloseTime
+    ? Math.max(0, Math.ceil(remainingMs / 60000))
+    : exam.durationMinutes
 
   return (
     <div
       className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col
         ${isExpired ? 'border-slate-100 opacity-70' :
           isUrgent  ? 'border-red-200 hover:border-red-300' :
+          isInProgress ? 'border-amber-200 hover:border-amber-300' :
           isOpen    ? 'border-indigo-100 hover:border-indigo-300' :
                       'border-slate-100 hover:border-slate-200'}`}
     >
@@ -117,6 +132,11 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
               {isUrgent && (
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 flex items-center gap-1">
                   <AlertTriangle size={10} /> Sắp hết hạn
+                </span>
+              )}
+              {isInProgress && (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
+                  <PlayCircle size={10} /> Đang làm dở
                 </span>
               )}
               {isSubmitted && (
@@ -135,14 +155,24 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
         </div>
 
         {/* Mô tả */}
-        {exam.description && (isOpen || isUpcoming) && (
+        {exam.description && (isOpen || isUpcoming || isInProgress) && (
           <p className="text-xs text-slate-500 leading-relaxed mb-4 line-clamp-2">{exam.description}</p>
         )}
 
         {/* Thông tin nhanh */}
         <div className="flex flex-wrap gap-2 mb-4">
-          <span className="inline-flex items-center gap-1 text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-lg">
-            <Clock size={12} /> {exam.durationMinutes} phút
+          <span
+            title={isDurationClampedByCloseTime ? `Đề đóng lúc ${formatDateTime(exam.closeAt)}, ngắn hơn thời lượng gốc ${exam.durationMinutes} phút` : undefined}
+            className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border ${
+              isDurationClampedByCloseTime
+                ? 'text-red-600 bg-red-50 border-red-100 font-semibold'
+                : 'text-slate-500 bg-slate-50 border-slate-100'
+            }`}
+          >
+            <Clock size={12} />
+            {isDurationClampedByCloseTime
+              ? `Còn ${formatDuration(effectiveDurationMinutes)} (đề sắp đóng)`
+              : `${exam.durationMinutes} phút`}
           </span>
           <span className="inline-flex items-center gap-1 text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-lg">
             <FileText size={12} /> {exam.totalQuestions} câu hỏi
@@ -159,19 +189,23 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
         {/* Hạn nộp và hành động */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-50">
           <div className="min-w-0">
-            {(isOpen || isExpired) && (
+            {(isOpen || isInProgress || isExpired) && (
               <div>
                 <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium mb-0.5">
-                  {isExpired ? 'Đã hết hạn' : '⏰ Còn lại'}
+                  {isExpired ? 'Đã hết hạn' : isInProgress ? '⏳ Đang làm — còn lại' : '⏰ Còn lại'}
                 </p>
                 <p
                   className={`text-sm font-bold ${
                     isExpired ? 'text-slate-400' :
                     isUrgent  ? 'text-red-600' :
+                    isInProgress ? 'text-amber-600' :
                                 'text-indigo-600'
                   }`}
                 >
-                  {isExpired ? formatDateTime(exam.closeAt) : countdown}
+                  {/* exam.deadline đã là mốc đúng cho cả hai trường hợp (giờ đóng đề khi chưa vào,
+                      giờ hết bài của lượt làm khi đang dở — xem toStudentExamItem), nên dùng chung
+                      một nguồn thay vì exam.closeAt, thứ chỉ đúng với bài chưa bắt đầu. */}
+                  {isExpired ? formatDateTime(exam.deadline.toISOString()) : countdown}
                 </p>
               </div>
             )}
@@ -212,9 +246,15 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
             <NavLink
               to={`/hoc-sinh/bai-kiem-tra/${exam.assignmentId}`}
               className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
-              style={{ background: isUrgent ? '#EF4444' : 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+              style={{
+                background: isUrgent
+                  ? '#EF4444'
+                  : isInProgress
+                    ? 'linear-gradient(135deg,#F59E0B,#EA580C)'
+                    : 'linear-gradient(135deg,#6366F1,#8B5CF6)',
+              }}
             >
-              <PlayCircle size={15} /> Vào làm bài
+              <PlayCircle size={15} /> {isInProgress ? 'Tiếp tục làm bài' : 'Vào làm bài'}
             </NavLink>
           )}
           {isUpcoming && (
@@ -276,7 +316,9 @@ export default function StudentExamListPage() {
     const source = examItems ?? []
     return {
       all: source.length,
-      open: source.filter(item => item.status === 'open').length,
+      // Gộp 'inprogress' vào 'open' — khớp với matchesTab, để số đếm trên tab và số thẻ thật sự
+      // hiện ra không bao giờ lệch nhau.
+      open: source.filter(item => item.status === 'open' || item.status === 'inprogress').length,
       upcoming: source.filter(item => item.status === 'upcoming').length,
       done: source.filter(item => item.status === 'submitted' || item.status === 'graded').length,
       expired: source.filter(item => item.status === 'expired').length,
@@ -297,7 +339,9 @@ export default function StudentExamListPage() {
   const urgentExams = useMemo(
     () =>
       (examItems ?? []).filter(item => {
-        if (item.status !== 'open') return false
+        // Bài đang làm dở sắp hết giờ cũng đáng báo động không kém — chính nó là ca "1 phút 20
+        // giây thay vì 30 phút" mà đợt kiểm tra ghi nhận được.
+        if (item.status !== 'open' && item.status !== 'inprogress') return false
         const remainingMs = item.deadline.getTime() - currentTime
         return remainingMs > 0 && remainingMs < urgentThresholdMs
       }),
