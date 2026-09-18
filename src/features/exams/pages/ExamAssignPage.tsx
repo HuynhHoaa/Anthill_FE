@@ -18,7 +18,7 @@ import {
 import { listGroups } from '../../../services/groupService'
 import { listStudents } from '../../../services/studentService'
 import { formatDateTime, getInitials, matchesSearch } from '../../../lib/format'
-import type { AssignmentWindow, Exam, Student } from '../../../types'
+import type { AssignmentWindow, Exam, Student, StudentGroup } from '../../../types'
 import {
   isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
 } from '../utils/examScheduleFormat'
@@ -96,10 +96,19 @@ interface WindowFieldsProps {
   draft: { openAtLocal: string; closeAtLocal: string }
   durationMinutes: number
   onChange: (changes: Partial<{ openAtLocal: string; closeAtLocal: string }>) => void
+  /**
+   * `true` xếp hai ô giờ chồng lên nhau thay vì nằm cạnh nhau.
+   *
+   * Chỉ cần cho vị trí đang bị "hẹp kép": lưới thẻ lớp (`xl:grid-cols-2`) lồng trong lưới ô giờ
+   * (`sm:grid-cols-2`) khiến mỗi ô chỉ còn ~150-190px, không đủ chỗ cho `datetime-local` 12 giờ
+   * (bị cắt mất "MM/" ở đầu). Các chỗ dùng component này còn lại (cột "học sinh chọn riêng", hộp
+   * Dời giờ) đã đủ rộng nên giữ nguyên mặc định nằm cạnh nhau.
+   */
+  stackedFields?: boolean
 }
 
 /** Cặp ô giờ mở – giờ đóng, kèm lời cảnh báo khi khung ngắn hơn thời lượng làm bài. */
-function WindowFields({ idPrefix, draft, durationMinutes, onChange }: WindowFieldsProps) {
+function WindowFields({ idPrefix, draft, durationMinutes, onChange, stackedFields = false }: WindowFieldsProps) {
   const filled = draft.openAtLocal !== '' && draft.closeAtLocal !== ''
   const ordered = isCloseAfterOpen(draft.openAtLocal, draft.closeAtLocal)
   const span = minutesBetween(draft.openAtLocal, draft.closeAtLocal)
@@ -116,7 +125,7 @@ function WindowFields({ idPrefix, draft, durationMinutes, onChange }: WindowFiel
 
   return (
     <div className="mt-3 space-y-3 rounded-xl bg-white border border-slate-100 p-3.5">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className={`grid grid-cols-1 gap-3 ${stackedFields ? '' : 'sm:grid-cols-2'}`}>
         <div>
           <label htmlFor={`${idPrefix}-open`} className="block text-xs font-semibold text-slate-600 mb-1.5">
             Mở bài lúc
@@ -250,10 +259,19 @@ function AssignSkeleton() {
 }
 
 /** Những con số server trả về sau một lần giao, mỗi con số kèm việc cần làm tiếp. */
-function ResultPanel({ result, examId }: { result: AssignExamResult; examId: number }) {
+function ResultPanel({
+  result, examId, appliedClassWindowCount, lockedScopeGroupIds, groups,
+}: {
+  result: AssignExamResult
+  examId: number
+  /** Số lớp vừa nhận khung giờ riêng trong chính lần giao này — 0 nghĩa là không lớp nào có khung riêng. */
+  appliedClassWindowCount: number
+  /** Những lớp có mặt trong lần giao vừa rồi, để dẫn tới đúng chỗ xem em nào đang bị khoá. */
+  lockedScopeGroupIds: number[]
+  groups: StudentGroup[]
+}) {
   const skipped: Array<{ key: string; text: string }> = [
     { key: 'assigned', text: `${result.skippedAlreadyAssigned} em đã có bài này từ trước` },
-    { key: 'locked', text: `${result.skippedLocked} em đang bị khoá tài khoản — mở khoá rồi giao lại` },
     // Tách khỏi "bị khoá": tài khoản chờ xoá không mở khoá được, chỉ quản trị viên khôi phục được.
     { key: 'retired', text: `${result.skippedRetired} em có tài khoản đang chờ xoá` },
     // Một dòng cho cả "ngoài phạm vi" lẫn "không còn trong hệ thống": server trả về một con số
@@ -265,6 +283,15 @@ function ResultPanel({ result, examId }: { result: AssignExamResult; examId: num
     return count > 0
   })
 
+  // Server chỉ trả về SỐ em bị khoá, không có tên hay id — nên không dò được đích danh ai để dẫn tới
+  // đúng hồ sơ. Việc gần nhất làm được không cần thêm lệnh gọi API: dẫn tới đúng những lớp vừa có mặt
+  // trong lần giao này, nơi mỗi dòng học sinh đã tự hiện nhãn "Đã khoá" (StudentStatusPill).
+  const lockedScopeGroups = lockedScopeGroupIds
+    .map(groupId => groups.find(group => group.id === groupId))
+    .filter((group): group is StudentGroup => group !== undefined)
+
+  const hasSkippedItems = skipped.length > 0 || result.skippedLocked > 0
+
   return (
     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
       <div className="flex items-start gap-3">
@@ -275,6 +302,12 @@ function ResultPanel({ result, examId }: { result: AssignExamResult; examId: num
               ? `Đã giao bài cho ${result.assignedCount} học sinh.`
               : 'Không có lượt giao mới nào được tạo.'}
           </p>
+
+          {appliedClassWindowCount > 0 && (
+            <p className="text-sm text-emerald-700 leading-relaxed">
+              Đã áp dụng khung giờ riêng cho {appliedClassWindowCount} lớp.
+            </p>
+          )}
 
           {result.scheduleUpdatedCount > 0 && (
             <p className="text-sm text-emerald-700 leading-relaxed">
@@ -289,10 +322,32 @@ function ResultPanel({ result, examId }: { result: AssignExamResult; examId: num
             </p>
           )}
 
-          {skipped.length > 0 && (
+          {hasSkippedItems && (
             <div className="text-sm text-emerald-700 leading-relaxed">
               <p className="font-semibold">Đã bỏ qua:</p>
               <ul className="mt-0.5 space-y-0.5">
+                {result.skippedLocked > 0 && (
+                  <li>
+                    · {result.skippedLocked} em đang bị khoá tài khoản — mở khoá rồi giao lại.
+                    {lockedScopeGroups.length > 0 && (
+                      <>
+                        {' '}Xem trạng thái từng em ở lớp:{' '}
+                        {lockedScopeGroups.map((group, index) => (
+                          <span key={group.id}>
+                            {index > 0 && ', '}
+                            <NavLink
+                              to={`/giao-vien/nhom-lop/${group.id}`}
+                              className="font-semibold underline hover:text-emerald-900"
+                            >
+                              {group.name}
+                            </NavLink>
+                          </span>
+                        ))}
+                        .
+                      </>
+                    )}
+                  </li>
+                )}
                 {skipped.map(item => (
                   <li key={item.key}>· {item.text}</li>
                 ))}
@@ -329,6 +384,10 @@ export default function ExamAssignPage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<AssignExamResult | null>(null)
+  // Ảnh chụp phạm vi của lần giao vừa xong: `selectedGroupIds`/`classWindows` bị xoá về rỗng ngay sau
+  // khi giao (để giáo viên giao tiếp lớp thứ hai từ một form sạch), nên `ResultPanel` không còn đọc
+  // được state gốc — phải giữ lại đúng những gì đã thật sự gửi lên server.
+  const [lastSubmission, setLastSubmission] = useState<{ groupIds: number[]; classWindowCount: number } | null>(null)
 
   const { data, loading, error, reload } = useAsync(async () => {
     const exam = await getExam(examId)
@@ -502,6 +561,23 @@ export default function ExamAssignPage() {
     [selectedGroupIds, classWindows, groups],
   )
 
+  /**
+   * Khung giờ riêng đã đặt cho từng lớp, để nhắc lại đúng lúc giáo viên xác nhận cuối cùng — thời
+   * điểm không còn rút lại được, và cũng là thời điểm hộp thoại cũ bỏ sót đúng thông tin quan trọng
+   * nhất của trang này.
+   */
+  const classWindowSummaries = useMemo(
+    () => selectedGroupIds
+      .map(groupId => {
+        const draft = classWindows[groupId]
+        if (!draft?.enabled) return null
+        const label = groups.find(group => group.id === groupId)?.name ?? `Lớp ${groupId}`
+        return { groupId, label, windowText: `${formatDateTime(draft.openAtLocal)} – ${formatDateTime(draft.closeAtLocal)}` }
+      })
+      .filter((item): item is { groupId: number; label: string; windowText: string } => item !== null),
+    [selectedGroupIds, classWindows, groups],
+  )
+
   const openConfirm = () => {
     if (recipientIds.size === 0 || windowProblems.length > 0) return
     setConfirmOpen(true)
@@ -548,6 +624,12 @@ export default function ExamAssignPage() {
 
       setConfirmOpen(false)
       setResult(outcome)
+      // Chụp lại phạm vi TRƯỚC khi state chọn lớp bị xoá về rỗng ở cuối hàm này — `ResultPanel` cần
+      // đúng những lớp vừa gửi lên, không phải state hiện tại (đã sạch cho lượt giao tiếp theo).
+      setLastSubmission({
+        groupIds: selectedGroupIds,
+        classWindowCount: classes.filter(target => target.openAt !== undefined).length,
+      })
 
       // Mỗi lý do bị bỏ qua đòi một hành động khác nhau — mở khoá tài khoản, chọn lại lớp, hay
       // không cần làm gì — nên gộp chúng thành một con số là lấy mất thông tin giáo viên cần.
@@ -648,7 +730,15 @@ export default function ExamAssignPage() {
               </div>
             </section>
 
-            {result && <ResultPanel result={result} examId={exam.id} />}
+            {result && (
+              <ResultPanel
+                result={result}
+                examId={exam.id}
+                appliedClassWindowCount={lastSubmission?.classWindowCount ?? 0}
+                lockedScopeGroupIds={lastSubmission?.groupIds ?? []}
+                groups={groups}
+              />
+            )}
 
             {exam.lifecycle === 'draft' && (
               <div className="rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4 flex items-start gap-3">
@@ -780,6 +870,7 @@ export default function ExamAssignPage() {
                                   draft={draft}
                                   durationMinutes={exam.durationMinutes}
                                   onChange={changes => updateClassWindow(group.id, changes)}
+                                  stackedFields
                                 />
                               ) : draft.hadOverride && (
                                 <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 leading-relaxed">
@@ -1029,6 +1120,16 @@ export default function ExamAssignPage() {
         open={confirmOpen}
         title="Xác nhận giao bài kiểm tra"
         message={confirmMessage}
+        details={classWindowSummaries.length > 0 ? (
+          <div>
+            <p className="font-semibold text-slate-700 mb-1">Khung giờ riêng theo lớp:</p>
+            <ul className="space-y-0.5">
+              {classWindowSummaries.map(item => (
+                <li key={item.groupId}>· {item.label} — {item.windowText}</li>
+              ))}
+            </ul>
+          </div>
+        ) : undefined}
         confirmLabel="Giao bài ngay"
         cancelLabel="Xem lại"
         loading={submitting}
