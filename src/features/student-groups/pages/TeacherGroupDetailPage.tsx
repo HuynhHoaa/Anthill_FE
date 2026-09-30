@@ -3,11 +3,11 @@
  *
  * Giáo viên cần biết mình dạy những em nào để giao bài và đọc kết quả; còn ai vào lớp, ai ra khỏi
  * lớp là quyết định của tổ chức, nên mọi nút thay đổi đều nằm ở khu quản trị. Danh sách giáo viên
- * cùng phụ trách vẫn hiện ở đây vì đó là thông tin hữu ích: cần hỏi về một em thì biết hỏi ai.
+ * cùng phụ trách lớp không hiện ở đây — xem ở trang tương ứng bên khu quản trị.
  */
 import { useMemo } from 'react'
 import { NavLink, useParams } from 'react-router-dom'
-import { ArrowLeft, CalendarDays, Eye, GraduationCap, Users, UsersRound } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Eye, Users, UsersRound } from 'lucide-react'
 import { memberCountLabel } from '../components/groupTheme'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import EmptyState from '../../../components/common/EmptyState'
@@ -18,7 +18,6 @@ import { formatDate, formatScore, roundToOneDecimal } from '../../../lib/format'
 import { getGroup, listGroupStudents } from '../../../services/groupService'
 import type { Student, StudentGroup } from '../../../types'
 import GroupStudentTable from '../components/GroupStudentTable'
-import GroupTeacherList from '../components/GroupTeacherList'
 
 const groupListLink = '/giao-vien/nhom-lop'
 const chipClass =
@@ -128,19 +127,6 @@ export default function TeacherGroupDetailPage() {
               </div>
             </div>
           </div>
-
-          {group.teachers.length > 0 && (
-            <>
-              <div className="mt-8 mb-4">
-                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                  <GraduationCap size={17} className="text-slate-400" />
-                  Giáo viên phụ trách
-                  <span className="text-slate-400 font-semibold">({group.teachers.length})</span>
-                </h2>
-              </div>
-              <GroupTeacherList teachers={group.teachers} />
-            </>
-          )}
 
           <div className="mt-8 mb-4">
             <h2 className="text-base font-bold text-slate-800">
