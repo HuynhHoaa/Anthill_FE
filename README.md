@@ -49,9 +49,8 @@ unit test trong `tests/Anthill.Tests` và các bộ kiểm HTTP trong `tests/api
 
 ### Tài khoản demo
 
-Mật khẩu chung: `anthill123`. Trên trang đăng nhập phải chọn đúng tab vai trò — server đối chiếu với
-vai trò lưu trong database và từ chối nếu không khớp. Nút "Điền sẵn" trên trang đăng nhập điền hộ cả
-tài khoản lẫn tab.
+Mật khẩu chung: `123456`. Trang đăng nhập chỉ có hai ô — email/tên đăng nhập và mật khẩu, không chọn
+vai trò: server tự dò định danh và điều hướng thẳng tới dashboard đúng vai trò sau khi đăng nhập.
 
 | Vai trò | Đăng nhập bằng | Dữ liệu mẫu |
 |---|---|---|
