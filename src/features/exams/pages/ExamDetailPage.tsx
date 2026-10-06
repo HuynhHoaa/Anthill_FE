@@ -115,10 +115,12 @@ function describeMissingAttempt(status: ExamStatus): string {
 interface AssignmentRowProps {
   assignment: ExamAssignment
   onReschedule: (assignment: ExamAssignment) => void
+  /** Bấm vào nút "Dời giờ" đang bị chặn: cho giáo viên đọc lý do thay vì im lặng. */
+  onRescheduleBlocked: (reason: string) => void
   onRevoke: (assignment: ExamAssignment) => void
 }
 
-function AssignmentRow({ assignment, onReschedule, onRevoke }: AssignmentRowProps) {
+function AssignmentRow({ assignment, onReschedule, onRescheduleBlocked, onRevoke }: AssignmentRowProps) {
   const canViewAttempt =
     assignment.attemptId !== undefined &&
     (assignment.status === 'submitted' || assignment.status === 'graded')
@@ -171,6 +173,7 @@ function AssignmentRow({ assignment, onReschedule, onRevoke }: AssignmentRowProp
         </span>
         <span className="text-xs text-slate-400">
           {assignment.hasScheduleOverride ? 'Khung giờ riêng' : 'Theo lịch chung'}
+          {assignment.scheduleLocked && <span className="text-amber-600 font-medium"> · đã khoá giờ</span>}
         </span>
       </td>
       <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>
@@ -189,15 +192,17 @@ function AssignmentRow({ assignment, onReschedule, onRevoke }: AssignmentRowProp
         )}
       </td>
       <td className={`${cellClass} text-right whitespace-nowrap`}>
+        {/* aria-disabled thay vì disabled: nút vẫn focus được bằng bàn phím và chạm được trên điện thoại, và
+            bấm vào thì hiện lý do. Nút `disabled` bị bỏ qua hoàn toàn nên lý do chỉ còn nằm trong tooltip. */}
         <button
           type="button"
-          onClick={() => canReschedule && onReschedule(assignment)}
-          disabled={!canReschedule}
+          onClick={() => (canReschedule ? onReschedule(assignment) : rescheduleBlockedReason && onRescheduleBlocked(rescheduleBlockedReason))}
+          aria-disabled={!canReschedule}
           title={canReschedule ? 'Đặt khung giờ riêng cho em này' : rescheduleBlockedReason}
           className={`inline-flex items-center gap-1.5 px-3 py-2 mr-2 rounded-xl text-xs font-semibold transition-colors ${
             canReschedule
               ? 'text-slate-600 bg-slate-100 hover:bg-slate-200'
-              : 'text-slate-300 bg-slate-50 cursor-not-allowed'
+              : 'text-slate-400 bg-slate-50 cursor-not-allowed'
           }`}
         >
           <CalendarClock size={14} /> Dời giờ
@@ -322,6 +327,9 @@ export default function ExamDetailPage() {
           ? caught.message
           : 'Không đổi được khung giờ. Vui lòng thử lại.',
       )
+      // 409: trạng thái phía server vừa đổi (thường là khung giờ vừa khoá). Tải lại bảng để nút và nhãn khoá
+      // khớp, thay vì để một nút còn bật nằm sau hộp thoại vừa báo lỗi.
+      if ((caught as { status?: number } | null)?.status === 409) reload()
     } finally {
       setRescheduleSaving(false)
     }
@@ -672,6 +680,7 @@ export default function ExamDetailPage() {
                             key={assignment.id}
                             assignment={assignment}
                             onReschedule={setRescheduling}
+                            onRescheduleBlocked={reason => toast.info(reason)}
                             onRevoke={target => void requestRevoke(target)}
                           />
                         ))}
@@ -784,7 +793,10 @@ export default function ExamDetailPage() {
               {exam.scheduleLocked && (
                 <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-700 leading-relaxed">
                   <Lock size={14} className="flex-shrink-0 mt-0.5" />
-                  <span>{describeScheduleLock('Đề này', exam.openAt)} Hết giờ đóng bài thì đổi lại được.</span>
+                  <span>
+                    {describeScheduleLock('Lịch chung của đề', exam.openAt)} Hết giờ đóng bài mới đổi lại được. Cần
+                    dời gấp thì nhân bản đề rồi giao lại.
+                  </span>
                 </p>
               )}
 
@@ -796,12 +808,15 @@ export default function ExamDetailPage() {
                     Khung giờ theo lớp
                   </p>
                   <AssignmentWindowList windows={exam.assignmentWindows} />
-                  <NavLink
-                    to={`/giao-vien/bai-kiem-tra/${exam.id}/giao-bai`}
-                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:underline"
-                  >
-                    <CalendarClock size={13} /> Đổi khung giờ của một lớp
-                  </NavLink>
+                  {/* Mọi khung đang khoá thì mời "đổi khung giờ" là mời người ta bấm vào chỗ không làm được. */}
+                  {!exam.assignmentWindows.every(window => window.scheduleLocked) && (
+                    <NavLink
+                      to={`/giao-vien/bai-kiem-tra/${exam.id}/giao-bai`}
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:underline"
+                    >
+                      <CalendarClock size={13} /> Đổi khung giờ của một lớp
+                    </NavLink>
+                  )}
                 </div>
               )}
             </div>

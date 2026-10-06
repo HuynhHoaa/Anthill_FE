@@ -20,7 +20,8 @@ import { listStudents } from '../../../services/studentService'
 import { formatDateTime, getInitials, matchesSearch } from '../../../lib/format'
 import type { AssignmentWindow, Exam, Student, StudentGroup } from '../../../types'
 import {
-  describeScheduleLock, isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
+  classLockSubject, describeScheduleLock, isCloseAfterOpen, minutesBetween, opensWithinLockWindow,
+  SCHEDULE_LOCK_WARNING, toDateTimeLocalValue, toServiceDateTime,
 } from '../utils/examScheduleFormat'
 
 /** Đủ lớn để lấy trọn danh sách học sinh trong một lần gọi, tránh phải phân trang khi giao bài. */
@@ -46,7 +47,7 @@ interface ClassWindowDraft {
   hadOverride: boolean
   /**
    * Khung giờ hiện tại của lớp đang khoá (còn dưới 2 giờ nữa là mở, hoặc đang mở). Lớp này vẫn giao thêm được
-   * học sinh, nhưng không gửi kèm khung giờ nào lên server: gửi lại cũng bị coi là đổi giờ nếu lệch vài giây.
+   * học sinh, nhưng không đặt được khung giờ mới: khi gửi, nó mang lại đúng khung server đang giữ.
    */
   locked: boolean
 }
@@ -111,10 +112,17 @@ interface WindowFieldsProps {
    * Dời giờ) đã đủ rộng nên giữ nguyên mặc định nằm cạnh nhau.
    */
   stackedFields?: boolean
+  /**
+   * Báo trước khi lưu: giờ mở vừa chọn rơi vào vùng khoá nên lưu xong là không đổi được nữa. Chỉ truyền khi
+   * khung này đang đổi một khung đã có người theo — khung mới tinh chưa có ai phụ thuộc.
+   */
+  warnLock?: boolean
 }
 
 /** Cặp ô giờ mở – giờ đóng, kèm lời cảnh báo khi khung ngắn hơn thời lượng làm bài. */
-function WindowFields({ idPrefix, draft, durationMinutes, onChange, stackedFields = false }: WindowFieldsProps) {
+function WindowFields({
+  idPrefix, draft, durationMinutes, onChange, stackedFields = false, warnLock = false,
+}: WindowFieldsProps) {
   const filled = draft.openAtLocal !== '' && draft.closeAtLocal !== ''
   const ordered = isCloseAfterOpen(draft.openAtLocal, draft.closeAtLocal)
   const span = minutesBetween(draft.openAtLocal, draft.closeAtLocal)
@@ -164,6 +172,12 @@ function WindowFields({ idPrefix, draft, durationMinutes, onChange, stackedField
         </p>
       ) : (
         <p className="text-xs text-slate-400">Khung dài {span} phút cho bài {durationMinutes} phút.</p>
+      )}
+      {warnLock && filled && opensWithinLockWindow(draft.openAtLocal) && (
+        <p className="text-xs font-medium text-amber-700 flex items-start gap-1.5 leading-relaxed">
+          <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
+          {SCHEDULE_LOCK_WARNING}
+        </p>
       )}
     </div>
   )
@@ -594,23 +608,29 @@ export default function ExamAssignPage() {
 
     setSubmitting(true)
     try {
-      // Lớp có khung giờ đang khoá đi theo `groupIds`: giao thêm học sinh mà không đụng tới giờ của lớp.
-      const keepWindowGroupIds = selectedGroupIds.filter(groupId => classWindows[groupId]?.locked)
+      const classes: AssignClassTarget[] = selectedGroupIds.map(groupId => {
+        const draft = classWindows[groupId]
 
-      const classes: AssignClassTarget[] = selectedGroupIds
-        .filter(groupId => !classWindows[groupId]?.locked)
-        .map(groupId => {
-          const draft = classWindows[groupId]
-          return draft?.enabled
-            ? {
-              groupId,
-              openAt: toServiceDateTime(draft.openAtLocal),
-              closeAt: toServiceDateTime(draft.closeAtLocal),
-            }
-            // Không kèm giờ nghĩa là lớp theo lịch chung của đề — và với lớp đang có giờ riêng thì đây
-            // chính là lệnh gỡ nó, đúng như dòng cảnh báo trong hộp xác nhận đã nói.
+        // Lớp có khung giờ đang khoá: gửi lại đúng khung server đang giữ, nguyên chuỗi, không qua ô nhập giờ
+        // (ô đó chỉ tới phút nên có thể lệch vài giây và bị coi là đổi giờ). Không đưa lớp sang `groupIds`:
+        // khi đó cặp giờ chung của request, nếu có, sẽ rơi xuống lớp này.
+        if (draft?.locked) {
+          const current = findClassWindow(exam, groupId)
+          return current?.hasScheduleOverride
+            ? { groupId, openAt: current.openAt, closeAt: current.closeAt }
             : { groupId }
-        })
+        }
+
+        return draft?.enabled
+          ? {
+            groupId,
+            openAt: toServiceDateTime(draft.openAtLocal),
+            closeAt: toServiceDateTime(draft.closeAtLocal),
+          }
+          // Không kèm giờ nghĩa là lớp theo lịch chung của đề — và với lớp đang có giờ riêng thì đây
+          // chính là lệnh gỡ nó, đúng như dòng cảnh báo trong hộp xác nhận đã nói.
+          : { groupId }
+      })
 
       const individualWindow = studentWindow.enabled && individualCount > 0
         ? {
@@ -624,7 +644,7 @@ export default function ExamAssignPage() {
       // giao bổ sung không vô cớ đụng vào đề.
       const outcome = await assignExam(exam.id, {
         studentIds: selectedStudentIds,
-        groupIds: keepWindowGroupIds,
+        groupIds: [],
         classes,
         notify,
         randomizePerStudent: randomizePerStudent === exam.randomizePerStudent
@@ -639,7 +659,10 @@ export default function ExamAssignPage() {
       // đúng những lớp vừa gửi lên, không phải state hiện tại (đã sạch cho lượt giao tiếp theo).
       setLastSubmission({
         groupIds: selectedGroupIds,
-        classWindowCount: classes.filter(target => target.openAt !== undefined).length,
+        // Lớp đang khoá gửi lại khung cũ nguyên văn, không phải khung giáo viên vừa đặt nên không tính.
+        classWindowCount: classes.filter(
+          target => target.openAt !== undefined && !classWindows[target.groupId]?.locked,
+        ).length,
       })
 
       // Mỗi lý do bị bỏ qua đòi một hành động khác nhau — mở khoá tài khoản, chọn lại lớp, hay
@@ -783,7 +806,7 @@ export default function ExamAssignPage() {
                   </p>
                   <p className="text-sm text-amber-700 leading-relaxed">
                     Hệ thống bỏ qua các em này để không tạo lượt giao trùng, chỉ {newRecipientCount} em còn
-                    lại nhận bài mới. Khung giờ của lớp thì vẫn được cập nhật cho những em chưa bắt đầu.
+                    lại nhận bài mới. Khung giờ của lớp đổi được cho những em chưa bắt đầu, trừ lớp đang khoá giờ.
                   </p>
                 </div>
               </div>
@@ -851,7 +874,7 @@ export default function ExamAssignPage() {
                                 )}
                                 {current && (
                                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                                    Đang làm: {formatDateTime(current.openAt)} – {formatDateTime(current.closeAt)}
+                                    Khung giờ: {formatDateTime(current.openAt)} – {formatDateTime(current.closeAt)}
                                     {current.hasScheduleOverride ? ' (khung riêng)' : ' (lịch chung)'}
                                   </p>
                                 )}
@@ -865,7 +888,7 @@ export default function ExamAssignPage() {
                               <p className="flex items-start gap-1.5 text-xs text-amber-700 leading-relaxed">
                                 <Lock size={13} className="flex-shrink-0 mt-0.5" />
                                 <span>
-                                  {describeScheduleLock(`Bài của lớp ${group.name}`, current.openAt)} Vẫn giao thêm
+                                  {describeScheduleLock(classLockSubject(group.name), current.openAt)} Vẫn giao thêm
                                   được cho học sinh mới của lớp, các em làm theo khung giờ hiện tại.
                                 </span>
                               </p>
@@ -898,6 +921,7 @@ export default function ExamAssignPage() {
                                   durationMinutes={exam.durationMinutes}
                                   onChange={changes => updateClassWindow(group.id, changes)}
                                   stackedFields
+                                  warnLock={assignedInGroup > 0}
                                 />
                               ) : draft.hadOverride && (
                                 <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 leading-relaxed">
@@ -1015,8 +1039,9 @@ export default function ExamAssignPage() {
                             Khung giờ riêng cho {individualCount} em chọn riêng
                           </span>
                           <span className="block text-xs text-slate-500 mt-0.5 leading-relaxed">
-                            Dành cho em thi bù hay thi muộn. Bỏ trống thì các em theo lịch chung của đề; sau
-                            khi giao, mỗi em vẫn dời giờ riêng được ở trang chi tiết.
+                            Dành cho em thi bù hay thi muộn. Bỏ trống thì các em theo lịch chung của đề. Sau
+                            khi giao, mỗi em dời giờ riêng được ở trang chi tiết, trừ lúc còn dưới 2 giờ nữa là
+                            mở hoặc đang mở.
                           </span>
                         </span>
                       </label>
@@ -1052,7 +1077,7 @@ export default function ExamAssignPage() {
               <SummaryRow label="Lớp đã chọn" value={selectedGroupIds.length} />
               <SummaryRow
                 label="Lớp có khung giờ riêng"
-                value={selectedGroupIds.filter(groupId => classWindows[groupId]?.enabled).length}
+                value={selectedGroupIds.filter(groupId => classWindows[groupId]?.enabled && !classWindows[groupId]?.locked).length}
               />
               <SummaryRow label="Học sinh chọn riêng" value={selectedStudentIds.length} />
               <SummaryRow label="Sẽ giao mới" value={newRecipientCount} tone="primary" />

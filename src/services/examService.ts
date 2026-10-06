@@ -234,8 +234,9 @@ export function assignExam(
  * Dời khung giờ của **một** học sinh được chọn đích danh.
  *
  * Gửi cả hai mốc là đặt giờ riêng cho em; gửi rỗng là đưa em về lịch chung của đề. Server từ chối
- * (409) em được giao qua lớp — giờ của em đó thuộc về cả lớp, sửa bằng cách gửi lại lớp — và em đã
- * bắt đầu làm bài, vì hạn nộp đã chốt lúc vào thi.
+ * (409) em được giao qua lớp — giờ của em đó thuộc về cả lớp, sửa bằng cách gửi lại lớp —, em đã
+ * bắt đầu làm bài, vì hạn nộp đã chốt lúc vào thi, và khung giờ hiện tại của em đang khoá (còn dưới 2 giờ
+ * nữa là mở cho tới hết giờ đóng, xem `scheduleLocked`).
  */
 export function rescheduleAssignment(
   examId: number,

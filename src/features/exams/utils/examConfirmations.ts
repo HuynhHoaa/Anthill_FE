@@ -78,7 +78,8 @@ export function examPublishConfirmCopy(summary: PublishSummary, goingToAssign: b
  * Phần áp dụng cho các em chưa làm tách ba trường hợp, vì server làm ba việc khác nhau. Chưa em nào
  * bắt đầu mà cấu hình đề đổi thì bản đề đã sinh lúc giao bài bị **sinh lại** — giáo viên phải biết
  * các em sẽ nhận một bộ câu khác, không phải bộ họ có thể đã xem trước. Cấu hình không đổi thì bộ câu
- * giữ nguyên. Đã có em làm thì cấu hình bị khoá, chỉ tên, lịch và tuỳ chọn hiện điểm được lưu.
+ * giữ nguyên. Đã có em làm thì cấu hình bị khoá, chỉ tên, mô tả và tuỳ chọn hiện điểm được lưu; lịch chỉ
+ * lưu được khi chưa bị khoá giờ.
  *
  * `blueprintChanged` do trang gọi tự so: nói "sẽ sinh lại" khi chỉ đổi tên là hứa một điều không xảy ra.
  */
@@ -87,7 +88,7 @@ export function publishedExamEditConfirmCopy(
   goingToAssign: boolean,
   blueprintChanged: boolean,
 ) {
-  // Lịch đang khoá thì form không gửi lịch mới, nên không hứa là lịch được lưu.
+  // Lịch đang khoá thì không đổi được, nên không hứa là lịch được lưu.
   const scheduleText = exam.scheduleLocked ? '' : ', lịch mở/đóng'
   const audience =
     exam.assignedCount === 0

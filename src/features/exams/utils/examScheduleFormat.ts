@@ -52,7 +52,27 @@ export function minutesBetween(openLocalValue: string, closeLocalValue: string):
 }
 
 /** Khớp `ScheduleLockLeadMinutes` (120 phút) của server; chỉ dùng để viết câu báo, việc khoá do server quyết. */
-const SCHEDULE_LOCK_LEAD_HOURS = 2
+const SCHEDULE_LOCK_LEAD_MINUTES = 120
+const SCHEDULE_LOCK_LEAD_HOURS = SCHEDULE_LOCK_LEAD_MINUTES / 60
+
+/** Chủ ngữ cho một lớp trong câu báo khoá: tên lớp đã mở đầu bằng "Lớp" thì không thêm chữ "lớp" nữa. */
+export function classLockSubject(className: string): string {
+  return /^lớp\s/i.test(className.trim()) ? `Bài của ${className.trim()}` : `Bài của lớp ${className.trim()}`
+}
+
+/**
+ * Giờ mở này cách bây giờ chưa đầy 2 giờ (hoặc đã qua) — tức là nếu lưu thì khung giờ sẽ bị khoá ngay.
+ * Chỉ để cảnh báo trước khi lưu; server mới là nơi quyết định.
+ */
+export function opensWithinLockWindow(openAt: string): boolean {
+  const openDate = parseDateTime(openAt)
+  if (!openDate) return false
+  return openDate.getTime() - Date.now() < SCHEDULE_LOCK_LEAD_MINUTES * MINUTE_IN_MS
+}
+
+/** Câu cảnh báo đi kèm khi giờ mở vừa chọn rơi vào vùng khoá. */
+export const SCHEDULE_LOCK_WARNING =
+  `Giờ mở cách bây giờ chưa đầy ${SCHEDULE_LOCK_LEAD_HOURS} giờ. Lưu xong thì khung giờ này không đổi được nữa cho tới hết giờ đóng.`
 
 /** Vì sao một khung giờ đang khoá, nói đúng theo việc nó sắp mở hay đang mở. Giống câu server trả về. */
 export function describeScheduleLock(subject: string, openAt: string): string {
@@ -60,7 +80,7 @@ export function describeScheduleLock(subject: string, openAt: string): string {
   const notOpenYet = openDate !== null && Date.now() < openDate.getTime()
 
   return notOpenYet
-    ? `${subject} sắp mở trong chưa đầy ${SCHEDULE_LOCK_LEAD_HOURS} giờ nữa nên không đổi giờ được.`
+    ? `${subject} còn chưa đầy ${SCHEDULE_LOCK_LEAD_HOURS} giờ nữa là mở nên không đổi giờ được.`
     : `${subject} đang mở nên không đổi giờ được.`
 }
 
