@@ -29,6 +29,7 @@ import type { DifficultyLevel, Exam, ExamAssignment, ExamStatus } from '../../..
 import {
   examDeleteConfirmCopy, examDuplicateConfirmCopy, examRevokeAssignmentConfirmCopy,
 } from '../utils/examConfirmations'
+import { describeScheduleLock } from '../utils/examScheduleFormat'
 import AssignmentWindowList from '../components/AssignmentWindowList'
 import RescheduleAssignmentDialog from '../components/RescheduleAssignmentDialog'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
@@ -127,7 +128,10 @@ function AssignmentRow({ assignment, onReschedule, onRevoke }: AssignmentRowProp
   // lớp thuộc về cả lớp, còn em đã vào thi thì hạn nộp đã chốt. Cùng hai điều kiện server dùng — server
   // xét "chưa có Attempt", không phải "còn ở trạng thái assigned", nên em đã hết hạn mà chưa từng vào thi
   // (status 'expired') vẫn dời được: đó chính là cách cứu một em đã lỡ khung giờ.
-  const canReschedule = assignment.assignedViaGroupId === undefined && assignment.attemptId === undefined
+  // Thêm một điều kiện thứ ba: khung giờ đang khoá (còn dưới 2 giờ nữa là mở, hoặc đang mở). Hết giờ đóng
+  // thì mở khoá lại, nên em lỡ giờ vẫn cứu được.
+  const canReschedule =
+    assignment.assignedViaGroupId === undefined && assignment.attemptId === undefined && !assignment.scheduleLocked
 
   // Cùng lý do và cùng câu chữ server dùng khi từ chối (409) — hiện nút ở dạng mờ kèm lý do thay vì ẩn
   // hẳn, để giáo viên không phải tự đoán "ủa sao em này không dời được, có phải lỗi không?".
@@ -136,7 +140,9 @@ function AssignmentRow({ assignment, onReschedule, onRevoke }: AssignmentRowProp
       ? `Em được giao bài qua lớp ${assignment.group}, nên làm bài theo khung giờ của cả lớp. Hãy đổi khung giờ của lớp ở trang giao bài.`
       : assignment.attemptId !== undefined
         ? 'Em đã bắt đầu làm bài nên hạn nộp đã chốt lúc vào thi, không dời giờ được nữa.'
-        : undefined
+        : assignment.scheduleLocked
+          ? describeScheduleLock('Bài của em này', assignment.openAt)
+          : undefined
 
   // Thu hồi thì rộng hơn dời giờ một bước: server (RevokeAsync) chỉ chặn khi em đã có Attempt, không
   // quan tâm em được giao đích danh hay qua cả lớp — thu hồi một dòng trong bảng này không đụng tới
@@ -775,6 +781,12 @@ export default function ExamDetailPage() {
               <InfoRow label="Mở bài" value={formatDateTime(exam.openAt)} />
               <InfoRow label="Đóng bài" value={formatDateTime(exam.closeAt)} />
               <InfoRow label="Thời lượng làm bài" value={formatDuration(exam.durationMinutes)} />
+              {exam.scheduleLocked && (
+                <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-700 leading-relaxed">
+                  <Lock size={14} className="flex-shrink-0 mt-0.5" />
+                  <span>{describeScheduleLock('Đề này', exam.openAt)} Hết giờ đóng bài thì đổi lại được.</span>
+                </p>
+              )}
 
               {/* Lịch phía trên chỉ là mặc định. Lớp học tiết 2 sáng thứ Ba và lớp học tiết 4 chiều
                   thứ Năm làm cùng một đề, nên "lớp nào đang làm bài lúc này" phải đọc được ở đây. */}
@@ -798,7 +810,10 @@ export default function ExamDetailPage() {
               to={`/giao-vien/bai-kiem-tra/${exam.id}/sua`}
               className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
             >
-              <Pencil size={16} /> {exam.blueprintFrozen ? 'Sửa tên, mô tả và lịch' : 'Chỉnh sửa ma trận đề'}
+              <Pencil size={16} />{' '}
+              {exam.blueprintFrozen
+                ? (exam.scheduleLocked ? 'Sửa tên và mô tả' : 'Sửa tên, mô tả và lịch')
+                : 'Chỉnh sửa ma trận đề'}
             </NavLink>
           </aside>
         </div>

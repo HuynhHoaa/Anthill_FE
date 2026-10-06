@@ -197,6 +197,13 @@ export interface Exam {
    */
   blueprintFrozen: boolean
 
+  /**
+   * Server tính sẵn: `true` khi lịch chung của đề không đổi được nữa — đề đã giao và chỉ còn dưới
+   * 2 giờ nữa là mở, hoặc đang mở. Hết giờ đóng thì mở khoá lại. Đọc cờ này thay vì tự so giờ ở máy
+   * người dùng, vì đồng hồ máy có thể lệch.
+   */
+  scheduleLocked: boolean
+
   lifecycle: ExamLifecycle
 
   /**
@@ -232,6 +239,9 @@ export interface AssignmentWindow {
   /** `false` khi khung này chính là lịch chung — sửa lịch đề sẽ kéo nó theo. */
   hasScheduleOverride: boolean
 
+  /** `true` khi khung giờ này không đổi được nữa (còn dưới 2 giờ nữa là mở, hoặc đang mở). */
+  scheduleLocked: boolean
+
   /** Server tính theo cùng phép so với phía học sinh, để hai bên không nói hai điều khác nhau. */
   lifecycle: ExamLifecycle
 
@@ -264,6 +274,9 @@ export interface ExamAssignment {
 
   /** `true` khi em có khung giờ riêng; `false` nghĩa là em đang theo lịch chung. */
   hasScheduleOverride: boolean
+
+  /** `true` khi khung giờ của em không đổi được nữa (còn dưới 2 giờ nữa là mở, hoặc đang mở). */
+  scheduleLocked: boolean
 
   /**
    * Lớp mà em được giao bài qua đó. Vắng mặt khi giáo viên chọn đích danh em — và chỉ những em đó mới

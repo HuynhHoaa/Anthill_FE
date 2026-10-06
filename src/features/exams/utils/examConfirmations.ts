@@ -83,18 +83,20 @@ export function examPublishConfirmCopy(summary: PublishSummary, goingToAssign: b
  * `blueprintChanged` do trang gọi tự so: nói "sẽ sinh lại" khi chỉ đổi tên là hứa một điều không xảy ra.
  */
 export function publishedExamEditConfirmCopy(
-  exam: Pick<Exam, 'title' | 'assignedCount' | 'submittedCount' | 'startedCount' | 'blueprintFrozen'>,
+  exam: Pick<Exam, 'title' | 'assignedCount' | 'submittedCount' | 'startedCount' | 'blueprintFrozen' | 'scheduleLocked'>,
   goingToAssign: boolean,
   blueprintChanged: boolean,
 ) {
+  // Lịch đang khoá thì form không gửi lịch mới, nên không hứa là lịch được lưu.
+  const scheduleText = exam.scheduleLocked ? '' : ', lịch mở/đóng'
   const audience =
     exam.assignedCount === 0
       ? `Đề "${exam.title}" đã xuất bản nhưng chưa giao cho ai: thay đổi áp dụng cho những lượt giao bài từ giờ.`
       : exam.blueprintFrozen
-        ? `Đề "${exam.title}" đã có ${exam.startedCount} học sinh bắt đầu làm nên cấu hình đề giữ nguyên: chỉ tên, mô tả, lịch mở/đóng và tuỳ chọn hiện kết quả được lưu, và hiện ngay với các em.`
+        ? `Đề "${exam.title}" đã có ${exam.startedCount} học sinh bắt đầu làm nên cấu hình đề giữ nguyên: chỉ tên, mô tả${scheduleText} và tuỳ chọn hiện kết quả được lưu, và hiện ngay với các em.`
         : blueprintChanged
           ? `Đề "${exam.title}" đang được giao cho ${exam.assignedCount} học sinh và chưa em nào bắt đầu làm. Cấu hình đề đã đổi nên đề của các em sẽ được sinh lại theo cấu hình mới: khi vào thi, các em nhận bộ câu hỏi mới thay cho bộ đã sinh lúc giao bài.`
-          : `Đề "${exam.title}" đang được giao cho ${exam.assignedCount} học sinh: tên, mô tả, lịch mở/đóng và tuỳ chọn mới sẽ hiện ngay với các em. Cấu hình đề không đổi nên bộ câu hỏi của các em giữ nguyên.`
+          : `Đề "${exam.title}" đang được giao cho ${exam.assignedCount} học sinh: tên, mô tả${scheduleText} và tuỳ chọn mới sẽ hiện ngay với các em. Cấu hình đề không đổi nên bộ câu hỏi của các em giữ nguyên.`
   const graded =
     exam.submittedCount > 0
       ? ` ${exam.submittedCount} bài đã nộp và điểm đã chấm giữ nguyên, vì hệ thống chấm trên đúng bộ câu hỏi từng em đã làm.`

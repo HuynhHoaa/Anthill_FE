@@ -51,6 +51,19 @@ export function minutesBetween(openLocalValue: string, closeLocalValue: string):
   return Math.max(0, Math.round((closeDate.getTime() - openDate.getTime()) / MINUTE_IN_MS))
 }
 
+/** Khớp `ScheduleLockLeadMinutes` (120 phút) của server; chỉ dùng để viết câu báo, việc khoá do server quyết. */
+const SCHEDULE_LOCK_LEAD_HOURS = 2
+
+/** Vì sao một khung giờ đang khoá, nói đúng theo việc nó sắp mở hay đang mở. Giống câu server trả về. */
+export function describeScheduleLock(subject: string, openAt: string): string {
+  const openDate = parseDateTime(openAt)
+  const notOpenYet = openDate !== null && Date.now() < openDate.getTime()
+
+  return notOpenYet
+    ? `${subject} sắp mở trong chưa đầy ${SCHEDULE_LOCK_LEAD_HOURS} giờ nữa nên không đổi giờ được.`
+    : `${subject} đang mở nên không đổi giờ được.`
+}
+
 export interface DefaultSchedule {
   openAtLocal: string
   closeAtLocal: string

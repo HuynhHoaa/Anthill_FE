@@ -25,6 +25,7 @@ export function AssignmentWindowRow({ window }: { window: AssignmentWindow }) {
         {/* Nói rõ khung nào sẽ đi theo lịch đề: sửa lịch chung kéo theo đúng những lớp này, và đó là
             thứ giáo viên cần biết trước khi bấm sửa. */}
         {!window.hasScheduleOverride && ' · theo lịch chung'}
+        {window.scheduleLocked && ' · đã khoá giờ'}
       </p>
     </div>
   )

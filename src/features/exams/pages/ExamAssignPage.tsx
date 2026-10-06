@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useParams } from 'react-router-dom'
 import {
-  AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, Clock, FileText, Layers,
+  AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, Clock, FileText, Layers, Lock,
   Search, SearchX, Send, Shuffle, UserCheck, Users, X,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
@@ -20,7 +20,7 @@ import { listStudents } from '../../../services/studentService'
 import { formatDateTime, getInitials, matchesSearch } from '../../../lib/format'
 import type { AssignmentWindow, Exam, Student, StudentGroup } from '../../../types'
 import {
-  isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
+  describeScheduleLock, isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
 } from '../utils/examScheduleFormat'
 
 /** Đủ lớn để lấy trọn danh sách học sinh trong một lần gọi, tránh phải phân trang khi giao bài. */
@@ -44,6 +44,11 @@ interface ClassWindowDraft {
   closeAtLocal: string
   /** Khung giờ riêng lớp đang theo trước lần giao này, để cảnh báo khi giáo viên bỏ nó đi. */
   hadOverride: boolean
+  /**
+   * Khung giờ hiện tại của lớp đang khoá (còn dưới 2 giờ nữa là mở, hoặc đang mở). Lớp này vẫn giao thêm được
+   * học sinh, nhưng không gửi kèm khung giờ nào lên server: gửi lại cũng bị coi là đổi giờ nếu lệch vài giây.
+   */
+  locked: boolean
 }
 
 function toErrorMessage(caught: unknown, fallback: string): string {
@@ -70,6 +75,7 @@ function buildClassDraft(exam: Exam, groupId: number): ClassWindowDraft {
     openAtLocal: toDateTimeLocalValue(existing?.openAt ?? exam.openAt),
     closeAtLocal: toDateTimeLocalValue(existing?.closeAt ?? exam.closeAt),
     hadOverride: hasOwnWindow,
+    locked: existing?.scheduleLocked ?? false,
   }
 }
 
@@ -541,7 +547,7 @@ export default function ExamAssignPage() {
 
     selectedGroupIds.forEach(groupId => {
       const draft = classWindows[groupId]
-      if (!draft?.enabled) return
+      if (!draft?.enabled || draft.locked) return
       const group = groups.find(item => item.id === groupId)
       check(`Lớp ${group?.name ?? groupId}`, draft)
     })
@@ -570,7 +576,7 @@ export default function ExamAssignPage() {
     () => selectedGroupIds
       .map(groupId => {
         const draft = classWindows[groupId]
-        if (!draft?.enabled) return null
+        if (!draft?.enabled || draft.locked) return null
         const label = groups.find(group => group.id === groupId)?.name ?? `Lớp ${groupId}`
         return { groupId, label, windowText: `${formatDateTime(draft.openAtLocal)} – ${formatDateTime(draft.closeAtLocal)}` }
       })
@@ -588,18 +594,23 @@ export default function ExamAssignPage() {
 
     setSubmitting(true)
     try {
-      const classes: AssignClassTarget[] = selectedGroupIds.map(groupId => {
-        const draft = classWindows[groupId]
-        return draft?.enabled
-          ? {
-            groupId,
-            openAt: toServiceDateTime(draft.openAtLocal),
-            closeAt: toServiceDateTime(draft.closeAtLocal),
-          }
-          // Không kèm giờ nghĩa là lớp theo lịch chung của đề — và với lớp đang có giờ riêng thì đây
-          // chính là lệnh gỡ nó, đúng như dòng cảnh báo trong hộp xác nhận đã nói.
-          : { groupId }
-      })
+      // Lớp có khung giờ đang khoá đi theo `groupIds`: giao thêm học sinh mà không đụng tới giờ của lớp.
+      const keepWindowGroupIds = selectedGroupIds.filter(groupId => classWindows[groupId]?.locked)
+
+      const classes: AssignClassTarget[] = selectedGroupIds
+        .filter(groupId => !classWindows[groupId]?.locked)
+        .map(groupId => {
+          const draft = classWindows[groupId]
+          return draft?.enabled
+            ? {
+              groupId,
+              openAt: toServiceDateTime(draft.openAtLocal),
+              closeAt: toServiceDateTime(draft.closeAtLocal),
+            }
+            // Không kèm giờ nghĩa là lớp theo lịch chung của đề — và với lớp đang có giờ riêng thì đây
+            // chính là lệnh gỡ nó, đúng như dòng cảnh báo trong hộp xác nhận đã nói.
+            : { groupId }
+        })
 
       const individualWindow = studentWindow.enabled && individualCount > 0
         ? {
@@ -613,7 +624,7 @@ export default function ExamAssignPage() {
       // giao bổ sung không vô cớ đụng vào đề.
       const outcome = await assignExam(exam.id, {
         studentIds: selectedStudentIds,
-        groupIds: [],
+        groupIds: keepWindowGroupIds,
         classes,
         notify,
         randomizePerStudent: randomizePerStudent === exam.randomizePerStudent
@@ -849,7 +860,19 @@ export default function ExamAssignPage() {
                             </div>
                           </button>
 
-                          {isSelected && draft && (
+                          {isSelected && draft?.locked && current && (
+                            <div className="mt-3 pt-3 border-t border-indigo-100">
+                              <p className="flex items-start gap-1.5 text-xs text-amber-700 leading-relaxed">
+                                <Lock size={13} className="flex-shrink-0 mt-0.5" />
+                                <span>
+                                  {describeScheduleLock(`Bài của lớp ${group.name}`, current.openAt)} Vẫn giao thêm
+                                  được cho học sinh mới của lớp, các em làm theo khung giờ hiện tại.
+                                </span>
+                              </p>
+                            </div>
+                          )}
+
+                          {isSelected && draft && !draft.locked && (
                             <div className="mt-3 pt-3 border-t border-indigo-100">
                               <label className="flex items-start gap-2.5 cursor-pointer">
                                 <input
