@@ -15,7 +15,7 @@ import { useAsync } from '../../../hooks/useAsync'
 import { getCurrentUser } from '../../../services/authService'
 import { getAttemptDetail } from '../../../services/resultService'
 import { resolveMediaUrl } from '../../../lib/apiClient'
-import { formatDateTime, formatDuration, formatScore } from '../../../lib/format'
+import { formatDateTime, formatDuration, formatScore, NO_VALUE } from '../../../lib/format'
 import type { AttemptAnswerDetail, AttemptDetail, ResultAudience } from '../../../types'
 import ScoreRing from '../components/ScoreRing'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
@@ -171,6 +171,8 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
   }
 
   const isGraded = detail.status === 'graded'
+  // Lượt còn đang làm dở: chưa có giờ nộp, chưa có điểm, và đồng hồ của em vẫn chạy.
+  const isInProgress = detail.status === 'inprogress'
   // Chỉ giáo viên mới đi ngược về được các trang quản lý; học sinh giữ nguyên text thuần.
   const examDetailLink = `/giao-vien/bai-kiem-tra/${detail.examId}`
   const studentDetailLink = `/giao-vien/hoc-sinh/${detail.studentId}`
@@ -188,6 +190,20 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
 
   const renderQuestions = () => {
     if (!canSeeAnswers) {
+      if (isInProgress) {
+        return (
+          <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-5 flex items-start gap-3">
+            <Hourglass size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-amber-700">Bạn đang làm bài này</p>
+              <p className="text-sm text-amber-600 mt-1 leading-relaxed">
+                Kết quả sẽ có sau khi bạn nộp bài hoặc hết giờ.
+              </p>
+            </div>
+          </div>
+        )
+      }
+
       if (!isGraded) {
         return (
           <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-5 flex items-start gap-3">
@@ -227,7 +243,19 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
 
     return (
       <>
-        {!isGraded && (
+        {isInProgress && (
+          <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4 flex items-start gap-3 mb-4">
+            <Hourglass size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-amber-700">Học sinh đang làm bài</p>
+              <p className="text-sm text-amber-600 mt-1 leading-relaxed">
+                Bài chưa nộp nên chưa có điểm. Bạn đang xem những lựa chọn em đã lưu tới lúc này.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {!isGraded && !isInProgress && (
           <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4 flex items-start gap-3 mb-4">
             <Hourglass size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
@@ -456,7 +484,9 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                   )}
                 </p>
               ) : (
-                <p className="text-sm text-slate-500 mt-1.5">Nộp lúc {formatDateTime(detail.submittedAt)}</p>
+                <p className="text-sm text-slate-500 mt-1.5">
+                  {isInProgress ? 'Bài chưa nộp' : `Nộp lúc ${formatDateTime(detail.submittedAt)}`}
+                </p>
               )}
             </div>
 
@@ -467,7 +497,9 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                 <div className="w-20 h-20 rounded-full bg-slate-50 border-2 border-slate-200 flex items-center justify-center">
                   <Hourglass size={24} className="text-slate-400" />
                 </div>
-                <span className="text-[11px] font-semibold text-slate-400">Chờ chấm</span>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  {isInProgress ? 'Đang làm' : 'Chờ chấm'}
+                </span>
               </div>
             )}
           </div>
@@ -510,7 +542,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                       <span className="text-xs font-medium text-slate-400"> / {formatScore(detail.maxScore)}</span>
                     </span>
                   ) : (
-                    <span className="text-slate-400">Chờ chấm</span>
+                    <span className="text-slate-400">{isInProgress ? 'Đang làm' : 'Chờ chấm'}</span>
                   )
                 }
               />
@@ -548,7 +580,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                     <Clock size={14} /> Thời gian làm
                   </span>
                 }
-                value={formatDuration(detail.durationMinutes)}
+                value={isInProgress ? NO_VALUE : formatDuration(detail.durationMinutes)}
               />
               <SummaryRow
                 label={
@@ -556,7 +588,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                     <CalendarDays size={14} /> Ngày nộp
                   </span>
                 }
-                value={formatDateTime(detail.submittedAt)}
+                value={isInProgress ? NO_VALUE : formatDateTime(detail.submittedAt)}
               />
             </div>
           </div>

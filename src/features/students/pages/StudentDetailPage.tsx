@@ -175,6 +175,7 @@ export default function StudentDetailPage() {
                 // Chưa được phép xem điểm thì cũng chưa có xếp loại nào để tô màu.
                 const scoreTone = result.score === null ? null : getScoreTone(result.score)
                 const isGraded = result.status === 'graded'
+                const isInProgress = result.status === 'inprogress'
 
                 return (
                   <tr
@@ -191,7 +192,7 @@ export default function StudentDetailPage() {
                       </NavLink>
                     </td>
                     <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
-                      {formatDateTime(result.submittedAt)}
+                      {isInProgress ? NO_VALUE : formatDateTime(result.submittedAt)}
                     </td>
                     <td className="px-5 py-4">
                       {isGraded ? (
@@ -206,7 +207,9 @@ export default function StudentDetailPage() {
                           )}
                         </span>
                       ) : (
-                        <span className="text-sm font-semibold text-slate-400">Chờ chấm</span>
+                        <span className="text-sm font-semibold text-slate-400">
+                          {isInProgress ? 'Đang làm' : 'Chờ chấm'}
+                        </span>
                       )}
                     </td>
                     <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
@@ -394,7 +397,7 @@ export default function StudentDetailPage() {
               {results && <span className="text-slate-400 font-semibold"> ({results.total})</span>}
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Chỉ những bài đã nộp mới có mặt ở đây. Bấm Xem chi tiết để mở từng câu trả lời của học sinh.
+              Gồm cả bài em đang làm dở. Bấm Xem chi tiết để mở từng câu trả lời của học sinh.
             </p>
           </div>
 

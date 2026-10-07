@@ -14,13 +14,16 @@ import { getResultStats, listResults } from '../../../services/resultService'
 import { listExams } from '../../../services/examService'
 import { listGroups } from '../../../services/groupService'
 import { getStudent } from '../../../services/studentService'
-import { formatDateTime, formatDuration, formatScore, getScoreTone } from '../../../lib/format'
+import { formatDateTime, formatDuration, formatScore, getScoreTone, NO_VALUE } from '../../../lib/format'
 import { examStatusLabels, type ExamStatus, type Student } from '../../../types'
 
 const PAGE_SIZE = 10
 
-/** Kết quả chỉ tồn tại cho lượt làm đã nộp, nên bộ lọc chỉ mở hai trạng thái này. */
-const statusOptions: ExamStatus[] = ['submitted', 'graded']
+/**
+ * Ba trạng thái một lượt làm bài thật sự có. `assigned` và `expired` là trạng thái dẫn xuất của lượt
+ * giao, không có dòng nào ở bảng này nên không đưa vào bộ lọc.
+ */
+const statusOptions: ExamStatus[] = ['inprogress', 'submitted', 'graded']
 
 /**
  * URL là nguồn sự thật duy nhất của mọi bộ lọc ở trang này: không có state song song
@@ -274,6 +277,10 @@ export default function TeacherResultsPage() {
 
     const parts = [`${stats.totalAttempts} bài làm`, `${stats.gradedCount} đã chấm`]
 
+    // Bài em còn đang làm nằm trong số "bài làm" nhưng chưa phải bài đã nộp, nên đếm riêng thay vì
+    // để người xem tự trừ.
+    if (stats.inProgressCount > 0) parts.push(`${stats.inProgressCount} đang làm`)
+
     // null nghĩa là chưa bài nào được chấm, không phải cả lớp 0 điểm — nên bỏ hẳn phần này đi
     // thay vì hiện một con số không có thật.
     if (stats.averageScore !== null) parts.push(`TB ${formatScore(stats.averageScore)}`)
@@ -356,6 +363,7 @@ export default function TeacherResultsPage() {
                   // xếp loại lệch nhau (H7).
                   const scoreTone = result.score === null ? null : getScoreTone(result.score, result.maxScore)
                   const isGraded = result.status === 'graded'
+                  const isInProgress = result.status === 'inprogress'
                   const groupId = groupIdByName.get(result.group)
 
                   return (
@@ -364,7 +372,9 @@ export default function TeacherResultsPage() {
                         <NavLink to={`/giao-vien/bai-kiem-tra/${result.examId}`} className={cellLinkClass}>
                           {result.examTitle}
                         </NavLink>
-                        <p className="text-xs text-slate-400 mt-0.5">Nộp {formatDateTime(result.submittedAt)}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {isInProgress ? 'Chưa nộp' : `Nộp ${formatDateTime(result.submittedAt)}`}
+                        </p>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex flex-wrap items-center gap-2">
@@ -415,11 +425,13 @@ export default function TeacherResultsPage() {
                             )}
                           </>
                         ) : (
-                          <span className="text-sm font-semibold text-slate-400">Chờ chấm</span>
+                          <span className="text-sm font-semibold text-slate-400">
+                            {isInProgress ? 'Đang làm' : 'Chờ chấm'}
+                          </span>
                         )}
                       </td>
                       <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
-                        {formatDuration(result.durationMinutes)}
+                        {isInProgress ? NO_VALUE : formatDuration(result.durationMinutes)}
                       </td>
                       <td className="px-5 py-4">
                         <StatusBadge status={result.status} />
