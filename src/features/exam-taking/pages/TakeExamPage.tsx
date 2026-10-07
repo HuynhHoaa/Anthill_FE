@@ -17,8 +17,9 @@ import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { resolveMediaUrl } from '../../../lib/apiClient'
 import { formatClock } from '../../../lib/format'
-import { saveAnswers, startAttempt, submitAttempt } from '../../../services/attemptService'
+import { getAttemptTime, saveAnswers, startAttempt, submitAttempt } from '../../../services/attemptService'
 import type { AttemptQuestion, AttemptSession } from '../../../types'
+import { hasReached, secondsUntil } from '../utils/examClock'
 
 /** Chờ học sinh ngừng đổi đáp án rồi mới lưu nháp, tránh gọi service ở mỗi lần bấm. */
 const AUTO_SAVE_DELAY_MS = 800
@@ -33,6 +34,16 @@ const AUTO_SAVE_DELAY_MS = 800
 const AUTO_SUBMIT_RETRY_MS = 5000
 const WARNING_SECONDS = 5 * 60
 const CRITICAL_SECONDS = 60
+
+/**
+ * Đồng hồ chạy trên `performance.now()` nên không nghe theo giờ máy, nhưng có thể đứng lại khi máy ngủ hay
+ * tab bị treo. Chỉnh lại theo server khi tab hiện lại và khi có mạng lại; hai khoảng dưới đây chỉ là lớp
+ * phòng hờ cho trường hợp trình duyệt không bắn đúng sự kiện.
+ *
+ * `RESYNC_MIN_GAP_MS` chặn việc chuyển tab liên tục thành một chuỗi lời gọi.
+ */
+const RESYNC_MIN_GAP_MS = 10_000
+const RESYNC_FALLBACK_MS = 5 * 60_000
 
 /**
  * Lỗi lưu nháp đứng yên bao lâu thì đổi từ dòng chữ nhỏ sang một dải cảnh báo hẳn hoi.
@@ -135,18 +146,18 @@ function QuestionNavigator({
  * Phải tiếp tục chạy chứ không đứng ở con số lúc mở hộp: học sinh quyết định nộp sớm hay quay lại
  * soát bài dựa đúng vào con số này, và một con số đứng yên thì nói dối mỗi giây hộp còn mở.
  */
-function RemainingClock({ expiresAt }: { expiresAt: number | null }) {
-  const [seconds, setSeconds] = useState(() =>
-    expiresAt === null ? 0 : Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)),
-  )
+function RemainingClock({ deadlineRef }: { deadlineRef: { readonly current: number | null } }) {
+  const read = () => (deadlineRef.current === null ? 0 : secondsUntil(deadlineRef.current))
+  const [seconds, setSeconds] = useState(read)
 
+  // Đọc mốc từ ref ở mỗi nhịp, không chụp một lần: màn hình làm bài có thể chỉnh lại mốc theo server khi hộp
+  // xác nhận đang mở, và con số trong hộp phải theo kịp.
   useEffect(() => {
-    if (expiresAt === null) return
-    const timerId = window.setInterval(() => {
-      setSeconds(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)))
-    }, 1000)
+    const timerId = window.setInterval(() => setSeconds(read()), 1000)
     return () => window.clearInterval(timerId)
-  }, [expiresAt])
+    // `read` chỉ đọc ref, nên khởi tạo một lần theo ref là đủ.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deadlineRef])
 
   return <strong className="font-bold text-slate-800 tabular-nums">{formatClock(seconds)}</strong>
 }
@@ -262,7 +273,7 @@ export default function TakeExamPage() {
     answersDirtyRef.current = false
     // Mốc hết giờ lấy thẳng từ phiên: nó đã trừ đi chênh lệch giữa đồng hồ máy và đồng hồ server,
     // nên máy đặt sai giờ vẫn đếm ngược đúng bằng thời gian server thật sự còn cho phép.
-    expiresAtRef.current = session.expiresAtLocal
+    expiresAtRef.current = session.expiresAtMonotonic
     // Nối tiếp số thứ tự server đã ghi nhận, để những lượt ghi tiếp theo luôn lớn hơn nó.
     clientSeqRef.current = session.lastAppliedSeq
     autoSubmitRetryAtRef.current = 0
@@ -369,7 +380,7 @@ export default function TakeExamPage() {
       const expiresAt = expiresAtRef.current
       if (expiresAt === null) return
       // Làm tròn lên để đồng hồ chỉ hiện 00:00 khi thời gian đã thực sự hết.
-      const remaining = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000))
+      const remaining = secondsUntil(expiresAt)
       setRemainingSeconds(remaining)
       if (remaining > 0) return
       // Hết giờ thì tự động nộp, đúng yêu cầu nghiệp vụ. Cờ hasSubmittedRef bên trong
@@ -379,7 +390,7 @@ export default function TakeExamPage() {
       // nộp, và thứ duy nhất báo cho học sinh là một toast biến mất sau ba giây.
       // Để đồng hồ chạy tiếp và thử lại theo nhịp giãn cách; hasSubmittedRef bên trong
       // finishAttempt chặn việc nộp chồng lên nhau.
-      const now = Date.now()
+      const now = performance.now()
       if (now < autoSubmitRetryAtRef.current) return
       autoSubmitRetryAtRef.current = now + AUTO_SUBMIT_RETRY_MS
       void finishAttemptRef.current(true)
@@ -387,6 +398,52 @@ export default function TakeExamPage() {
 
     timerId = window.setInterval(tick, 1000)
     return () => window.clearInterval(timerId)
+  }, [session])
+
+  // Chỉnh lại đồng hồ theo server khi tab hiện lại (sau khi máy ngủ hay tab bị treo, đồng hồ đơn điệu có thể đã
+  // đứng lại) và khi có mạng lại, cộng thêm một nhịp thưa phòng hờ. Hỏng thì im lặng: đồng hồ đang chạy vẫn đúng
+  // tới mức chưa cần chỉnh, và server mới là nơi quyết định hạn nộp.
+  useEffect(() => {
+    if (!session) return
+    const attemptId = session.attemptId
+    let cancelled = false
+    let inFlight = false
+    let lastSyncAt = Number.NEGATIVE_INFINITY
+
+    const resync = (force: boolean) => {
+      if (inFlight || hasSubmittedRef.current) return
+      const now = performance.now()
+      if (!force && now - lastSyncAt < RESYNC_MIN_GAP_MS) return
+      inFlight = true
+      lastSyncAt = now
+
+      getAttemptTime(attemptId)
+        .then(result => {
+          if (cancelled || hasSubmittedRef.current) return
+          expiresAtRef.current = result.expiresAtMonotonic
+          setRemainingSeconds(secondsUntil(result.expiresAtMonotonic))
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          inFlight = false
+        })
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') resync(false)
+    }
+    const handleOnline = () => resync(true)
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('online', handleOnline)
+    const fallbackTimer = window.setInterval(() => resync(false), RESYNC_FALLBACK_MS)
+
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('online', handleOnline)
+      window.clearInterval(fallbackTimer)
+    }
   }, [session])
 
   // Lưu nháp tự động sau mỗi lần đổi đáp án, có chờ 800ms để không gọi service ở mỗi lần bấm.
@@ -427,7 +484,7 @@ export default function TakeExamPage() {
           // (đã trừ lệch đồng hồ máy/server) là dữ liệu rẻ có sẵn: đủ hết giờ rồi thì gần như chắc
           // chắn lỗi này là do bài đã đóng, không phải một trục trặc mạng thoáng qua.
           const expiresAt = expiresAtRef.current
-          setSaveErrorReason(expiresAt !== null && Date.now() >= expiresAt ? 'expired' : 'network')
+          setSaveErrorReason(expiresAt !== null && hasReached(expiresAt) ? 'expired' : 'network')
         })
     }
 
@@ -484,7 +541,7 @@ export default function TakeExamPage() {
   }
 
   const requestSubmit = () => {
-    const clock = <RemainingClock expiresAt={expiresAtRef.current} />
+    const clock = <RemainingClock deadlineRef={expiresAtRef} />
     void confirm({
       title: 'Xác nhận nộp bài',
       message:

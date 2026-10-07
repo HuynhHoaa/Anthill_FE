@@ -328,13 +328,15 @@ export interface AttemptSession {
   durationMinutes: number
 
   /**
-   * Mốc hết giờ **theo đồng hồ máy này**, đã hiệu chỉnh lệch giờ với server.
+   * Mốc hết giờ **theo thang `performance.now()` của máy này**, đã hiệu chỉnh lệch giờ với server.
    *
    * Server gửi kèm giờ của chính nó, nên chênh lệch giữa hai đồng hồ được trừ đi ngay lúc nhận.
    * Không hiệu chỉnh thì một máy đặt sai giờ vài phút sẽ đếm ngược sai đúng chừng ấy — và học sinh
-   * ngồi trong phòng thi không có cách nào biết đồng hồ trên màn hình đang nói dối.
+   * ngồi trong phòng thi không có cách nào biết đồng hồ trên màn hình đang nói dối. Là con số trên thang
+   * đơn điệu chứ không phải giờ treo tường, nên chỉnh giờ máy giữa buổi cũng không làm nó nhảy; so với
+   * `performance.now()` (xem `examClock.ts`), không so với `Date.now()`.
    */
-  expiresAtLocal: number
+  expiresAtMonotonic: number
 
   remainingSeconds: number
   totalQuestions: number
