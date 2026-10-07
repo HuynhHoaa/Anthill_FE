@@ -98,11 +98,15 @@ dùng nó cho lỗi nhập liệu: gõ sai mật khẩu hiện tại khi đổi 
 
 ## Vài chỗ đáng xem
 
-**Đồng hồ làm bài tính theo mốc hết giờ tuyệt đối** ([TakeExamPage.tsx](src/features/exam-taking/pages/TakeExamPage.tsx),
-[attemptService.ts](src/services/attemptService.ts)). Mốc hết giờ dựng từ `expiresAt` và `serverNow` do
-server trả về, tức đã trừ chênh lệch giữa đồng hồ máy và đồng hồ server; mỗi giây lấy mốc đó trừ
-`Date.now()` chứ không trừ dần. Tab chạy nền bị trình duyệt giảm nhịp timer cũng không làm đồng hồ trôi,
-máy đặt sai giờ vẫn đếm đúng.
+**Đồng hồ làm bài tính theo mốc hết giờ tuyệt đối trên đồng hồ đơn điệu** ([TakeExamPage.tsx](src/features/exam-taking/pages/TakeExamPage.tsx),
+[examClock.ts](src/features/exam-taking/utils/examClock.ts), [attemptService.ts](src/services/attemptService.ts)).
+Mốc hết giờ dựng từ `expiresAt` và `serverNow` do server trả về, tức đã trừ chênh lệch giữa đồng hồ máy và
+đồng hồ server, rồi đặt lên thang `performance.now()`; mỗi giây lấy mốc đó trừ `performance.now()` chứ không
+trừ dần. Nhờ vậy tab chạy nền bị giảm nhịp timer không làm đồng hồ trôi, và học sinh chỉnh giờ máy giữa buổi
+thi cũng không làm nó nhảy (trước đây chỉnh tới là bài tự nộp sớm). Đồng hồ đơn điệu có thể đứng lại khi máy
+ngủ, nên trang hỏi lại `GET /api/exam-attempts/{id}/time` khi tab hiện lại, khi cửa sổ được chú ý, khi có
+mạng lại, khi nhịp đồng hồ thấy giờ treo tường và đồng hồ đơn điệu lệch nhau, và mỗi 5 phút phòng hờ; chỉ
+nhận mốc sớm hơn mốc đang giữ.
 - Tải lại trang thì server trả về đúng lượt đang làm cùng đáp án đã lưu; câu đang xem và các câu đánh
   dấu được giữ trong localStorage theo từng lượt.
 - Lưu nháp sau 800ms kể từ lần chọn cuối, kèm số thứ tự tăng dần để server bỏ qua bản lưu đến muộn.

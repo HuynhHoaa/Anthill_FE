@@ -89,7 +89,8 @@ function toMonotonicDeadline(serverNow: string, expiresAt: string): number {
   const end = Date.parse(expiresAt)
 
   if (!Number.isFinite(now) || !Number.isFinite(end)) {
-    // Không đọc được giờ server thì tin vào đồng hồ máy — vẫn tốt hơn là không có hạn nào.
+    // Không đọc được giờ server thì tin vào đồng hồ máy. Nếu cả mốc hết giờ cũng không đọc được thì không còn
+    // hạn nào để đếm: coi như hết giờ ngay (hành vi từ trước tới nay), chứ không đoán ra một hạn bịa.
     return performance.now() + (Number.isFinite(end) ? end - Date.now() : 0)
   }
 
@@ -165,12 +166,18 @@ export async function getAttempt(attemptId: number): Promise<AttemptSession> {
  * Nhẹ hơn nhiều so với tải lại cả phiên làm bài, nên gọi được mỗi khi tab hiện lại hay có mạng lại để
  * đồng hồ trên màn hình không trôi khỏi đồng hồ chấm bài của server (máy ngủ, tab bị treo).
  */
-export async function getAttemptTime(attemptId: number): Promise<{
+export async function getAttemptTime(attemptId: number, signal?: AbortSignal): Promise<{
   expiresAtMonotonic: number
   remainingSeconds: number
   status: string
 }> {
-  const dto = await apiClient.get<AttemptTimeDto>(`/api/exam-attempts/${attemptId}/time`)
+  const dto = await apiClient.get<AttemptTimeDto>(`/api/exam-attempts/${attemptId}/time`, undefined, signal)
+
+  // Gọi giữa buổi thi nên một phản hồi hỏng (proxy trả `{}`) không được thành "hết giờ ngay" và kéo theo tự nộp:
+  // ném lỗi để nơi gọi giữ đồng hồ đang chạy.
+  if (!Number.isFinite(Date.parse(dto.serverNow)) || !Number.isFinite(Date.parse(dto.expiresAt))) {
+    throw new Error('Phản hồi giờ làm bài không hợp lệ.')
+  }
 
   return {
     expiresAtMonotonic: toMonotonicDeadline(dto.serverNow, dto.expiresAt),

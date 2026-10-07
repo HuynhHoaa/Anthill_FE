@@ -153,7 +153,7 @@ EduQuiz.Frontend/
 │   │   │   │   ├── TakeExamPage.tsx
 │   │   │   │   └── ExamSubmittedPage.tsx
 │   │   │   ├── hooks/useCountdown.ts
-│   │   │   └── utils/examProgressStorage.ts
+│   │   │   └── utils/examClock.ts, examProgressStorage.ts
 │   │   │
 │   │   ├── results/
 │   │   │   ├── pages/
@@ -345,7 +345,7 @@ Student Dashboard
 → Màn đã nộp: xem điểm nếu Teacher cho phép
 ```
 
-Đồng hồ làm bài tính theo mốc hết giờ tuyệt đối dựng từ `expiresAt` và `serverNow` của server, nên máy đặt sai giờ vẫn đếm đúng. Đáp án được lưu nháp lên server sau 800ms kể từ lần chọn cuối. Tải lại trang thì server trả về đúng lượt đang làm; câu đang xem và các câu đã đánh dấu được giữ trong localStorage theo từng lượt.
+Đồng hồ làm bài tính theo mốc hết giờ tuyệt đối dựng từ `expiresAt` và `serverNow` của server rồi đặt lên đồng hồ đơn điệu `performance.now()`, nên máy đặt sai giờ hay chỉnh giờ giữa buổi thi đều không làm nó nhảy. Vì đồng hồ đơn điệu có thể đứng khi máy ngủ, trang hỏi lại `GET /api/exam-attempts/{id}/time` khi tab hiện lại, có mạng lại, hoặc khi hai đồng hồ của máy lệch nhau, và chỉ nhận mốc sớm hơn mốc đang giữ. Đáp án được lưu nháp lên server sau 800ms kể từ lần chọn cuối. Tải lại trang thì server trả về đúng lượt đang làm; câu đang xem và các câu đã đánh dấu được giữ trong localStorage theo từng lượt.
 
 ### 5.7. Viewing Results
 
