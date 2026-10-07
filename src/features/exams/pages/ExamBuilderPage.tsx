@@ -517,11 +517,12 @@ export default function ExamBuilderPage() {
       if (resetSchedule) {
         const lockSentence = describeScheduleLock('Lịch chung của đề', loadedExam.openAt)
         notices.push(
+          // Lý do khoá đã nằm ngay dưới hai ô giờ; khôi phục nháp thì không nhắc lại, chỉ lúc lưu bị từ chối mới nói.
           resetBlueprint
-            ? `${lockSentence} Giờ cũng đã về như cũ.`
+            ? 'Giờ cũng giữ như đã lưu.'
             : isConflict
               ? `Chưa lưu được. ${lockSentence} Giờ đã về như cũ, phần bạn đã sửa vẫn còn. Bấm lưu lại.`
-              : `Đã khôi phục bản nháp, trừ giờ. ${lockSentence}`,
+              : 'Đã khôi phục bản nháp, riêng giờ giữ như đã lưu.',
         )
       }
 
@@ -1088,7 +1089,7 @@ export default function ExamBuilderPage() {
 
               {/* Đề đã giao mà lịch chưa khoá: chọn giờ mở gần (dưới 2 giờ) là tự khoá mình ngay khi lưu, nên
                   nói trước. Đề mới hay đề chưa giao không cần: lịch chưa có ai phụ thuộc. */}
-              {!isScheduleLocked && isEditing && (loadedExam?.assignedCount ?? 0) > 0 && opensWithinLockWindow(form.openAtLocal) && (
+              {!isScheduleLocked && isEditing && (loadedExam?.assignedCount ?? 0) > 0 && opensWithinLockWindow(form.openAtLocal, form.closeAtLocal) && (
                 <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700 leading-relaxed">
                   <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
                   <span>{SCHEDULE_LOCK_WARNING}</span>

@@ -29,7 +29,7 @@ import type { DifficultyLevel, Exam, ExamAssignment, ExamStatus } from '../../..
 import {
   examDeleteConfirmCopy, examDuplicateConfirmCopy, examRevokeAssignmentConfirmCopy,
 } from '../utils/examConfirmations'
-import { describeScheduleLock } from '../utils/examScheduleFormat'
+import { classRef, describeScheduleLock } from '../utils/examScheduleFormat'
 import AssignmentWindowList from '../components/AssignmentWindowList'
 import RescheduleAssignmentDialog from '../components/RescheduleAssignmentDialog'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
@@ -139,7 +139,9 @@ function AssignmentRow({ assignment, onReschedule, onRescheduleBlocked, onRevoke
   // hẳn, để giáo viên không phải tự đoán "ủa sao em này không dời được, có phải lỗi không?".
   const rescheduleBlockedReason =
     assignment.assignedViaGroupId !== undefined
-      ? `Em được giao bài qua lớp ${assignment.group}, nên làm bài theo khung giờ của cả lớp. Hãy đổi khung giờ của lớp ở trang giao bài.`
+      ? `Em được giao bài qua ${classRef(assignment.group)}, nên làm bài theo khung giờ của cả lớp. ${
+        assignment.scheduleLocked ? 'Khung giờ của lớp cũng đang khoá.' : 'Hãy đổi khung giờ của lớp ở trang giao bài.'
+      }`
       : assignment.attemptId !== undefined
         ? 'Em đã bắt đầu làm bài nên hạn nộp đã chốt lúc vào thi, không dời giờ được nữa.'
         : assignment.scheduleLocked
@@ -173,7 +175,7 @@ function AssignmentRow({ assignment, onReschedule, onRescheduleBlocked, onRevoke
         </span>
         <span className="text-xs text-slate-400">
           {assignment.hasScheduleOverride ? 'Khung giờ riêng' : 'Theo lịch chung'}
-          {assignment.scheduleLocked && <span className="text-amber-600 font-medium"> · đã khoá giờ</span>}
+          {assignment.scheduleLocked && <span className="text-amber-700 font-medium"> · đã khoá giờ</span>}
         </span>
       </td>
       <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>
@@ -202,7 +204,7 @@ function AssignmentRow({ assignment, onReschedule, onRescheduleBlocked, onRevoke
           className={`inline-flex items-center gap-1.5 px-3 py-2 mr-2 rounded-xl text-xs font-semibold transition-colors ${
             canReschedule
               ? 'text-slate-600 bg-slate-100 hover:bg-slate-200'
-              : 'text-slate-400 bg-slate-50 cursor-not-allowed'
+              : 'text-slate-500 bg-slate-50 cursor-not-allowed'
           }`}
         >
           <CalendarClock size={14} /> Dời giờ
@@ -839,6 +841,8 @@ export default function ExamDetailPage() {
           open={rescheduling !== null}
           exam={exam}
           assignment={rescheduling}
+          // Sau một lần 409 bảng đã tải lại: nếu em này vừa bị khoá thì không cho bấm lưu lại để nhận đúng lỗi cũ.
+          locked={rescheduling !== null && data?.assignments.some(item => item.id === rescheduling.id && item.scheduleLocked) === true}
           loading={rescheduleSaving}
           error={rescheduleError}
           onSubmit={window => void handleReschedule(window)}

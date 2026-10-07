@@ -12,6 +12,8 @@ interface RescheduleAssignmentDialogProps {
   open: boolean
   exam: Exam
   assignment: ExamAssignment | null
+  /** Khung giờ của em này vừa bị khoá (đọc từ bảng đã tải lại): chỉ còn đóng hộp. */
+  locked?: boolean
   loading: boolean
   error: string | null
   onSubmit: (window: { openAt?: string; closeAt?: string }) => void
@@ -29,7 +31,7 @@ const inputClass =
  * mà không ai giải thích được vì sao. Server cũng từ chối đúng như vậy.
  */
 export default function RescheduleAssignmentDialog({
-  open, exam, assignment, loading, error, onSubmit, onCancel,
+  open, exam, assignment, locked = false, loading, error, onSubmit, onCancel,
 }: RescheduleAssignmentDialogProps) {
   const [followExam, setFollowExam] = useState(false)
   const [openAtLocal, setOpenAtLocal] = useState('')
@@ -102,7 +104,7 @@ export default function RescheduleAssignmentDialog({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || locked}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60"
             style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
           >
@@ -177,7 +179,7 @@ export default function RescheduleAssignmentDialog({
               Khung giờ phải chứa trọn {exam.durationMinutes} phút làm bài, nếu không em sẽ bị cắt bài giữa chừng.
             </p>
 
-            {!isPastWindow && opensWithinLockWindow(openAtLocal) && (
+            {!isPastWindow && opensWithinLockWindow(openAtLocal, closeAtLocal) && (
               <div
                 role="alert"
                 className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex items-start gap-2 text-sm text-amber-700"

@@ -20,7 +20,7 @@ import { listStudents } from '../../../services/studentService'
 import { formatDateTime, getInitials, matchesSearch } from '../../../lib/format'
 import type { AssignmentWindow, Exam, Student, StudentGroup } from '../../../types'
 import {
-  classLockSubject, describeScheduleLock, isCloseAfterOpen, minutesBetween, opensWithinLockWindow,
+  classLabel, classLockSubject, describeScheduleLock, isCloseAfterOpen, minutesBetween, opensWithinLockWindow,
   SCHEDULE_LOCK_WARNING, toDateTimeLocalValue, toServiceDateTime,
 } from '../utils/examScheduleFormat'
 
@@ -173,7 +173,7 @@ function WindowFields({
       ) : (
         <p className="text-xs text-slate-400">Khung dài {span} phút cho bài {durationMinutes} phút.</p>
       )}
-      {warnLock && filled && opensWithinLockWindow(draft.openAtLocal) && (
+      {warnLock && filled && opensWithinLockWindow(draft.openAtLocal, draft.closeAtLocal) && (
         <p className="text-xs font-medium text-amber-700 flex items-start gap-1.5 leading-relaxed">
           <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
           {SCHEDULE_LOCK_WARNING}
@@ -563,7 +563,7 @@ export default function ExamAssignPage() {
       const draft = classWindows[groupId]
       if (!draft?.enabled || draft.locked) return
       const group = groups.find(item => item.id === groupId)
-      check(`Lớp ${group?.name ?? groupId}`, draft)
+      check(classLabel(group?.name ?? String(groupId)), draft)
     })
 
     if (studentWindow.enabled && individualCount > 0) {
