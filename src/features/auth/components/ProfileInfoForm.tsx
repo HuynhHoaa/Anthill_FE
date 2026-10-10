@@ -39,18 +39,21 @@ function buildInitialValues(profile: UserProfile): ProfileFormValues {
   }
 }
 
-function validateProfileForm(values: ProfileFormValues): ProfileFieldErrors {
+function validateProfileForm(values: ProfileFormValues, identityLocked: boolean): ProfileFieldErrors {
   const errors: ProfileFieldErrors = {}
 
-  if (!values.fullName.trim()) {
-    errors.fullName = 'Vui lòng nhập họ và tên.'
-  }
+  // Họ tên và email của học sinh do quản trị viên giữ, ô chỉ để xem nên không có gì để kiểm.
+  if (!identityLocked) {
+    if (!values.fullName.trim()) {
+      errors.fullName = 'Vui lòng nhập họ và tên.'
+    }
 
-  const email = values.email.trim()
-  if (!email) {
-    errors.email = 'Vui lòng nhập email.'
-  } else if (!emailPattern.test(email)) {
-    errors.email = 'Email chưa đúng định dạng.'
+    const email = values.email.trim()
+    if (!email) {
+      errors.email = 'Vui lòng nhập email.'
+    } else if (!emailPattern.test(email)) {
+      errors.email = 'Email chưa đúng định dạng.'
+    }
   }
 
   const phone = values.phone.trim()
@@ -77,13 +80,14 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    const nextErrors = validateProfileForm(values)
+    const nextErrors = validateProfileForm(values, isStudent)
     setFieldErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
 
+    // Học sinh gửi lại đúng giá trị server đang giữ: server chỉ nhận họ tên và email nguyên văn.
     const payload: Partial<UserProfile> = {
-      fullName: values.fullName.trim(),
-      email: values.email.trim(),
+      fullName: isStudent ? profile.fullName : values.fullName.trim(),
+      email: isStudent ? profile.email : values.email.trim(),
       phone: values.phone.trim(),
       school: values.school.trim(),
     }
@@ -125,14 +129,15 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="profile-full-name" className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Họ và tên <span className="text-red-500">*</span>
+              Họ và tên {!isStudent && <span className="text-red-500">*</span>}
             </label>
             <input
               id="profile-full-name"
               type="text"
-              className={fieldErrors.fullName ? errorInputClass : inputClass}
+              className={isStudent ? readOnlyClass : fieldErrors.fullName ? errorInputClass : inputClass}
               placeholder="Nguyễn Văn An"
               value={values.fullName}
+              readOnly={isStudent}
               aria-invalid={Boolean(fieldErrors.fullName)}
               onChange={event => changeValue('fullName', event.target.value)}
             />
@@ -141,14 +146,15 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
 
           <div>
             <label htmlFor="profile-email" className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Email <span className="text-red-500">*</span>
+              Email {!isStudent && <span className="text-red-500">*</span>}
             </label>
             <input
               id="profile-email"
               type="email"
-              className={fieldErrors.email ? errorInputClass : inputClass}
+              className={isStudent ? readOnlyClass : fieldErrors.email ? errorInputClass : inputClass}
               placeholder="ten@truong.edu.vn"
               value={values.email}
+              readOnly={isStudent}
               aria-invalid={Boolean(fieldErrors.email)}
               onChange={event => changeValue('email', event.target.value)}
             />
@@ -234,7 +240,7 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
         {isStudent && (
           <p className="flex items-start gap-2 text-xs text-slate-400 leading-relaxed">
             <IdCard size={14} className="flex-shrink-0 mt-0.5" />
-            Mã học sinh và lớp do giáo viên cấp, bạn không tự sửa được. Cần thay đổi hãy liên hệ giáo viên chủ nhiệm.
+            Họ tên, email, mã học sinh và lớp do quản trị viên quản lý nên bạn không tự sửa được. Cần đổi thì liên hệ quản trị viên.
           </p>
         )}
         {isTeacher && (
