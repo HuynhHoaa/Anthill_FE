@@ -7,7 +7,14 @@ interface AsyncState<T> {
 }
 
 export interface AsyncResult<T> extends AsyncState<T> {
+  /** Nạp lại và hiện trạng thái đang tải — dùng khi người dùng chủ động bấm "Thử lại" hay vừa sửa dữ liệu. */
   reload: () => void
+  /**
+   * Nạp lại **ngầm**: không bật `loading`, và nếu lần nạp này hỏng thì giữ nguyên dữ liệu đang hiện.
+   * Dùng khi sự kiện realtime báo dữ liệu đã đổi — người đang xem không được thấy khung xương hiện lại
+   * hay cả trang thành màn hình lỗi chỉ vì một lượt hỏi nền.
+   */
+  refresh: () => void
 }
 
 /**
@@ -43,6 +50,12 @@ export function useAsync<T>(loader: () => Promise<T>, deps: unknown[]): AsyncRes
   const mountedRef = useRef(true)
   const dependencyKey = buildDependencyKey(deps)
   const [reloadToken, setReloadToken] = useState(0)
+  // Lần chạy kế tiếp của effect là một lượt `refresh` (ngầm) chứ không phải `reload` hay đổi deps.
+  const silentRef = useRef(false)
+  const lastDependencyKeyRef = useRef(dependencyKey)
+  // Đang có một lần nạp "ồn" (có hiện loading) chưa xong. Lúc đó refresh không được lặng lẽ nuốt kết
+  // quả: loading đã bật sẵn, nên nó phải đi tiếp như một lần nạp thường để còn tắt được loading.
+  const loudRequestRef = useRef(false)
   const [state, setState] = useState<AsyncState<T>>({
     data: undefined,
     loading: true,
@@ -60,25 +73,43 @@ export function useAsync<T>(loader: () => Promise<T>, deps: unknown[]): AsyncRes
     const requestId = requestIdRef.current + 1
     requestIdRef.current = requestId
 
-    setState(previous => ({ data: previous.data, loading: true, error: undefined }))
+    // Deps đổi cùng lúc với refresh thì đó là một truy vấn khác hẳn, không còn là "làm tươi" cái cũ.
+    const silent =
+      silentRef.current && lastDependencyKeyRef.current === dependencyKey && !loudRequestRef.current
+    silentRef.current = false
+    lastDependencyKeyRef.current = dependencyKey
+
+    if (!silent) {
+      loudRequestRef.current = true
+      setState(previous => ({ data: previous.data, loading: true, error: undefined }))
+    }
 
     loaderRef
       .current()
       .then(result => {
         if (!mountedRef.current || requestIdRef.current !== requestId) return
+        loudRequestRef.current = false
         setState({ data: result, loading: false, error: undefined })
       })
       .catch((caught: unknown) => {
         if (!mountedRef.current || requestIdRef.current !== requestId) return
+        loudRequestRef.current = false
+        if (silent) return
         setState({ data: undefined, loading: false, error: toErrorMessage(caught) })
       })
   }, [dependencyKey, reloadToken])
 
   const reload = useCallback(() => {
+    silentRef.current = false
     setReloadToken(token => token + 1)
   }, [])
 
-  return { data: state.data, loading: state.loading, error: state.error, reload }
+  const refresh = useCallback(() => {
+    silentRef.current = true
+    setReloadToken(token => token + 1)
+  }, [])
+
+  return { data: state.data, loading: state.loading, error: state.error, reload, refresh }
 }
 
 export default useAsync
