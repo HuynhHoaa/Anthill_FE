@@ -17,6 +17,9 @@ import {
 /** Mất kết nối ngắn (đổi mạng, API khởi động lại) không đáng báo; chỉ hiện dải khi đứt quá chừng này. */
 const BANNER_DELAY_MS = 4_000
 
+/** Sau một sự kiện nộp bài, hỏi lại số chưa đọc khi sóng sự kiện đã lắng chừng này. */
+const UNREAD_RESYNC_DELAY_MS = 1_000
+
 /** Các lần nộp bài đến liên tiếp trong chừng này gộp thành một toast. */
 const SUBMIT_TOAST_BATCH_MS = 1_500
 
@@ -143,11 +146,25 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     })
     const offReconnected = bus.onReconnected(() => void refreshUnread())
 
+    // Số chưa đọc đi xuống như một giá trị tuyệt đối. Cả lớp nộp bài cùng giây thì các lần đẩy có thể tới
+    // lệch thứ tự, và lần tới sau cùng chưa chắc là lần đếm sau cùng. Một lần hỏi lại sau khi dồn sóng đã
+    // lắng cho số đúng, với giá một request.
+    let resyncTimer: number | undefined
+    const scheduleResync = () => {
+      window.clearTimeout(resyncTimer)
+      resyncTimer = window.setTimeout(() => void refreshUnread(), UNREAD_RESYNC_DELAY_MS)
+    }
+    const offSubmitted = bus.on('ExamSubmitted', scheduleResync)
+    const offAutoSubmitted = bus.on('AutoSubmitted', scheduleResync)
+
     return () => {
       cancelled = true
       window.clearTimeout(startTimer)
+      window.clearTimeout(resyncTimer)
       offCount()
       offReconnected()
+      offSubmitted()
+      offAutoSubmitted()
       void stop?.()
     }
   }, [token, bus])
