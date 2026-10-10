@@ -244,8 +244,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     const { message, fieldErrors } = await readError(response)
 
     // Chỉ đá về đăng nhập khi request CÓ mang token: 401 trên một lời gọi vốn không có token là
-    // chuyện bình thường (sai mật khẩu ở màn đăng nhập), gọi handler ở đó chỉ tạo vòng lặp.
-    if (response.status === 401 && token) {
+    // chuyện bình thường (sai mật khẩu ở màn đăng nhập), gọi handler ở đó chỉ tạo vòng lặp. Và token đó
+    // phải còn là token đang dùng: một request treo qua lúc đăng xuất rồi đăng nhập tài khoản khác mà
+    // nhận 401 thì không được đăng xuất nhầm phiên mới.
+    if (response.status === 401 && token && token === getStoredToken()) {
       onUnauthorized?.(message)
     }
 

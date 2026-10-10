@@ -197,8 +197,14 @@ export default function NotificationsPage({ audience }: NotificationsPageProps) 
   const { data: notifications, loading, error, reload, refresh } = useAsync(() => listNotifications(), [])
 
   // Thông báo mới đến thì danh sách tự thêm dòng. Chỉ nghe những sự kiện có sinh thông báo: nghe cả
-  // UnreadCountChanged thì mỗi lần bấm "đã đọc" lại kéo theo một lượt tải lại danh sách.
-  useRealtimeRefresh(['ExamAssigned', 'ExamUpdated', 'ExamSubmitted', 'AutoSubmitted', 'DeadlineSoon'], refresh)
+  // UnreadCountChanged thì mỗi lần bấm "đã đọc" lại kéo theo một lượt tải lại danh sách. DeadlineSoon chỉ
+  // sinh thông báo cho học sinh; giáo viên nhận mỗi em một sự kiện mà không có dòng nào để thêm.
+  useRealtimeRefresh(
+    audience === 'student'
+      ? ['ExamAssigned', 'ExamUpdated', 'AutoSubmitted', 'DeadlineSoon']
+      : ['ExamSubmitted', 'AutoSubmitted'],
+    refresh,
+  )
 
   const totalCount = notifications?.length ?? 0
   const unreadCount = useMemo(

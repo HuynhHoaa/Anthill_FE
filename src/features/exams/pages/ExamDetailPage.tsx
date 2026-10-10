@@ -260,12 +260,9 @@ export default function ExamDetailPage() {
     return { exam, assignments, blueprint }
   }, [examId])
 
-  // Em nộp bài hay bị tự nộp trong đề này, hoặc đề sắp đóng với em chưa nộp: bảng theo dõi tự cập nhật.
-  useRealtimeRefresh(
-    ['ExamSubmitted', 'AutoSubmitted', 'DeadlineSoon'],
-    refresh,
-    event => event.examId === examId,
-  )
+  // Em nộp bài hay bị tự nộp trong đề này: bảng theo dõi tự cập nhật. Không nghe DeadlineSoon: giáo viên
+  // nhận mỗi em một sự kiện và không ô nào trên trang đổi theo nó.
+  useRealtimeRefresh(['ExamSubmitted', 'AutoSubmitted'], refresh, event => event.examId === examId)
 
   const statusCounts = useMemo(() => {
     const counts: Record<StatusFilter, number> = {

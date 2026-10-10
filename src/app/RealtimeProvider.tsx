@@ -4,7 +4,7 @@ import ConnectionBanner from '../components/common/ConnectionBanner'
 import { useToast } from '../components/common/Toast'
 import { RealtimeContext, type RealtimeContextValue } from '../hooks/useRealtime'
 import { getStoredToken, subscribeToken } from '../lib/apiClient'
-import { getCurrentUser } from '../services/authService'
+import { getCurrentUser, getMustChangePassword } from '../services/authService'
 import { getUnreadCount } from '../services/notificationService'
 import {
   createRealtimeBus,
@@ -23,6 +23,45 @@ const SUBMIT_TOAST_BATCH_MS = 1_500
 /** Đang ở màn hình làm bài thì không chen toast hay dải nào vào giữa buổi thi. */
 function isExamTakingPath(pathname: string): boolean {
   return pathname.endsWith('/lam-bai')
+}
+
+/** Tên học sinh trong sự kiện có thể rỗng (học sinh đã bị ẩn danh hoá), nên luôn có chữ để đọc. */
+function studentLabel(name: string | null | undefined): string {
+  return name?.trim() || 'Một học sinh'
+}
+
+/**
+ * Gom các sự kiện đến liền nhau thành một toast. Cả lớp nộp bài hay hết giờ cùng lúc là bốn mươi sự kiện
+ * trong vài giây; bốn mươi toast chồng nhau thì tràn khỏi màn hình và không ai đọc nổi cái nào.
+ */
+function createToastBatch(
+  say: (message: string) => void,
+  describeOne: (studentName: string, examTitle: string) => string,
+  describeMany: (count: number) => string,
+) {
+  let timer: number | undefined
+  let count = 0
+  let last: { studentName: string; examTitle: string } | null = null
+
+  const flush = () => {
+    timer = undefined
+    if (count === 1 && last) {
+      say(describeOne(last.studentName, last.examTitle))
+    } else if (count > 1) {
+      say(describeMany(count))
+    }
+    count = 0
+    last = null
+  }
+
+  return {
+    push: (studentName: string, examTitle: string) => {
+      count += 1
+      last = { studentName, examTitle }
+      if (timer === undefined) timer = window.setTimeout(flush, SUBMIT_TOAST_BATCH_MS)
+    },
+    cancel: () => window.clearTimeout(timer),
+  }
 }
 
 function isTeacherAutoSubmit(
@@ -57,7 +96,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
   // ----- Mở và đóng kết nối theo token -----
   useEffect(() => {
-    if (!token) {
+    // Tài khoản còn phải đổi mật khẩu chưa dùng được gì, và đổi xong thì token cũ bị thu hồi, phải đăng
+    // nhập lại (token mới, effect chạy lại). Chưa cần mở kết nối.
+    if (!token || getMustChangePassword()) {
       setStatus('idle')
       setUnreadCount(0)
       return
@@ -65,15 +106,19 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false
     let stop: (() => Promise<void>) | undefined
+    // Mỗi lần server đẩy số mới thì tăng. Một GET bắt đầu trước đó mà về sau không được ghi đè số mới hơn.
+    let pushVersion = 0
 
-    const refreshUnread = () =>
-      getUnreadCount()
+    const refreshUnread = () => {
+      const versionAtStart = pushVersion
+      return getUnreadCount()
         .then(count => {
-          if (!cancelled) setUnreadCount(count)
+          if (!cancelled && pushVersion === versionAtStart) setUnreadCount(count)
         })
         .catch(() => {
           // Mất mạng hay 401 đã được apiClient xử lý; chuông giữ số cũ cho tới lần sau.
         })
+    }
 
     // StrictMode chạy effect hai lần liền nhau ở môi trường dev: lùi một nhịp để lần chạy bị huỷ ngay
     // sau đó không kịp mở một kết nối rồi đóng nó, thứ làm server ghi một lượt negotiate lỗi.
@@ -92,7 +137,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       void refreshUnread()
     }, 0)
 
-    const offCount = bus.on('UnreadCountChanged', event => setUnreadCount(event.unreadCount))
+    const offCount = bus.on('UnreadCountChanged', event => {
+      pushVersion += 1
+      setUnreadCount(event.unreadCount)
+    })
     const offReconnected = bus.onReconnected(() => void refreshUnread())
 
     return () => {
@@ -119,61 +167,55 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!token) return
 
-    const role = getCurrentUser()?.role
+    // Vai trò đọc lúc có sự kiện chứ không lúc effect chạy: hồ sơ được ghi ngay sau token trong cùng
+    // lần đăng nhập, nên đọc muộn là cách không phụ thuộc vào thứ tự đó.
+    const currentRole = () => getCurrentUser()?.role
     const say = (message: string) => {
       if (isExamTakingPath(pathnameRef.current)) return
       toastRef.current.info(message)
     }
 
-    let submitTimer: number | undefined
-    let submitCount = 0
-    let lastSubmit: { studentName: string; examTitle: string } | null = null
+    const submits = createToastBatch(
+      say,
+      (studentName, examTitle) => `${studentName} vừa nộp bài "${examTitle}".`,
+      count => `${count} học sinh vừa nộp bài.`,
+    )
+    const timeouts = createToastBatch(
+      say,
+      (studentName, examTitle) => `${studentName} hết giờ, bài "${examTitle}" đã được nộp.`,
+      count => `${count} học sinh hết giờ, bài đã được nộp.`,
+    )
 
-    const flushSubmits = () => {
-      submitTimer = undefined
-      if (submitCount === 1 && lastSubmit) {
-        say(`${lastSubmit.studentName} vừa nộp bài "${lastSubmit.examTitle}".`)
-      } else if (submitCount > 1) {
-        say(`${submitCount} học sinh vừa nộp bài.`)
-      }
-      submitCount = 0
-      lastSubmit = null
-    }
-
-    const queueSubmit = (studentName: string, examTitle: string) => {
-      submitCount += 1
-      lastSubmit = { studentName, examTitle }
-      if (submitTimer === undefined) {
-        submitTimer = window.setTimeout(flushSubmits, SUBMIT_TOAST_BATCH_MS)
-      }
-    }
-
-    const stops: Array<() => void> = []
-
-    if (role === 'student') {
-      stops.push(
-        bus.on('ExamAssigned', event => say(`Bạn có bài kiểm tra mới: ${event.examTitle}.`)),
-        bus.on('ExamUpdated', event => say(`Bài "${event.examTitle}" vừa được đổi giờ.`)),
-        bus.on('DeadlineSoon', event =>
-          say(`Bài "${event.examTitle}" còn ${event.minutesRemaining} phút nữa là đóng.`),
-        ),
-        bus.on('AutoSubmitted', event => say(`Bài "${event.examTitle}" đã hết giờ và được nộp.`)),
-      )
-    }
-
-    if (role === 'teacher') {
-      stops.push(
-        bus.on('ExamSubmitted', event => queueSubmit(event.studentName, event.examTitle)),
-        bus.on('AutoSubmitted', event => {
-          if (isTeacherAutoSubmit(event)) {
-            say(`${event.studentName} hết giờ, bài "${event.examTitle}" đã được nộp.`)
-          }
-        }),
-      )
-    }
+    const stops = [
+      bus.on('ExamAssigned', event => {
+        if (currentRole() === 'student') say(`Bạn có bài kiểm tra mới: ${event.examTitle}.`)
+      }),
+      bus.on('ExamUpdated', event => {
+        // Đổi lịch hay đổi thời lượng đều tới đây, nên câu không nói rõ là đổi cái nào.
+        if (currentRole() === 'student') say(`Bài "${event.examTitle}" vừa đổi thời gian.`)
+      }),
+      bus.on('DeadlineSoon', event => {
+        // Giáo viên cũng nhận sự kiện này (mỗi em một cái, không kèm tên), chỉ để làm tươi, không toast.
+        if (currentRole() === 'student') {
+          say(`Bài "${event.examTitle}" còn ${event.minutesRemaining} phút nữa là đóng.`)
+        }
+      }),
+      bus.on('ExamSubmitted', event => {
+        if (currentRole() === 'teacher') submits.push(studentLabel(event.studentName), event.examTitle)
+      }),
+      bus.on('AutoSubmitted', event => {
+        const role = currentRole()
+        if (role === 'student') {
+          say(`Bài "${event.examTitle}" đã hết giờ và được nộp.`)
+        } else if (role === 'teacher' && isTeacherAutoSubmit(event)) {
+          timeouts.push(studentLabel(event.studentName), event.examTitle)
+        }
+      }),
+    ]
 
     return () => {
-      window.clearTimeout(submitTimer)
+      submits.cancel()
+      timeouts.cancel()
       stops.forEach(stop => stop())
     }
   }, [token, bus])

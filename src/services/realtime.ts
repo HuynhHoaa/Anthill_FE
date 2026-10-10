@@ -186,6 +186,13 @@ export interface RealtimeClient {
   stop: () => Promise<void>
 }
 
+/**
+ * Kết nối phải sống ít nhất chừng này mới được coi là ổn định và đưa quãng chờ về 0. Server nhận bắt tay
+ * rồi cắt ngay (proxy, hay một lệnh đóng ở phía hub) mà quãng chờ cứ về 0 sau mỗi lần mở thì thành vòng
+ * lặp bận, mỗi vòng một request kiểm phiên.
+ */
+const STABLE_AFTER_MS = 10_000
+
 /** Chờ giữa hai lần thử: lần đầu thử ngay, rồi giãn dần tới trần 30 giây và ở đó mãi mãi. */
 const RETRY_DELAYS_MS = [0, 1_000, 2_000, 5_000, 10_000, 20_000, 30_000]
 
@@ -258,7 +265,7 @@ export function createRealtimeClient({ bus, onStatusChange, checkSession }: Real
         await connection.start()
         if (!isCurrent()) return
 
-        attempt = 0
+        const connectedAt = Date.now()
         const afterLoss = everConnected
         everConnected = true
         setStatus('connected')
@@ -268,6 +275,9 @@ export function createRealtimeClient({ bus, onStatusChange, checkSession }: Real
           resolveClosed = resolve
         })
         resolveClosed = null
+
+        // Sống đủ lâu thì lần mất này là chuyện mới, thử lại ngay; còn không thì giữ quãng chờ đang tăng.
+        if (Date.now() - connectedAt >= STABLE_AFTER_MS) attempt = 0
       } catch {
         // Không mở được (mất mạng, API đang khởi động, token bị từ chối): rơi xuống nhánh chờ bên dưới.
       }

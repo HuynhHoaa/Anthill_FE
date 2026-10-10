@@ -35,7 +35,7 @@ Không dùng thư viện quản lý state, thư viện gọi dữ liệu hay th�
 | API Call | `fetch` qua `src/lib/apiClient.ts` |
 | Tải dữ liệu | Hook `useAsync` |
 | State dùng chung | React Context (Toast, Confirm, Realtime) + localStorage / sessionStorage |
-| Realtime | Chưa kết nối (xem mục 6) |
+| Realtime | SignalR (`@microsoft/signalr`), xem mục 6 |
 | Lint | oxlint |
 
 ---
