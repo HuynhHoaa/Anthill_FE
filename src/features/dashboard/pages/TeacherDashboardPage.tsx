@@ -9,6 +9,7 @@ import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
+import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { getTeacherDashboard } from '../../../services/dashboardService'
 import { getQuestionBankSummary } from '../../../services/questionService'
 import { formatDateTime, formatDuration, formatRelativeTime, formatScore } from '../../../lib/format'
@@ -119,7 +120,8 @@ function ListSkeleton({ rows }: { rows: number }) {
 
 export default function TeacherDashboardPage() {
   const navigate = useNavigate()
-  const { data, loading, error, reload } = useAsync(loadTeacherDashboard, [])
+  const { data, loading, error, reload, refresh } = useAsync(loadTeacherDashboard, [])
+  useRealtimeRefresh(['ExamSubmitted', 'AutoSubmitted'], refresh)
 
   const dashboard = data?.dashboard
   const difficultyCounts = data?.difficultyCounts

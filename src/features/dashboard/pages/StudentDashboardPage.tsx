@@ -10,6 +10,7 @@ import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
+import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { getStudentDashboard } from '../../../services/dashboardService'
 import { getCurrentUser } from '../../../services/authService'
 import { formatDateTime, formatScore } from '../../../lib/format'
@@ -218,7 +219,8 @@ function DashboardSkeleton() {
 // ===== Trang =====
 
 export default function StudentDashboardPage() {
-  const { data, loading, error, reload } = useAsync(getStudentDashboard, [])
+  const { data, loading, error, reload, refresh } = useAsync(getStudentDashboard, [])
+  useRealtimeRefresh(['ExamAssigned', 'ExamUpdated', 'AutoSubmitted', 'DeadlineSoon'], refresh)
   const now = useNowTick(30000)
   const currentUser = getCurrentUser()
   const studentName = currentUser?.fullName ?? 'Học sinh'

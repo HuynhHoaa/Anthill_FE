@@ -9,6 +9,7 @@ import { StatusBadge } from '../../../components/common/Badge'
 import { SkeletonTable } from '../../../components/common/Skeleton'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
 import { useAsync } from '../../../hooks/useAsync'
+import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { getResultStats, listResults } from '../../../services/resultService'
 import { listExams } from '../../../services/examService'
@@ -143,6 +144,7 @@ export default function TeacherResultsPage() {
     loading: resultsLoading,
     error: resultsError,
     reload: reloadResults,
+    refresh: refreshResults,
   } = useAsync(
     () => listResults({ ...resultFilters, page, pageSize: PAGE_SIZE }),
     [resultFilters, page],
@@ -150,7 +152,13 @@ export default function TeacherResultsPage() {
 
   // Số liệu nhận đúng bộ lọc của bảng: bốn con số nói về toàn hệ thống trong khi bảng ngay dưới đã
   // lọc là hai phần nói về hai chuyện khác nhau mà người xem không có cách nào nhận ra.
-  const { data: stats } = useAsync(() => getResultStats(resultFilters), [resultFilters])
+  const { data: stats, refresh: refreshStats } = useAsync(() => getResultStats(resultFilters), [resultFilters])
+
+  // Học sinh nộp bài (hay bị tự nộp) thì bảng và bốn con số cập nhật theo, giữ nguyên bộ lọc và trang đang xem.
+  useRealtimeRefresh(['ExamSubmitted', 'AutoSubmitted'], () => {
+    refreshResults()
+    refreshStats()
+  })
   const { data: exams } = useAsync(() => listExams({ page: 1, pageSize: 100 }), [])
   const { data: groups } = useAsync(() => listGroups(), [])
 

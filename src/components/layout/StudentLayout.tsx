@@ -4,10 +4,9 @@ import {
   GraduationCap, LayoutDashboard, FileText, BarChart3,
   Bell, UserCircle, LogOut, Menu, X, Lock,
 } from 'lucide-react'
-import { useAsync } from '../../hooks/useAsync'
+import { useUnreadCount } from '../../hooks/useRealtime'
 import { getInitials } from '../../lib/format'
 import { getCurrentUser, logout } from '../../services/authService'
-import { getUnreadCount } from '../../services/notificationService'
 
 interface StudentLayoutProps {
   children: ReactNode
@@ -33,12 +32,11 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { data: unreadCount } = useAsync(() => getUnreadCount(), [location.pathname])
 
   const currentUser = getCurrentUser()
   const userName = currentUser?.fullName ?? ''
   const userGroup = currentUser?.group ?? 'Học sinh'
-  const unreadBadge = unreadCount ?? 0
+  const unreadBadge = useUnreadCount()
 
   // Đổi trang thì đóng menu thu gọn
   useEffect(() => {

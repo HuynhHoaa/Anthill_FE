@@ -2,11 +2,10 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Sidebar, { type SidebarMenuItem } from './Sidebar'
 import Header from './Header'
-import { useAsync } from '../../hooks/useAsync'
+import { useUnreadCount } from '../../hooks/useRealtime'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { getInitials } from '../../lib/format'
 import { getCurrentUser, logout } from '../../services/authService'
-import { getUnreadCount } from '../../services/notificationService'
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -34,7 +33,7 @@ export default function DashboardLayout({
   // Dưới 1024px sidebar đã là drawer, thu gọn ở đó sẽ giấu mất nhãn và nút đóng.
   const isCollapsed = isDesktop && canHover
   const isPeeking = isCollapsed && peeking
-  const { data: unreadCount } = useAsync(() => getUnreadCount(), [location.pathname])
+  const unreadCount = useUnreadCount()
 
   const handlePeekChange = (next: boolean) => {
     if (!isCollapsed) return
@@ -73,7 +72,7 @@ export default function DashboardLayout({
         onLogout={handleLogout}
         userName={userName}
         initials={initials}
-        unreadCount={unreadCount ?? 0}
+        unreadCount={unreadCount}
         basePath={basePath}
         roleLabel={roleLabel}
         roleDetail={roleDetail}
@@ -97,7 +96,7 @@ export default function DashboardLayout({
           subtitle={pageSubtitle}
           userName={userName}
           initials={initials}
-          unreadCount={unreadCount ?? 0}
+          unreadCount={unreadCount}
           basePath={basePath}
           roleLabel={roleLabel}
           onOpenSidebar={() => setSidebarOpen(true)}

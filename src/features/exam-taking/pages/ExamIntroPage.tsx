@@ -12,6 +12,7 @@ import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { StatusBadge, TopicBadge } from '../../../components/common/Badge'
 import { useAsync } from '../../../hooks/useAsync'
+import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { getAssignment, listMyExams } from '../../../services/attemptService'
 import { formatDateTime, formatDuration, formatScore, parseDateTime, roundToOneDecimal } from '../../../lib/format'
 import { useCountdown } from '../hooks/useCountdown'
@@ -80,7 +81,7 @@ export default function ExamIntroPage() {
   const confirm = useConfirm()
   const toast = useToast()
 
-  const { data, loading, error, reload } = useAsync(async () => {
+  const { data, loading, error, reload, refresh } = useAsync(async () => {
     if (!Number.isInteger(numericAssignmentId) || numericAssignmentId <= 0) {
       throw new Error('Đường dẫn bài kiểm tra không hợp lệ.')
     }
@@ -95,6 +96,9 @@ export default function ExamIntroPage() {
     }
     return assignment
   }, [numericAssignmentId])
+
+  // Giáo viên đổi giờ hay thời lượng đúng bài này thì giờ mở/đóng trên trang phải đổi theo.
+  useRealtimeRefresh(['ExamUpdated'], refresh, event => event.assignmentId === numericAssignmentId)
 
   const assignment = data
   const openDate = assignment ? parseDateTime(assignment.openAt) : null
