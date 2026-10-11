@@ -1,7 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
-  GraduationCap, LayoutDashboard, FileText, BarChart3,
+  GraduationCap, LayoutDashboard, FileText, BarChart3, ChevronDown,
   Bell, UserCircle, LogOut, Menu, X, Lock,
 } from 'lucide-react'
 import { useAsync } from '../../hooks/useAsync'
@@ -44,6 +44,33 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
   useEffect(() => {
     setMobileOpen(false)
   }, [location.pathname])
+
+  // Menu tài khoản (hồ sơ, thông báo, đăng xuất) mở ra từ tên học sinh, giống menu của giáo viên và quản trị
+  // viên. Đăng xuất không còn nằm lộ trên thanh để khỏi bấm nhầm.
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!menuOpen) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false)
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menuOpen])
 
   const handleLogout = () => {
     logout()
@@ -118,32 +145,72 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
                 )}
               </NavLink>
 
-              <NavLink
-                to="/hoc-sinh/ho-so"
-                className="flex items-center gap-2.5 rounded-xl px-1.5 py-1 hover:bg-slate-50 transition-colors"
-              >
-                <span
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                  style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)' }}
+              <div className="relative" ref={menuRef}>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(current => !current)}
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  className="flex items-center gap-2.5 rounded-xl px-1.5 py-1 hover:bg-slate-50 transition-colors"
                 >
-                  {getInitials(userName)}
-                </span>
-                <span className="hidden lg:block">
-                  <span className="block text-sm font-semibold text-slate-800 leading-none max-w-32 truncate">
-                    {userName}
+                  <span
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                    style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)' }}
+                  >
+                    {getInitials(userName)}
                   </span>
-                  <span className="block text-xs text-slate-400 mt-0.5">{userGroup}</span>
-                </span>
-              </NavLink>
+                  <span className="hidden lg:block text-left">
+                    <span className="block text-sm font-semibold text-slate-800 leading-none max-w-32 truncate">
+                      {userName}
+                    </span>
+                    <span className="block text-xs text-slate-400 mt-0.5">{userGroup}</span>
+                  </span>
+                  <ChevronDown
+                    size={15}
+                    className={`hidden sm:block text-slate-400 transition-transform ${menuOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-slate-500 hover:bg-red-50 hover:text-red-500 transition-colors"
-              >
-                <LogOut size={15} />
-                <span>Đăng xuất</span>
-              </button>
+                {menuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-slate-100 shadow-lg overflow-hidden z-40 animate-fade-in"
+                  >
+                    <div className="px-4 py-3 border-b border-slate-50">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{userName}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{userGroup}</p>
+                    </div>
+                    <NavLink
+                      to="/hoc-sinh/ho-so"
+                      role="menuitem"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                    >
+                      <UserCircle size={16} className="text-slate-400" />
+                      Hồ sơ cá nhân
+                    </NavLink>
+                    <NavLink
+                      to="/hoc-sinh/thong-bao"
+                      role="menuitem"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                    >
+                      <Bell size={16} className="text-slate-400" />
+                      Thông báo
+                      {unreadBadge > 0 && (
+                        <span className="ml-auto text-xs font-bold text-red-500">{unreadBadge}</span>
+                      )}
+                    </NavLink>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors border-t border-slate-50"
+                    >
+                      <LogOut size={16} />
+                      Đăng xuất
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <button
                 type="button"
