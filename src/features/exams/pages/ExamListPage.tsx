@@ -23,7 +23,8 @@ import { windowLabel } from '../utils/assignmentWindowLabel'
 import type { AssignmentWindow, Exam, ExamLifecycle } from '../../../types'
 import { examDeleteConfirmCopy, examDuplicateConfirmCopy } from '../utils/examConfirmations'
 
-const PAGE_SIZE = 9
+// Tám dòng (mỗi dòng ~77px) cùng thanh trang vừa một cửa sổ cao ~900px mà không phải cuộn.
+const PAGE_SIZE = 8
 
 type LifecycleFilter = 'all' | ExamLifecycle
 
