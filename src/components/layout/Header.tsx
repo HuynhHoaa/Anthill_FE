@@ -58,11 +58,14 @@ export default function Header({
         </button>
         <div className="min-w-0">
           <h1 className="text-lg sm:text-xl font-bold text-slate-800 truncate">{title}</h1>
-          <p className="text-sm text-slate-400 mt-0.5 truncate">{subtitle ?? today}</p>
+          <p className="text-sm text-slate-400 mt-0.5 truncate" title={subtitle}>
+            {subtitle ?? today}
+          </p>
         </div>
       </div>
 
-      {tools && <div className="flex-1 min-w-0 flex justify-end">{tools}</div>}
+      {/* min-w: phụ đề dài (trang Kết quả) phải tự cắt bớt chứ không được nuốt chỗ của công cụ. */}
+      {tools && <div className="flex-1 min-w-[13rem] flex justify-end">{tools}</div>}
 
       {/* Từ cỡ lg thanh bên luôn hiện và đã có sẵn chuông, hồ sơ, đăng xuất, nên cụm này chỉ còn ở màn hình
           hẹp, nơi thanh bên là ngăn kéo phải mở mới thấy. */}
