@@ -54,6 +54,7 @@ export default function TeacherGroupListPage() {
     <TeacherLayout
       pageTitle="Nhóm lớp"
       pageSubtitle={summaryText ?? 'Những lớp bạn được phân công phụ trách'}
+      compactContent
       headerSearch={
         <SearchField
           value={searchInput}
@@ -114,7 +115,7 @@ export default function TeacherGroupListPage() {
               <tbody>
                 {pageItems.map(group => (
                   <tr key={group.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-3">
                       <div className="max-w-[420px] min-w-0">
                         <NavLink
                           to={`/giao-vien/nhom-lop/${group.id}`}
@@ -127,12 +128,12 @@ export default function TeacherGroupListPage() {
                         </p>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-3">
                       {group.studentCount > 0 ? (
-                        <>
-                          <p className="font-semibold text-slate-800">{group.studentCount}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">học sinh</p>
-                        </>
+                        <p className="text-slate-800">
+                          <span className="font-semibold">{group.studentCount}</span>{' '}
+                          <span className="text-xs text-slate-400">học sinh</span>
+                        </p>
                       ) : (
                         /* Lớp rỗng thì giáo viên giao bài cũng không tới ai — nói thẳng thay vì
                            hiện số 0 để họ tự đoán. Xếp học sinh là việc của quản trị viên. */
@@ -141,10 +142,10 @@ export default function TeacherGroupListPage() {
                         </p>
                       )}
                     </td>
-                    <td className="px-5 py-4 text-slate-500 whitespace-nowrap">
+                    <td className="px-5 py-3 text-slate-500 whitespace-nowrap">
                       {formatDate(group.createdAt)}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-3">
                       <div className="flex items-center justify-end">
                         <NavLink
                           to={`/giao-vien/nhom-lop/${group.id}`}

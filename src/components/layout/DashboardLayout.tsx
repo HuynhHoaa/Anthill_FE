@@ -20,10 +20,12 @@ interface DashboardLayoutProps {
   menuItems: SidebarMenuItem[]
   /** Ô tìm kiếm của trang: nằm trên thanh tiêu đề, còn trên màn hình hẹp thì đứng đầu nội dung. */
   headerSearch?: ReactNode
+  /** Bỏ bớt khoảng trống phía trên nội dung, cho trang danh sách muốn thấy hết bảng và thanh trang trong một màn hình. */
+  compactContent?: boolean
 }
 
 export default function DashboardLayout({
-  children, pageTitle, pageSubtitle, basePath, roleLabel, roleDetail, menuItems, headerSearch,
+  children, pageTitle, pageSubtitle, basePath, roleLabel, roleDetail, menuItems, headerSearch, compactContent,
 }: DashboardLayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -109,7 +111,7 @@ export default function DashboardLayout({
           onLogout={handleLogout}
           search={isTabletUp ? headerSearch : undefined}
         />
-        <div className="p-4 sm:p-6 lg:p-8">
+        <div className={compactContent ? 'px-4 pb-4 pt-3 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8 lg:pt-4' : 'p-4 sm:p-6 lg:p-8'}>
           {!isTabletUp && headerSearch && <div className="mb-4">{headerSearch}</div>}
           {children}
         </div>
