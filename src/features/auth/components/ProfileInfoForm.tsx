@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { IdCard, Save, School, UserRound } from 'lucide-react'
+import { Lock, Save, School, UserRound } from 'lucide-react'
 import { useToast } from '../../../components/common/Toast'
 import { updateProfile } from '../../../services/authService'
 import type { UserProfile } from '../../../types'
@@ -113,6 +113,96 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
     setFieldErrors({})
   }
 
+  const fullNameField = (
+    <div>
+      <label htmlFor="profile-full-name" className="block text-sm font-semibold text-slate-700 mb-1.5">
+        Họ và tên {!isStudent && <span className="text-red-500">*</span>}
+      </label>
+      <input
+        id="profile-full-name"
+        type="text"
+        className={isStudent ? readOnlyClass : fieldErrors.fullName ? errorInputClass : inputClass}
+        placeholder="Nguyễn Văn An"
+        value={values.fullName}
+        readOnly={isStudent}
+        aria-invalid={Boolean(fieldErrors.fullName)}
+        onChange={event => changeValue('fullName', event.target.value)}
+      />
+      {fieldErrors.fullName && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.fullName}</p>}
+    </div>
+  )
+
+  const emailField = (
+    <div>
+      <label htmlFor="profile-email" className="block text-sm font-semibold text-slate-700 mb-1.5">
+        Email {!isStudent && <span className="text-red-500">*</span>}
+      </label>
+      <input
+        id="profile-email"
+        type="email"
+        className={isStudent ? readOnlyClass : fieldErrors.email ? errorInputClass : inputClass}
+        placeholder="ten@truong.edu.vn"
+        value={values.email}
+        readOnly={isStudent}
+        aria-invalid={Boolean(fieldErrors.email)}
+        onChange={event => changeValue('email', event.target.value)}
+      />
+      {fieldErrors.email && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.email}</p>}
+    </div>
+  )
+
+  const phoneField = (
+    <div>
+      <label htmlFor="profile-phone" className="block text-sm font-semibold text-slate-700 mb-1.5">
+        Số điện thoại
+      </label>
+      <input
+        id="profile-phone"
+        type="tel"
+        className={fieldErrors.phone ? errorInputClass : inputClass}
+        placeholder="Ví dụ: 0912 345 678"
+        value={values.phone}
+        aria-invalid={Boolean(fieldErrors.phone)}
+        onChange={event => changeValue('phone', event.target.value)}
+      />
+      {fieldErrors.phone && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>}
+    </div>
+  )
+
+  const schoolField = (
+    <div>
+      <label htmlFor="profile-school" className="block text-sm font-semibold text-slate-700 mb-1.5">
+        Trường
+      </label>
+      <input
+        id="profile-school"
+        type="text"
+        className={inputClass}
+        placeholder="Ví dụ: Trường THPT Nguyễn Du"
+        value={values.school}
+        onChange={event => changeValue('school', event.target.value)}
+      />
+    </div>
+  )
+
+  const codeField = (
+    <div>
+      <label htmlFor="profile-code" className="block text-sm font-semibold text-slate-700 mb-1.5">
+        Mã học sinh
+      </label>
+      <input id="profile-code" type="text" className={readOnlyClass} value={profile.code ?? 'Chưa được cấp'} readOnly />
+    </div>
+  )
+
+  const groupField = (
+    <div>
+      <label htmlFor="profile-group" className="block text-sm font-semibold text-slate-700 mb-1.5">
+        Lớp
+      </label>
+      <input id="profile-group" type="text" className={readOnlyClass} value={profile.group ?? 'Chưa xếp lớp'} readOnly />
+    </div>
+  )
+
   return (
     <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6 animate-fade-in-up">
       <div className="flex items-center gap-3 mb-5">
@@ -126,128 +216,58 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="profile-full-name" className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Họ và tên {!isStudent && <span className="text-red-500">*</span>}
-            </label>
-            <input
-              id="profile-full-name"
-              type="text"
-              className={isStudent ? readOnlyClass : fieldErrors.fullName ? errorInputClass : inputClass}
-              placeholder="Nguyễn Văn An"
-              value={values.fullName}
-              readOnly={isStudent}
-              aria-invalid={Boolean(fieldErrors.fullName)}
-              onChange={event => changeValue('fullName', event.target.value)}
-            />
-            {fieldErrors.fullName && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.fullName}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="profile-email" className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Email {!isStudent && <span className="text-red-500">*</span>}
-            </label>
-            <input
-              id="profile-email"
-              type="email"
-              className={isStudent ? readOnlyClass : fieldErrors.email ? errorInputClass : inputClass}
-              placeholder="ten@truong.edu.vn"
-              value={values.email}
-              readOnly={isStudent}
-              aria-invalid={Boolean(fieldErrors.email)}
-              onChange={event => changeValue('email', event.target.value)}
-            />
-            {fieldErrors.email && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.email}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="profile-phone" className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Số điện thoại
-            </label>
-            <input
-              id="profile-phone"
-              type="tel"
-              className={fieldErrors.phone ? errorInputClass : inputClass}
-              placeholder="0912 345 678"
-              value={values.phone}
-              aria-invalid={Boolean(fieldErrors.phone)}
-              onChange={event => changeValue('phone', event.target.value)}
-            />
-            {fieldErrors.phone && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="profile-school" className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Trường
-            </label>
-            <input
-              id="profile-school"
-              type="text"
-              className={inputClass}
-              placeholder="Trường THPT Nguyễn Du"
-              value={values.school}
-              onChange={event => changeValue('school', event.target.value)}
-            />
-          </div>
-
-          {isTeacher && (
-            <div className="md:col-span-2">
-              <label htmlFor="profile-subject" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Môn giảng dạy
-              </label>
-              <input
-                id="profile-subject"
-                type="text"
-                className={inputClass}
-                placeholder="Khoa học tự nhiên"
-                value={values.subject}
-                onChange={event => changeValue('subject', event.target.value)}
-              />
+        {isStudent ? (
+          <>
+            {/* Phần do quản trị viên giữ nằm riêng ở trên, kèm một dòng giải thích ngay dưới. */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {fullNameField}
+              {emailField}
+              {codeField}
+              {groupField}
             </div>
-          )}
 
-          {isStudent && (
-            <>
-              <div>
-                <label htmlFor="profile-code" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                  Mã học sinh
-                </label>
-                <input
-                  id="profile-code"
-                  type="text"
-                  className={readOnlyClass}
-                  value={profile.code ?? 'Chưa được cấp'}
-                  readOnly
-                />
-              </div>
-              <div>
-                <label htmlFor="profile-group" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                  Lớp
-                </label>
-                <input
-                  id="profile-group"
-                  type="text"
-                  className={readOnlyClass}
-                  value={profile.group ?? 'Chưa xếp lớp'}
-                  readOnly
-                />
-              </div>
-            </>
-          )}
-        </div>
+            <p className="flex items-start gap-2 text-xs text-slate-500 leading-relaxed">
+              <Lock size={14} className="flex-shrink-0 mt-0.5" />
+              Họ tên, email, mã học sinh và lớp do quản trị viên quản lý nên bạn không tự sửa được. Cần đổi thì liên hệ
+              quản trị viên.
+            </p>
 
-        {isStudent && (
-          <p className="flex items-start gap-2 text-xs text-slate-400 leading-relaxed">
-            <IdCard size={14} className="flex-shrink-0 mt-0.5" />
-            Họ tên, email, mã học sinh và lớp do quản trị viên quản lý nên bạn không tự sửa được. Cần đổi thì liên hệ quản trị viên.
-          </p>
-        )}
-        {isTeacher && (
-          <p className="flex items-start gap-2 text-xs text-slate-400 leading-relaxed">
-            <School size={14} className="flex-shrink-0 mt-0.5" />
-            Thông tin này hiển thị cho học sinh khi bạn giao bài kiểm tra.
-          </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {phoneField}
+              {schoolField}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {fullNameField}
+              {emailField}
+              {phoneField}
+              {schoolField}
+              {isTeacher && (
+                <div className="md:col-span-2">
+                  <label htmlFor="profile-subject" className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Môn giảng dạy
+                  </label>
+                  <input
+                    id="profile-subject"
+                    type="text"
+                    className={inputClass}
+                    placeholder="Khoa học tự nhiên"
+                    value={values.subject}
+                    onChange={event => changeValue('subject', event.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {isTeacher && (
+              <p className="flex items-start gap-2 text-xs text-slate-400 leading-relaxed">
+                <School size={14} className="flex-shrink-0 mt-0.5" />
+                Thông tin này hiển thị cho học sinh khi bạn giao bài kiểm tra.
+              </p>
+            )}
+          </>
         )}
 
         <div className="flex flex-wrap items-center gap-2.5 pt-1">
