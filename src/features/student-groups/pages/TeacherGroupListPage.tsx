@@ -12,6 +12,7 @@ import TeacherLayout from '../../../components/layout/TeacherLayout'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
+import SearchField from '../../../components/common/SearchField'
 import { SkeletonTable } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
@@ -53,36 +54,18 @@ export default function TeacherGroupListPage() {
     <TeacherLayout
       pageTitle="Nhóm lớp"
       pageSubtitle={summaryText ?? 'Những lớp bạn được phân công phụ trách'}
+      headerSearch={
+        <SearchField
+          value={searchInput}
+          onChange={value => {
+            setSearchInput(value)
+            setPage(1)
+          }}
+          placeholder="Tìm theo tên hoặc mô tả lớp"
+          label="Tìm kiếm lớp"
+        />
+      }
     >
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5 animate-fade-in-up">
-        <div className="relative max-w-md w-full">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            value={searchInput}
-            onChange={event => {
-              setSearchInput(event.target.value)
-              setPage(1)
-            }}
-            className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"
-            placeholder="Tìm theo tên hoặc mô tả lớp"
-            aria-label="Tìm kiếm lớp"
-          />
-          {searchInput && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchInput('')
-                setPage(1)
-              }}
-              aria-label="Xoá tìm kiếm"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
-            >
-              <X size={15} />
-            </button>
-          )}
-        </div>
-      </div>
-
       {showSkeleton ? (
         <SkeletonTable rows={5} cols={4} />
       ) : error ? (

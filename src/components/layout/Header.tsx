@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { Bell, ChevronDown, LogOut, Menu, UserCircle } from 'lucide-react'
 
@@ -13,10 +13,12 @@ interface HeaderProps {
   roleLabel: string
   onOpenSidebar: () => void
   onLogout: () => void
+  /** Ô tìm kiếm của trang, đặt giữa tiêu đề và cụm thông báo để khỏi chiếm một hàng riêng. */
+  search?: ReactNode
 }
 
 export default function Header({
-  title, subtitle, userName, initials, unreadCount, basePath, roleLabel, onOpenSidebar, onLogout,
+  title, subtitle, userName, initials, unreadCount, basePath, roleLabel, onOpenSidebar, onLogout, search,
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -59,6 +61,8 @@ export default function Header({
           <p className="text-sm text-slate-400 mt-0.5 truncate">{subtitle ?? today}</p>
         </div>
       </div>
+
+      {search && <div className="flex-1 min-w-0 max-w-sm ml-auto">{search}</div>}
 
       <div className="flex items-center gap-2.5 flex-shrink-0">
         <NavLink

@@ -18,16 +18,21 @@ interface DashboardLayoutProps {
   /** Dòng phụ dưới nhãn vai trò, ví dụ môn giảng dạy. */
   roleDetail?: string
   menuItems: SidebarMenuItem[]
+  /** Ô tìm kiếm của trang: nằm trên thanh tiêu đề, còn trên màn hình hẹp thì đứng đầu nội dung. */
+  headerSearch?: ReactNode
 }
 
 export default function DashboardLayout({
-  children, pageTitle, pageSubtitle, basePath, roleLabel, roleDetail, menuItems,
+  children, pageTitle, pageSubtitle, basePath, roleLabel, roleDetail, menuItems, headerSearch,
 }: DashboardLayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [peeking, setPeeking] = useState(false)
   const isDesktop = useMediaQuery('(min-width: 1024px)')
+  // Từ cỡ máy tính bảng trở lên ô tìm kiếm của trang nằm trên thanh tiêu đề; hẹp hơn thì thanh đó chỉ vừa
+  // tiêu đề và cụm tài khoản nên ô tìm kiếm xuống đầu nội dung.
+  const isTabletUp = useMediaQuery('(min-width: 768px)')
   // Thiết bị cảm ứng không có trạng thái rê chuột thật. Thu về dải icon ở đó là
   // nhốt người dùng với icon không nhãn, vì không còn nút nào để mở ra.
   const canHover = useMediaQuery('(hover: hover)')
@@ -102,8 +107,12 @@ export default function DashboardLayout({
           roleLabel={roleLabel}
           onOpenSidebar={() => setSidebarOpen(true)}
           onLogout={handleLogout}
+          search={isTabletUp ? headerSearch : undefined}
         />
-        <div className="p-4 sm:p-6 lg:p-8">{children}</div>
+        <div className="p-4 sm:p-6 lg:p-8">
+          {!isTabletUp && headerSearch && <div className="mb-4">{headerSearch}</div>}
+          {children}
+        </div>
       </main>
     </div>
   )
