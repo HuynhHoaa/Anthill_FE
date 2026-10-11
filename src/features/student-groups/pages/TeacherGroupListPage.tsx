@@ -22,7 +22,8 @@ import { listGroups } from '../../../services/groupService'
 
 const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500'
 
-const PAGE_SIZE = 10
+// Mười hai dòng vừa với khoảng trống còn lại của một cửa sổ cao ~900px sau khi đã bỏ thẻ tìm kiếm.
+const PAGE_SIZE = 12
 
 export default function TeacherGroupListPage() {
   const [searchInput, setSearchInput] = useState('')
@@ -115,7 +116,7 @@ export default function TeacherGroupListPage() {
               <tbody>
                 {pageItems.map(group => (
                   <tr key={group.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-2.5">
                       <div className="max-w-[420px] min-w-0">
                         <NavLink
                           to={`/giao-vien/nhom-lop/${group.id}`}
@@ -128,7 +129,7 @@ export default function TeacherGroupListPage() {
                         </p>
                       </div>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-2.5">
                       {group.studentCount > 0 ? (
                         <p className="text-slate-800">
                           <span className="font-semibold">{group.studentCount}</span>{' '}
@@ -142,10 +143,10 @@ export default function TeacherGroupListPage() {
                         </p>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-slate-500 whitespace-nowrap">
+                    <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">
                       {formatDate(group.createdAt)}
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-2.5">
                       <div className="flex items-center justify-end">
                         <NavLink
                           to={`/giao-vien/nhom-lop/${group.id}`}
