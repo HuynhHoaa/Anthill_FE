@@ -13,12 +13,12 @@ interface HeaderProps {
   roleLabel: string
   onOpenSidebar: () => void
   onLogout: () => void
-  /** Ô tìm kiếm của trang, đặt giữa tiêu đề và cụm thông báo để khỏi chiếm một hàng riêng. */
-  search?: ReactNode
+  /** Công cụ của trang (ô tìm kiếm, bộ lọc, nút tạo mới), đặt giữa tiêu đề và mép phải để khỏi chiếm một hàng riêng. */
+  tools?: ReactNode
 }
 
 export default function Header({
-  title, subtitle, userName, initials, unreadCount, basePath, roleLabel, onOpenSidebar, onLogout, search,
+  title, subtitle, userName, initials, unreadCount, basePath, roleLabel, onOpenSidebar, onLogout, tools,
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -62,7 +62,7 @@ export default function Header({
         </div>
       </div>
 
-      {search && <div className="flex-1 min-w-0 max-w-sm ml-auto">{search}</div>}
+      {tools && <div className="flex-1 min-w-0 flex justify-end">{tools}</div>}
 
       {/* Từ cỡ lg thanh bên luôn hiện và đã có sẵn chuông, hồ sơ, đăng xuất, nên cụm này chỉ còn ở màn hình
           hẹp, nơi thanh bên là ngăn kéo phải mở mới thấy. */}

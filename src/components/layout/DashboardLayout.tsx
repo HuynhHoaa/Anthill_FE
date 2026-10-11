@@ -18,23 +18,20 @@ interface DashboardLayoutProps {
   /** Dòng phụ dưới nhãn vai trò, ví dụ môn giảng dạy. */
   roleDetail?: string
   menuItems: SidebarMenuItem[]
-  /** Ô tìm kiếm của trang: nằm trên thanh tiêu đề, còn trên màn hình hẹp thì đứng đầu nội dung. */
-  headerSearch?: ReactNode
+  /** Công cụ của trang (tìm kiếm, bộ lọc, nút tạo mới): nằm trên thanh tiêu đề, còn trên màn hình hẹp thì đứng đầu nội dung. */
+  headerTools?: ReactNode
   /** Bỏ bớt khoảng trống phía trên nội dung, cho trang danh sách muốn thấy hết bảng và thanh trang trong một màn hình. */
   compactContent?: boolean
 }
 
 export default function DashboardLayout({
-  children, pageTitle, pageSubtitle, basePath, roleLabel, roleDetail, menuItems, headerSearch, compactContent,
+  children, pageTitle, pageSubtitle, basePath, roleLabel, roleDetail, menuItems, headerTools, compactContent,
 }: DashboardLayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [peeking, setPeeking] = useState(false)
   const isDesktop = useMediaQuery('(min-width: 1024px)')
-  // Từ cỡ máy tính bảng trở lên ô tìm kiếm của trang nằm trên thanh tiêu đề; hẹp hơn thì thanh đó chỉ vừa
-  // tiêu đề và cụm tài khoản nên ô tìm kiếm xuống đầu nội dung.
-  const isTabletUp = useMediaQuery('(min-width: 768px)')
   // Thiết bị cảm ứng không có trạng thái rê chuột thật. Thu về dải icon ở đó là
   // nhốt người dùng với icon không nhãn, vì không còn nút nào để mở ra.
   const canHover = useMediaQuery('(hover: hover)')
@@ -109,10 +106,12 @@ export default function DashboardLayout({
           roleLabel={roleLabel}
           onOpenSidebar={() => setSidebarOpen(true)}
           onLogout={handleLogout}
-          search={isTabletUp ? headerSearch : undefined}
+          // Từ cỡ lg thanh bên luôn hiện và cụm tài khoản đã rời thanh tiêu đề, nên chỗ đó dành cho công cụ
+          // của trang; hẹp hơn thì công cụ xuống đầu nội dung.
+          tools={isDesktop ? headerTools : undefined}
         />
         <div className={compactContent ? 'px-4 pb-4 pt-3 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8 lg:pt-4' : 'p-4 sm:p-6 lg:p-8'}>
-          {!isTabletUp && headerSearch && <div className="mb-4">{headerSearch}</div>}
+          {!isDesktop && headerTools && <div className="mb-4">{headerTools}</div>}
           {children}
         </div>
       </main>

@@ -58,16 +58,18 @@ export default function TeacherGroupListPage() {
       pageTitle="Nhóm lớp"
       pageSubtitle={summaryText ?? 'Những lớp bạn được phân công phụ trách'}
       compactContent
-      headerSearch={
-        <SearchField
-          value={searchInput}
-          onChange={value => {
-            setSearchInput(value)
-            setPage(1)
-          }}
-          placeholder="Tìm theo tên hoặc mô tả lớp"
-          label="Tìm kiếm lớp"
-        />
+      headerTools={
+        <div className="w-full max-w-sm">
+          <SearchField
+            value={searchInput}
+            onChange={value => {
+              setSearchInput(value)
+              setPage(1)
+            }}
+            placeholder="Tìm theo tên hoặc mô tả lớp"
+            label="Tìm kiếm lớp"
+          />
+        </div>
       }
     >
       {showSkeleton ? (
