@@ -64,7 +64,9 @@ export default function Header({
 
       {search && <div className="flex-1 min-w-0 max-w-sm ml-auto">{search}</div>}
 
-      <div className="flex items-center gap-2.5 flex-shrink-0">
+      {/* Từ cỡ lg thanh bên luôn hiện và đã có sẵn chuông, hồ sơ, đăng xuất, nên cụm này chỉ còn ở màn hình
+          hẹp, nơi thanh bên là ngăn kéo phải mở mới thấy. */}
+      <div className="flex items-center gap-2.5 flex-shrink-0 lg:hidden">
         <NavLink
           to={`${basePath}/thong-bao`}
           aria-label="Thông báo"
