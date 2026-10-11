@@ -11,13 +11,17 @@ import { Eye, Search, UsersRound, X } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
+import Pagination from '../../../components/common/Pagination'
 import { SkeletonTable } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
+import { usePagination } from '../../../hooks/usePagination'
 import { formatDate } from '../../../lib/format'
 import { listGroups } from '../../../services/groupService'
 
 const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500'
+
+const PAGE_SIZE = 10
 
 export default function TeacherGroupListPage() {
   const [searchInput, setSearchInput] = useState('')
@@ -41,6 +45,7 @@ export default function TeacherGroupListPage() {
   }, [allGroups])
 
   const rows = groups ?? []
+  const { currentPage, pageItems, setPage } = usePagination(rows, PAGE_SIZE)
   const showSkeleton = loading && groups === undefined
   const isRefreshing = loading && groups !== undefined
 
@@ -54,7 +59,10 @@ export default function TeacherGroupListPage() {
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={searchInput}
-            onChange={event => setSearchInput(event.target.value)}
+            onChange={event => {
+              setSearchInput(event.target.value)
+              setPage(1)
+            }}
             className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"
             placeholder="Tìm theo tên hoặc mô tả lớp"
             aria-label="Tìm kiếm lớp"
@@ -62,7 +70,10 @@ export default function TeacherGroupListPage() {
           {searchInput && (
             <button
               type="button"
-              onClick={() => setSearchInput('')}
+              onClick={() => {
+                setSearchInput('')
+                setPage(1)
+              }}
               aria-label="Xoá tìm kiếm"
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
             >
@@ -118,7 +129,7 @@ export default function TeacherGroupListPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(group => (
+                {pageItems.map(group => (
                   <tr key={group.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4">
                       <div className="max-w-[420px] min-w-0">
@@ -166,6 +177,10 @@ export default function TeacherGroupListPage() {
             </table>
           </div>
         </div>
+      )}
+
+      {!showSkeleton && !error && rows.length > 0 && (
+        <Pagination page={currentPage} pageSize={PAGE_SIZE} total={rows.length} onPageChange={setPage} />
       )}
     </TeacherLayout>
   )

@@ -15,10 +15,12 @@ import { PublishStateBadge } from '../../../components/common/Badge'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
+import Pagination from '../../../components/common/Pagination'
 import { SkeletonTable } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
+import { usePagination } from '../../../hooks/usePagination'
 import { formatDate } from '../../../lib/format'
 import { deleteGroup, listGroups, publishGroup, unpublishGroup } from '../../../services/groupService'
 import type { StudentGroup } from '../../../types'
@@ -31,6 +33,8 @@ const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6
 const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500'
 const iconButtonClass =
   'w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-indigo-600 flex items-center justify-center transition-colors'
+
+const PAGE_SIZE = 10
 
 /** Số avatar giáo viên hiện thẳng trên một dòng trước khi gộp phần còn lại thành "+N". */
 const TEACHER_AVATAR_LIMIT = 3
@@ -217,6 +221,7 @@ export default function AdminGroupListPage() {
   }
 
   const rows = groups ?? []
+  const { currentPage, pageItems, setPage } = usePagination(rows, PAGE_SIZE)
   const showSkeleton = loading && groups === undefined
   const isRefreshing = loading && groups !== undefined
 
@@ -231,7 +236,10 @@ export default function AdminGroupListPage() {
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={searchInput}
-              onChange={event => setSearchInput(event.target.value)}
+              onChange={event => {
+                setSearchInput(event.target.value)
+                setPage(1)
+              }}
               className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"
               placeholder="Tìm theo tên hoặc mô tả lớp"
               aria-label="Tìm kiếm lớp"
@@ -239,7 +247,10 @@ export default function AdminGroupListPage() {
             {searchInput && (
               <button
                 type="button"
-                onClick={() => setSearchInput('')}
+                onClick={() => {
+                  setSearchInput('')
+                  setPage(1)
+                }}
                 aria-label="Xoá tìm kiếm"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
               >
@@ -316,7 +327,7 @@ export default function AdminGroupListPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(group => (
+                {pageItems.map(group => (
                   <tr key={group.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4">
                       <div className="flex items-start gap-2.5 max-w-[420px]">
@@ -401,6 +412,10 @@ export default function AdminGroupListPage() {
             </table>
           </div>
         </div>
+      )}
+
+      {!showSkeleton && !error && rows.length > 0 && (
+        <Pagination page={currentPage} pageSize={PAGE_SIZE} total={rows.length} onPageChange={setPage} />
       )}
 
       <GroupFormModal
