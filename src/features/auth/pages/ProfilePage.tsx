@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import {
-  BookOpen, CalendarDays, Mail, Phone, School, ShieldCheck, type LucideIcon,
+  BookOpen, CalendarDays, Mail, Phone, ShieldCheck, type LucideIcon,
 } from 'lucide-react'
 import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
@@ -91,7 +91,6 @@ function ProfileHeroCard({ profile }: { profile: UserProfile }) {
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5">
             <InfoLine icon={Mail} text={profile.email} />
             <InfoLine icon={Phone} text={profile.phone ? profile.phone : 'Chưa cập nhật số điện thoại'} />
-            <InfoLine icon={School} text={profile.school ? profile.school : 'Chưa cập nhật trường'} />
             {profile.role === 'teacher' && (
               <InfoLine icon={BookOpen} text={profile.subject ? profile.subject : 'Chưa cập nhật môn giảng dạy'} />
             )}

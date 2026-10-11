@@ -463,7 +463,6 @@ export interface UserProfile {
   code?: string
   group?: string
   phone?: string
-  school?: string
   subject?: string
   avatarColor: string
   joinedAt: string
