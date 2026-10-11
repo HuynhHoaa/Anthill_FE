@@ -17,6 +17,7 @@ import { SkeletonTable } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { usePagination } from '../../../hooks/usePagination'
+import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
 import { formatDate } from '../../../lib/format'
 import { listGroups } from '../../../services/groupService'
 
@@ -48,6 +49,7 @@ export default function TeacherGroupListPage() {
 
   const rows = groups ?? []
   const { currentPage, pageItems, setPage } = usePagination(rows, PAGE_SIZE)
+  const { tableRef, wrapperStyle } = useStableTableHeight(pageItems, PAGE_SIZE, rows.length)
   const showSkeleton = loading && groups === undefined
   const isRefreshing = loading && groups !== undefined
 
@@ -103,8 +105,8 @@ export default function TeacherGroupListPage() {
             isRefreshing ? 'opacity-60' : 'opacity-100'
           }`}
         >
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[720px]">
+          <div className="overflow-x-auto" style={wrapperStyle}>
+            <table ref={tableRef} className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
                   <th className={`${headerCellClass} text-left`}>Lớp</th>
