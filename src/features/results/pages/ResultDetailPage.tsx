@@ -206,9 +206,10 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
         <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 flex items-start gap-3">
           <EyeOff size={18} className="text-slate-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-bold text-slate-700">Giáo viên chưa công bố đáp án chi tiết</p>
+            <p className="text-sm font-bold text-slate-700">Chưa xem được đáp án từng câu</p>
             <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-              Bạn xem được điểm tổng và số câu đúng. Chi tiết từng câu sẽ mở khi giáo viên cho phép.
+              Điểm và số câu đúng đã có. Đáp án từng câu mở sau khi cả lớp hết giờ làm bài
+              {detail.answersVisibleAt ? `, lúc ${formatDateTime(detail.answersVisibleAt)}` : ''}.
             </p>
           </div>
         </div>

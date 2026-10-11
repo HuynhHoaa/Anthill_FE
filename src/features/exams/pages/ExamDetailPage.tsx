@@ -50,9 +50,9 @@ interface ProgressTile {
 
 const progressTiles: ProgressTile[] = [
   { key: 'all', label: 'Tất cả học sinh', icon: Users, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600', activeRing: 'border-indigo-300 ring-4 ring-indigo-50' },
-  { key: 'assigned', label: examStatusLabels.assigned, icon: Send, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', activeRing: 'border-blue-300 ring-4 ring-blue-50' },
+  { key: 'assigned', label: 'Chưa bắt đầu', icon: Send, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', activeRing: 'border-blue-300 ring-4 ring-blue-50' },
   { key: 'inprogress', label: examStatusLabels.inprogress, icon: Hourglass, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', activeRing: 'border-amber-300 ring-4 ring-amber-50' },
-  { key: 'submitted', label: examStatusLabels.submitted, icon: CheckCircle2, iconBg: 'bg-purple-50', iconColor: 'text-purple-600', activeRing: 'border-purple-300 ring-4 ring-purple-50' },
+  { key: 'submitted', label: 'Chờ chấm', icon: CheckCircle2, iconBg: 'bg-purple-50', iconColor: 'text-purple-600', activeRing: 'border-purple-300 ring-4 ring-purple-50' },
   { key: 'graded', label: examStatusLabels.graded, icon: Award, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', activeRing: 'border-emerald-300 ring-4 ring-emerald-50' },
   { key: 'expired', label: examStatusLabels.expired, icon: XCircle, iconBg: 'bg-slate-100', iconColor: 'text-slate-500', activeRing: 'border-slate-300 ring-4 ring-slate-100' },
 ]
