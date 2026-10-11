@@ -106,7 +106,15 @@ export default function TeacherGroupListPage() {
           }`}
         >
           <div className="overflow-x-auto" style={wrapperStyle}>
-            <table ref={tableRef} className="w-full text-sm min-w-[720px]">
+            {/* Bố cục cố định: độ rộng cột chia theo tỉ lệ cố định, không còn phụ thuộc chữ dài nhất của trang đang xem, nên đổi
+                trang không làm các cột xê dịch. */}
+            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[760px]">
+              <colgroup>
+                <col className="w-[40%]" />
+                <col className="w-[20%]" />
+                <col className="w-[20%]" />
+                <col className="w-[20%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
                   <th className={`${headerCellClass} text-left`}>Lớp</th>

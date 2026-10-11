@@ -317,7 +317,17 @@ export default function AdminGroupListPage() {
           }`}
         >
           <div className="overflow-x-auto" style={wrapperStyle}>
-            <table ref={tableRef} className="w-full text-sm min-w-[980px]">
+            {/* Bố cục cố định: độ rộng cột chia theo tỉ lệ cố định, không còn phụ thuộc chữ dài nhất của trang đang xem, nên đổi
+                trang không làm các cột xê dịch. */}
+            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[1120px]">
+              <colgroup>
+                <col className="w-[24%]" />
+                <col className="w-[10%]" />
+                <col className="w-[20%]" />
+                <col className="w-[13%]" />
+                <col className="w-[11%]" />
+                <col className="w-[22%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
                   <th className={`${headerCellClass} text-left`}>Lớp</th>
