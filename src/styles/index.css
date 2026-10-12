@@ -91,8 +91,12 @@ body {
 /*
  * Chế độ thu gọn chỉ có nghĩa từ 1024px trở lên. Dưới ngưỡng đó sidebar đã là
  * drawer trượt ra ngoài, nên phải bỏ qua hoàn toàn để không thu một tấm drawer.
+ *
+ * Ngưỡng viết bằng rem (64rem = 1024px ở cỡ chữ gốc 16px) cho khớp breakpoint `lg` của Tailwind:
+ * nút mở ngăn kéo trong Header ẩn theo `lg:`, nên hai bên mà lệch đơn vị thì người dùng đổi cỡ
+ * chữ gốc của trình duyệt sẽ rơi vào dải không còn cách nào mở thanh bên.
  */
-@media (min-width: 1024px) {
+@media (min-width: 64rem) {
   .sidebar.is-collapsed {
     width: var(--sidebar-width-collapsed);
   }
@@ -119,7 +123,7 @@ body {
 }
 
 /* Dưới 1024px: sidebar trượt ra ngoài, nội dung chiếm trọn bề ngang */
-@media (max-width: 1023.98px) {
+@media (max-width: 63.998rem) {
   .sidebar {
     transform: translateX(-100%);
   }
@@ -132,6 +136,34 @@ body {
   .main-content {
     margin-left: 0;
   }
+}
+
+/* ===== Bảng nhiều cột trong khung cuộn ngang (component TableScroller) ===== */
+/*
+ * Cột cuối (thao tác) dính mép phải khung: bảng rộng hơn khung thì các cột còn lại trượt đi, còn
+ * nút bấm vẫn nằm trong tầm mắt. Màu nền đặc để nội dung trượt bên dưới không lộ ra; màu khớp với
+ * hàng tiêu đề (bg-slate-50/60 trên nền trắng) và với hàng khi rê chuột (hover:bg-slate-50).
+ * Bóng ở mép trái chỉ hiện khi còn nội dung bị che phía sau.
+ */
+.table-scroller th:last-child,
+.table-scroller td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background-color: #fff;
+}
+
+.table-scroller thead th:last-child {
+  background-color: #fbfcfd;
+}
+
+.table-scroller tbody tr:hover td:last-child {
+  background-color: #f8fafc;
+}
+
+.table-scroller[data-overflow-right='true'] th:last-child,
+.table-scroller[data-overflow-right='true'] td:last-child {
+  box-shadow: -10px 0 10px -10px rgba(15, 23, 42, 0.18);
 }
 
 /* ===== Gradient Text ===== */
