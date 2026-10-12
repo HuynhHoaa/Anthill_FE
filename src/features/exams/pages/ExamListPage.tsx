@@ -15,8 +15,8 @@ import { SkeletonTable } from '../../../components/common/Skeleton'
 import TableScroller from '../../../components/common/TableScroller'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
-import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
+import { useUrlListState } from '../../../hooks/useUrlListState'
 import { deleteExam, duplicateExam, listExams } from '../../../services/examService'
 import { formatDateTime, formatDuration, parseDateTime } from '../../../lib/format'
 import { lifecycleLabels } from '../../../types'
@@ -347,11 +347,12 @@ export default function ExamListPage() {
   const toast = useToast()
   const confirm = useConfirm()
   const navigate = useNavigate()
-  const [searchInput, setSearchInput] = useState('')
-  const [lifecycle, setLifecycle] = useState<LifecycleFilter>('all')
-  const [page, setPage] = useState(1)
-
-  const search = useDebouncedValue(searchInput, 350)
+  // Tìm kiếm, trạng thái và trang nằm trên URL: mở một đề rồi Back về đúng bộ lọc và đúng trang đang xem.
+  const { searchInput, setSearchInput, search, filters, setFilter, page, setPage, clearAll } = useUrlListState(
+    { 'trang-thai': { default: 'all', allowed: lifecycleOptions.map(option => option.value) } },
+    { debounceMs: 350 },
+  )
+  const lifecycle = filters['trang-thai'] as LifecycleFilter
   const { data, loading, error, reload } = useAsync(
     () => listExams({ search, lifecycle, page, pageSize: PAGE_SIZE }),
     [search, lifecycle, page],
@@ -360,12 +361,6 @@ export default function ExamListPage() {
   const exams = data?.items ?? []
   const isFiltering = searchInput.trim() !== '' || lifecycle !== 'all'
   const { tableRef, wrapperStyle } = useStableTableHeight(exams, PAGE_SIZE, data?.total ?? 0)
-
-  const resetFilters = () => {
-    setSearchInput('')
-    setLifecycle('all')
-    setPage(1)
-  }
 
   const requestDelete = async (exam: Exam) => {
     const deleted = await confirm({
@@ -400,10 +395,7 @@ export default function ExamListPage() {
       <div className="flex-1 min-w-[12rem] max-w-xs">
         <SearchField
           value={searchInput}
-          onChange={value => {
-            setSearchInput(value)
-            setPage(1)
-          }}
+          onChange={setSearchInput}
           placeholder="Tìm theo tên bài, chủ đề"
           label="Tìm kiếm bài kiểm tra"
         />
@@ -411,10 +403,7 @@ export default function ExamListPage() {
 
       <select
         value={lifecycle}
-        onChange={event => {
-          setLifecycle(event.target.value as LifecycleFilter)
-          setPage(1)
-        }}
+        onChange={event => setFilter('trang-thai', event.target.value)}
         aria-label="Lọc theo trạng thái"
         className={selectClass}
       >
@@ -429,7 +418,7 @@ export default function ExamListPage() {
           khi người dùng gõ chữ đầu tiên. */}
       <button
         type="button"
-        onClick={resetFilters}
+        onClick={clearAll}
         disabled={!isFiltering}
         className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-default disabled:hover:bg-slate-100"
       >
@@ -471,7 +460,7 @@ export default function ExamListPage() {
               action={
                 <button
                   type="button"
-                  onClick={resetFilters}
+                  onClick={clearAll}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                 >
                   Xoá bộ lọc
