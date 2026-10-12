@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Lock, Save, School, UserRound } from 'lucide-react'
+import { Info, Lock, Save, UserRound } from 'lucide-react'
 import { useToast } from '../../../components/common/Toast'
 import { updateProfile } from '../../../services/authService'
 import type { UserProfile } from '../../../types'
@@ -13,7 +13,6 @@ interface ProfileFormValues {
   fullName: string
   email: string
   phone: string
-  school: string
   subject: string
 }
 
@@ -34,7 +33,6 @@ function buildInitialValues(profile: UserProfile): ProfileFormValues {
     fullName: profile.fullName,
     email: profile.email,
     phone: profile.phone ?? '',
-    school: profile.school ?? '',
     subject: profile.subject ?? '',
   }
 }
@@ -89,7 +87,6 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
       fullName: isStudent ? profile.fullName : values.fullName.trim(),
       email: isStudent ? profile.email : values.email.trim(),
       phone: values.phone.trim(),
-      school: values.school.trim(),
     }
     if (isTeacher) {
       payload.subject = values.subject.trim()
@@ -169,22 +166,6 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
     </div>
   )
 
-  const schoolField = (
-    <div>
-      <label htmlFor="profile-school" className="block text-sm font-semibold text-slate-700 mb-1.5">
-        Trường
-      </label>
-      <input
-        id="profile-school"
-        type="text"
-        className={inputClass}
-        placeholder="Ví dụ: Trường THPT Nguyễn Du"
-        value={values.school}
-        onChange={event => changeValue('school', event.target.value)}
-      />
-    </div>
-  )
-
   const codeField = (
     <div>
       <label htmlFor="profile-code" className="block text-sm font-semibold text-slate-700 mb-1.5">
@@ -234,7 +215,6 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {phoneField}
-              {schoolField}
             </div>
           </>
         ) : (
@@ -243,9 +223,8 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
               {fullNameField}
               {emailField}
               {phoneField}
-              {schoolField}
               {isTeacher && (
-                <div className="md:col-span-2">
+                <div>
                   <label htmlFor="profile-subject" className="block text-sm font-semibold text-slate-700 mb-1.5">
                     Môn giảng dạy
                   </label>
@@ -263,7 +242,7 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
 
             {isTeacher && (
               <p className="flex items-start gap-2 text-xs text-slate-400 leading-relaxed">
-                <School size={14} className="flex-shrink-0 mt-0.5" />
+                <Info size={14} className="flex-shrink-0 mt-0.5" />
                 Thông tin này hiển thị cho học sinh khi bạn giao bài kiểm tra.
               </p>
             )}

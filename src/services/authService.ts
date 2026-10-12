@@ -167,7 +167,7 @@ export async function fetchProfile(): Promise<UserProfile> {
 /**
  * Cập nhật hồ sơ.
  *
- * Server chỉ nhận bốn trường; id, vai trò, mã học sinh và nhóm lớp không đổi được từ đây — đó là
+ * Server chỉ nhận ba trường; id, vai trò, mã học sinh và nhóm lớp không đổi được từ đây — đó là
  * việc của quản trị viên qua `/api/students`. Gửi thừa cũng vô hại vì binder bỏ qua, nhưng gửi
  * đúng những gì hợp đồng nói giúp người đọc code biết ranh giới nằm ở đâu.
  */
@@ -178,7 +178,6 @@ export async function updateProfile(payload: Partial<UserProfile>): Promise<User
     fullName: (payload.fullName ?? current?.fullName ?? '').trim(),
     email: (payload.email ?? current?.email ?? '').trim(),
     phone: (payload.phone ?? current?.phone ?? '').trim() || undefined,
-    school: (payload.school ?? current?.school ?? '').trim() || undefined,
   })
 
   saveSession(updated)
