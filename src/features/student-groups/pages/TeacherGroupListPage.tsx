@@ -11,13 +11,20 @@ import { Eye, Search, UsersRound, X } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
+import Pagination from '../../../components/common/Pagination'
+import SearchField from '../../../components/common/SearchField'
 import { SkeletonTable } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
+import { usePagination } from '../../../hooks/usePagination'
+import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
 import { formatDate } from '../../../lib/format'
 import { listGroups } from '../../../services/groupService'
 
 const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500'
+
+// Mười hai dòng vừa với khoảng trống còn lại của một cửa sổ cao ~900px sau khi đã bỏ thẻ tìm kiếm.
+const PAGE_SIZE = 12
 
 export default function TeacherGroupListPage() {
   const [searchInput, setSearchInput] = useState('')
@@ -41,6 +48,8 @@ export default function TeacherGroupListPage() {
   }, [allGroups])
 
   const rows = groups ?? []
+  const { currentPage, pageItems, setPage } = usePagination(rows, PAGE_SIZE)
+  const { tableRef, wrapperStyle } = useStableTableHeight(pageItems, PAGE_SIZE, rows.length)
   const showSkeleton = loading && groups === undefined
   const isRefreshing = loading && groups !== undefined
 
@@ -48,30 +57,21 @@ export default function TeacherGroupListPage() {
     <TeacherLayout
       pageTitle="Nhóm lớp"
       pageSubtitle={summaryText ?? 'Những lớp bạn được phân công phụ trách'}
-    >
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5 animate-fade-in-up">
-        <div className="relative max-w-md w-full">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
+      compactContent
+      headerTools={
+        <div className="w-full max-w-sm">
+          <SearchField
             value={searchInput}
-            onChange={event => setSearchInput(event.target.value)}
-            className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"
+            onChange={value => {
+              setSearchInput(value)
+              setPage(1)
+            }}
             placeholder="Tìm theo tên hoặc mô tả lớp"
-            aria-label="Tìm kiếm lớp"
+            label="Tìm kiếm lớp"
           />
-          {searchInput && (
-            <button
-              type="button"
-              onClick={() => setSearchInput('')}
-              aria-label="Xoá tìm kiếm"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
-            >
-              <X size={15} />
-            </button>
-          )}
         </div>
-      </div>
-
+      }
+    >
       {showSkeleton ? (
         <SkeletonTable rows={5} cols={4} />
       ) : error ? (
@@ -107,8 +107,16 @@ export default function TeacherGroupListPage() {
             isRefreshing ? 'opacity-60' : 'opacity-100'
           }`}
         >
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[720px]">
+          <div className="overflow-x-auto" style={wrapperStyle}>
+            {/* Bố cục cố định: độ rộng cột chia theo tỉ lệ cố định, không còn phụ thuộc chữ dài nhất của trang đang xem, nên đổi
+                trang không làm các cột xê dịch. */}
+            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[760px]">
+              <colgroup>
+                <col className="w-[40%]" />
+                <col className="w-[20%]" />
+                <col className="w-[20%]" />
+                <col className="w-[20%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
                   <th className={`${headerCellClass} text-left`}>Lớp</th>
@@ -118,9 +126,9 @@ export default function TeacherGroupListPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(group => (
+                {pageItems.map(group => (
                   <tr key={group.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-2.5">
                       <div className="max-w-[420px] min-w-0">
                         <NavLink
                           to={`/giao-vien/nhom-lop/${group.id}`}
@@ -133,12 +141,12 @@ export default function TeacherGroupListPage() {
                         </p>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-2.5">
                       {group.studentCount > 0 ? (
-                        <>
-                          <p className="font-semibold text-slate-800">{group.studentCount}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">học sinh</p>
-                        </>
+                        <p className="text-slate-800">
+                          <span className="font-semibold">{group.studentCount}</span>{' '}
+                          <span className="text-xs text-slate-400">học sinh</span>
+                        </p>
                       ) : (
                         /* Lớp rỗng thì giáo viên giao bài cũng không tới ai — nói thẳng thay vì
                            hiện số 0 để họ tự đoán. Xếp học sinh là việc của quản trị viên. */
@@ -147,10 +155,10 @@ export default function TeacherGroupListPage() {
                         </p>
                       )}
                     </td>
-                    <td className="px-5 py-4 text-slate-500 whitespace-nowrap">
+                    <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">
                       {formatDate(group.createdAt)}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-2.5">
                       <div className="flex items-center justify-end">
                         <NavLink
                           to={`/giao-vien/nhom-lop/${group.id}`}
@@ -166,6 +174,10 @@ export default function TeacherGroupListPage() {
             </table>
           </div>
         </div>
+      )}
+
+      {!showSkeleton && !error && rows.length > 0 && (
+        <Pagination page={currentPage} pageSize={PAGE_SIZE} total={rows.length} onPageChange={setPage} />
       )}
     </TeacherLayout>
   )

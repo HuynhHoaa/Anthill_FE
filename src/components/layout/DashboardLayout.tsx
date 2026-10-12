@@ -18,10 +18,14 @@ interface DashboardLayoutProps {
   /** Dòng phụ dưới nhãn vai trò, ví dụ môn giảng dạy. */
   roleDetail?: string
   menuItems: SidebarMenuItem[]
+  /** Công cụ của trang (tìm kiếm, bộ lọc, nút tạo mới): nằm trên thanh tiêu đề, còn trên màn hình hẹp thì đứng đầu nội dung. */
+  headerTools?: ReactNode
+  /** Bỏ bớt khoảng trống phía trên nội dung, cho trang danh sách muốn thấy hết bảng và thanh trang trong một màn hình. */
+  compactContent?: boolean
 }
 
 export default function DashboardLayout({
-  children, pageTitle, pageSubtitle, basePath, roleLabel, roleDetail, menuItems,
+  children, pageTitle, pageSubtitle, basePath, roleLabel, roleDetail, menuItems, headerTools, compactContent,
 }: DashboardLayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -102,8 +106,14 @@ export default function DashboardLayout({
           roleLabel={roleLabel}
           onOpenSidebar={() => setSidebarOpen(true)}
           onLogout={handleLogout}
+          // Từ cỡ lg thanh bên luôn hiện và cụm tài khoản đã rời thanh tiêu đề, nên chỗ đó dành cho công cụ
+          // của trang; hẹp hơn thì công cụ xuống đầu nội dung.
+          tools={isDesktop ? headerTools : undefined}
         />
-        <div className="p-4 sm:p-6 lg:p-8">{children}</div>
+        <div className={compactContent ? 'px-4 pb-4 pt-3 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8 lg:pt-4' : 'p-4 sm:p-6 lg:p-8'}>
+          {!isDesktop && headerTools && <div className="mb-4">{headerTools}</div>}
+          {children}
+        </div>
       </main>
     </div>
   )

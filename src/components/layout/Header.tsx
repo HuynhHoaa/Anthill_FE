@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { Bell, ChevronDown, LogOut, Menu, UserCircle } from 'lucide-react'
 
@@ -13,10 +13,12 @@ interface HeaderProps {
   roleLabel: string
   onOpenSidebar: () => void
   onLogout: () => void
+  /** Công cụ của trang (ô tìm kiếm, bộ lọc, nút tạo mới), đặt giữa tiêu đề và mép phải để khỏi chiếm một hàng riêng. */
+  tools?: ReactNode
 }
 
 export default function Header({
-  title, subtitle, userName, initials, unreadCount, basePath, roleLabel, onOpenSidebar, onLogout,
+  title, subtitle, userName, initials, unreadCount, basePath, roleLabel, onOpenSidebar, onLogout, tools,
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -56,11 +58,18 @@ export default function Header({
         </button>
         <div className="min-w-0">
           <h1 className="text-lg sm:text-xl font-bold text-slate-800 truncate">{title}</h1>
-          <p className="text-sm text-slate-400 mt-0.5 truncate">{subtitle ?? today}</p>
+          <p className="text-sm text-slate-400 mt-0.5 truncate" title={subtitle}>
+            {subtitle ?? today}
+          </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2.5 flex-shrink-0">
+      {/* min-w: phụ đề dài (trang Kết quả) phải tự cắt bớt chứ không được nuốt chỗ của công cụ. */}
+      {tools && <div className="flex-1 min-w-[13rem] flex justify-end">{tools}</div>}
+
+      {/* Từ cỡ lg thanh bên luôn hiện và đã có sẵn chuông, hồ sơ, đăng xuất, nên cụm này chỉ còn ở màn hình
+          hẹp, nơi thanh bên là ngăn kéo phải mở mới thấy. */}
+      <div className="flex items-center gap-2.5 flex-shrink-0 lg:hidden">
         <NavLink
           to={`${basePath}/thong-bao`}
           aria-label="Thông báo"

@@ -8,6 +8,8 @@ interface TeacherLayoutProps {
   children: ReactNode
   pageTitle: string
   pageSubtitle?: string
+  headerTools?: ReactNode
+  compactContent?: boolean
 }
 
 const teacherMenuItems: SidebarMenuItem[] = [
@@ -18,7 +20,7 @@ const teacherMenuItems: SidebarMenuItem[] = [
   { icon: BarChart3, label: 'Kết quả', to: '/giao-vien/ket-qua' },
 ]
 
-export default function TeacherLayout({ children, pageTitle, pageSubtitle }: TeacherLayoutProps) {
+export default function TeacherLayout({ children, pageTitle, pageSubtitle, headerTools, compactContent }: TeacherLayoutProps) {
   const currentUser = getCurrentUser()
 
   return (
@@ -29,6 +31,8 @@ export default function TeacherLayout({ children, pageTitle, pageSubtitle }: Tea
       roleLabel="Giáo viên"
       roleDetail={currentUser?.subject}
       menuItems={teacherMenuItems}
+      headerTools={headerTools}
+      compactContent={compactContent}
     >
       {children}
     </DashboardLayout>

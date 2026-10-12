@@ -5,11 +5,13 @@ import TeacherLayout from '../../../components/layout/TeacherLayout'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
+import SearchField from '../../../components/common/SearchField'
 import { StatusBadge } from '../../../components/common/Badge'
 import { SkeletonTable } from '../../../components/common/Skeleton'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
+import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
 import { getResultStats, listResults } from '../../../services/resultService'
 import { listExams } from '../../../services/examService'
 import { listGroups } from '../../../services/groupService'
@@ -33,20 +35,14 @@ const GROUP_PARAM = 'nhom'
 const STATUS_PARAM = 'trang-thai'
 const PAGE_PARAM = 'trang'
 
-const inputClass =
-  'w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 bg-white outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'
+const selectClass =
+  'px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 bg-white outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'
 
 const chipClass =
   'inline-flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50'
 
 const cellLinkClass =
   'font-semibold text-slate-800 text-left hover:text-indigo-600 hover:underline transition-colors'
-
-interface FilterChip {
-  key: string
-  label: string
-  onRemove: () => void
-}
 
 interface SelectOption {
   value: string
@@ -163,6 +159,7 @@ export default function TeacherResultsPage() {
   const examOptions = useMemo(() => exams?.items ?? [], [exams])
   const groupOptions = useMemo(() => groups ?? [], [groups])
   const items = useMemo(() => results?.items ?? [], [results])
+  const { tableRef, wrapperStyle } = useStableTableHeight(items, PAGE_SIZE, results?.total ?? 0)
 
   /**
    * Danh sách đề chỉ nạp 100 mục đầu, nên deep-link tới một đề nằm ngoài đó sẽ không tra được
@@ -221,51 +218,6 @@ export default function TeacherResultsPage() {
   const clearFilters = () => {
     setSearchInput('')
     setSearchParams({}, { replace: true })
-  }
-
-  const activeFilterChips: FilterChip[] = []
-
-  if (search.trim() !== '') {
-    activeFilterChips.push({
-      key: 'search',
-      label: `Từ khoá: ${search.trim()}`,
-      onRemove: () => {
-        setSearchInput('')
-        updateFilters({ [SEARCH_PARAM]: undefined })
-      },
-    })
-  }
-
-  if (examFilter !== null) {
-    activeFilterChips.push({
-      key: 'exam',
-      label: `Bài: ${examFilterLabel}`,
-      onRemove: () => updateFilters({ [EXAM_PARAM]: undefined }),
-    })
-  }
-
-  if (studentFilter !== null) {
-    activeFilterChips.push({
-      key: 'student',
-      label: `Học sinh: ${studentFilterLabel}`,
-      onRemove: () => updateFilters({ [STUDENT_PARAM]: undefined }),
-    })
-  }
-
-  if (groupFilter !== 'all') {
-    activeFilterChips.push({
-      key: 'group',
-      label: `Nhóm lớp: ${groupFilterLabel}`,
-      onRemove: () => updateFilters({ [GROUP_PARAM]: undefined }),
-    })
-  }
-
-  if (statusFilter !== 'all') {
-    activeFilterChips.push({
-      key: 'status',
-      label: `Trạng thái: ${examStatusLabels[statusFilter]}`,
-      onRemove: () => updateFilters({ [STATUS_PARAM]: undefined }),
-    })
   }
 
   /** Số liệu tính trên đúng tập dữ liệu đang hiển thị, nên phụ đề nói theo bộ lọc đang bật. */
@@ -336,8 +288,19 @@ export default function TeacherResultsPage() {
             resultsLoading ? 'opacity-60' : 'opacity-100'
           }`}
         >
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[880px]">
+          <div className="overflow-x-auto" style={wrapperStyle}>
+            {/* Bố cục cố định: cột hẹp có bề rộng riêng, bài kiểm tra và học sinh chia đều phần còn lại. Đổi trang
+                không làm cột nào xê dịch, tên dài thì cắt bớt thay vì đẩy cột. */}
+            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[1060px]">
+              <colgroup>
+                <col />
+                <col />
+                <col className="w-44" />
+                <col className="w-32" />
+                <col className="w-36" />
+                <col className="w-32" />
+                <col className="w-28" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Bài kiểm tra</th>
@@ -360,46 +323,57 @@ export default function TeacherResultsPage() {
 
                   return (
                     <tr key={result.attemptId} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                      <td className="px-5 py-4">
-                        <NavLink to={`/giao-vien/bai-kiem-tra/${result.examId}`} className={cellLinkClass}>
+                      <td className="px-5 py-2.5">
+                        <NavLink
+                          to={`/giao-vien/bai-kiem-tra/${result.examId}`}
+                          title={result.examTitle}
+                          className={`${cellLinkClass} block truncate`}
+                        >
                           {result.examTitle}
                         </NavLink>
                         <p className="text-xs text-slate-400 mt-0.5">Nộp {formatDateTime(result.submittedAt)}</p>
                       </td>
-                      <td className="px-5 py-4">
-                        <div className="flex flex-wrap items-center gap-2">
+                      <td className="px-5 py-2.5">
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => updateFilters({ [STUDENT_PARAM]: String(result.studentId) })}
                             title={`Chỉ xem kết quả của ${result.studentName}`}
-                            className={`${cellLinkClass} whitespace-nowrap`}
+                            className={`${cellLinkClass} min-w-0 truncate`}
                           >
                             {result.studentName}
                           </button>
                           {/* Chỉ gắn nhãn khi khác thường: "Đang hoạt động" trên mọi dòng chỉ là
                               nhiễu, còn em có tài khoản chờ xoá hay đã xoá thì giáo viên cần biết trước khi đọc điểm. */}
-                          {result.studentStatus !== 'active' && <StudentStatusPill status={result.studentStatus} />}
+                          {result.studentStatus !== 'active' && (
+                            <span className="flex-shrink-0">
+                              <StudentStatusPill status={result.studentStatus} />
+                            </span>
+                          )}
                         </div>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-2.5">
                         {/* Không tra ra id thì nhóm chỉ hiện ra chứ không bấm lọc được, vì lọc theo
                             tên sẽ trả về bảng rỗng ngay khi nhóm được đổi tên. */}
                         {groupId === undefined ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 whitespace-nowrap">
-                            {result.group}
+                          <span
+                            title={result.group}
+                            className="inline-flex items-center max-w-full px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 whitespace-nowrap"
+                          >
+                            <span className="truncate">{result.group}</span>
                           </span>
                         ) : (
                           <button
                             type="button"
                             onClick={() => updateFilters({ [GROUP_PARAM]: String(groupId) })}
                             title={`Chỉ xem kết quả của nhóm ${result.group}`}
-                            className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 whitespace-nowrap transition-colors"
+                            className="inline-flex items-center max-w-full px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 whitespace-nowrap transition-colors"
                           >
-                            {result.group}
+                            <span className="truncate">{result.group}</span>
                           </button>
                         )}
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-2.5">
                         {isGraded ? (
                           <>
                             <p className={`font-bold ${scoreTone?.color ?? 'text-slate-400'}`}>
@@ -421,10 +395,10 @@ export default function TeacherResultsPage() {
                       <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
                         {formatDuration(result.durationMinutes)}
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-2.5">
                         <StatusBadge status={result.status} />
                       </td>
-                      <td className="px-5 py-4 text-right">
+                      <td className="px-5 py-2.5 text-right">
                         <NavLink
                           to={`/giao-vien/ket-qua/${result.attemptId}`}
                           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
@@ -452,98 +426,96 @@ export default function TeacherResultsPage() {
     )
   }
 
+  // Ô tìm kiếm nằm trên thanh tiêu đề (từ cỡ lg), thay cho thẻ bộ lọc riêng phía trên bảng.
+  const tools = (
+    <div className="w-full max-w-sm">
+      <SearchField
+        value={searchInput}
+        onChange={setSearchInput}
+        placeholder="Tìm học sinh hoặc bài kiểm tra"
+        label="Tìm kiếm kết quả"
+      />
+    </div>
+  )
+
   return (
     <TeacherLayout
       pageTitle="Kết quả"
       pageSubtitle={summaryText ?? 'Theo dõi điểm số, trạng thái nộp bài và chi tiết đáp án'}
+      compactContent
+      headerTools={tools}
     >
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-5 animate-fade-in-up">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <div className="relative">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={event => setSearchInput(event.target.value)}
-              placeholder="Tìm học sinh hoặc bài kiểm tra..."
-              className={`${inputClass} pl-10`}
-              aria-label="Tìm kiếm kết quả"
-            />
-          </div>
+      {/* Bài kiểm tra, nhóm lớp và trạng thái là một hàng mảnh ngay trên bảng. Các ô này tự hiện giá trị đang lọc,
+          nên chỉ học sinh (không có ô chọn) mới cần một chip. */}
+      <div className="flex flex-wrap items-center gap-2.5 mb-3">
+        <select
+          value={examFilter ?? 'all'}
+          onChange={event => updateFilters({ [EXAM_PARAM]: event.target.value })}
+          className={`${selectClass} max-w-[18rem]`}
+          aria-label="Lọc theo bài kiểm tra"
+        >
+          <option value="all">Tất cả bài kiểm tra</option>
+          {examSelectOptions.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
 
-          <select
-            value={examFilter ?? 'all'}
-            onChange={event => updateFilters({ [EXAM_PARAM]: event.target.value })}
-            className={inputClass}
-            aria-label="Lọc theo bài kiểm tra"
-          >
-            <option value="all">Tất cả bài kiểm tra</option>
-            {examSelectOptions.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+        <select
+          value={groupFilter}
+          onChange={event => updateFilters({ [GROUP_PARAM]: event.target.value })}
+          className={`${selectClass} max-w-[14rem]`}
+          aria-label="Lọc theo nhóm lớp"
+        >
+          <option value="all">Tất cả nhóm lớp</option>
+          {groupSelectOptions.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
 
-          <select
-            value={groupFilter}
-            onChange={event => updateFilters({ [GROUP_PARAM]: event.target.value })}
-            className={inputClass}
-            aria-label="Lọc theo nhóm lớp"
-          >
-            <option value="all">Tất cả nhóm lớp</option>
-            {groupSelectOptions.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+        <select
+          value={statusFilter}
+          onChange={event => updateFilters({ [STATUS_PARAM]: event.target.value })}
+          className={selectClass}
+          aria-label="Lọc theo trạng thái"
+        >
+          <option value="all">Tất cả trạng thái</option>
+          {statusOptions.map(status => (
+            <option key={status} value={status}>
+              {examStatusLabels[status]}
+            </option>
+          ))}
+        </select>
 
-          <select
-            value={statusFilter}
-            onChange={event => updateFilters({ [STATUS_PARAM]: event.target.value })}
-            className={inputClass}
-            aria-label="Lọc theo trạng thái"
-          >
-            <option value="all">Tất cả trạng thái</option>
-            {statusOptions.map(status => (
-              <option key={status} value={status}>
-                {examStatusLabels[status]}
-              </option>
-            ))}
-          </select>
-        </div>
+        {studentFilter !== null && (
+          <span className={chipClass}>
+            Học sinh: {studentFilterLabel}
+            <button
+              type="button"
+              onClick={() => updateFilters({ [STUDENT_PARAM]: undefined })}
+              aria-label={`Bỏ điều kiện lọc Học sinh: ${studentFilterLabel}`}
+              className="w-5 h-5 rounded-lg flex items-center justify-center text-indigo-400 hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+            >
+              <X size={12} />
+            </button>
+          </span>
+        )}
 
         {hasActiveFilters && (
-          <div className="mt-3 pt-3 border-t border-slate-50">
-            <div className="flex flex-wrap items-center gap-2">
-              {activeFilterChips.map(chip => (
-                <span key={chip.key} className={chipClass}>
-                  {chip.label}
-                  <button
-                    type="button"
-                    onClick={chip.onRemove}
-                    aria-label={`Bỏ điều kiện lọc ${chip.label}`}
-                    className="w-5 h-5 rounded-lg flex items-center justify-center text-indigo-400 hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 mt-3">
-              <p className="text-sm text-slate-500">
-                Tìm thấy <strong className="text-slate-700 font-semibold">{results?.total ?? 0}</strong> bài làm
-              </p>
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
-              >
-                <FilterX size={14} /> Xoá bộ lọc
-              </button>
-            </div>
+          <div className="ml-auto flex items-center gap-3">
+            <p className="text-sm text-slate-500">
+              Tìm thấy <strong className="text-slate-700 font-semibold">{results?.total ?? 0}</strong> bài làm
+            </p>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors whitespace-nowrap"
+            >
+              <FilterX size={15} /> Xoá bộ lọc
+            </button>
           </div>
         )}
       </div>
