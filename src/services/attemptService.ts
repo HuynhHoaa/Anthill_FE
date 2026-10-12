@@ -77,22 +77,24 @@ interface AttemptTimeDto {
 }
 
 /**
- * Đổi mốc hết giờ của server sang mốc theo đồng hồ máy này.
+ * Đổi mốc hết giờ của server sang mốc theo thang `performance.now()` của máy này.
  *
- * Lấy hiệu `expiresAt - serverNow` rồi cộng vào `Date.now()` thay vì dùng thẳng `expiresAt`:
+ * Lấy hiệu `expiresAt - serverNow` rồi cộng vào `performance.now()` thay vì dùng thẳng `expiresAt`:
  * cách này chỉ tin vào **khoảng thời gian** server nói, không tin vào việc hai đồng hồ chỉ cùng
- * một giờ. Máy học sinh lệch mười phút vẫn đếm ngược đúng.
+ * một giờ. Máy học sinh lệch mười phút vẫn đếm ngược đúng. Dùng `performance.now()` chứ không phải
+ * `Date.now()` để học sinh chỉnh giờ máy giữa buổi thi cũng không làm đồng hồ nhảy.
  */
-function toLocalDeadline(serverNow: string, expiresAt: string): number {
+function toMonotonicDeadline(serverNow: string, expiresAt: string): number {
   const now = Date.parse(serverNow)
   const end = Date.parse(expiresAt)
 
   if (!Number.isFinite(now) || !Number.isFinite(end)) {
-    // Không đọc được giờ server thì tin vào đồng hồ máy — vẫn tốt hơn là không có hạn nào.
-    return Number.isFinite(end) ? end : Date.now()
+    // Không đọc được giờ server thì tin vào đồng hồ máy. Nếu cả mốc hết giờ cũng không đọc được thì không còn
+    // hạn nào để đếm: coi như hết giờ ngay (hành vi từ trước tới nay), chứ không đoán ra một hạn bịa.
+    return performance.now() + (Number.isFinite(end) ? end - Date.now() : 0)
   }
 
-  return Date.now() + (end - now)
+  return performance.now() + (end - now)
 }
 
 function toSession(dto: AttemptSessionDto): AttemptSession {
@@ -102,7 +104,7 @@ function toSession(dto: AttemptSessionDto): AttemptSession {
     examId: dto.examId,
     examTitle: dto.title,
     durationMinutes: dto.durationMinutes,
-    expiresAtLocal: toLocalDeadline(dto.serverNow, dto.expiresAt),
+    expiresAtMonotonic: toMonotonicDeadline(dto.serverNow, dto.expiresAt),
     remainingSeconds: dto.remainingSeconds,
     totalQuestions: dto.totalQuestions,
     maxScore: dto.maxScore,
@@ -161,18 +163,24 @@ export async function getAttempt(attemptId: number): Promise<AttemptSession> {
 /**
  * Hỏi lại server còn bao nhiêu thời gian.
  *
- * Nhẹ hơn nhiều so với tải lại cả phiên làm bài, nên gọi được định kỳ để đồng hồ trên màn hình
- * không trôi khỏi đồng hồ chấm bài của server sau một giờ làm bài.
+ * Nhẹ hơn nhiều so với tải lại cả phiên làm bài, nên gọi được mỗi khi tab hiện lại hay có mạng lại để
+ * đồng hồ trên màn hình không trôi khỏi đồng hồ chấm bài của server (máy ngủ, tab bị treo).
  */
-export async function getAttemptTime(attemptId: number): Promise<{
-  expiresAtLocal: number
+export async function getAttemptTime(attemptId: number, signal?: AbortSignal): Promise<{
+  expiresAtMonotonic: number
   remainingSeconds: number
   status: string
 }> {
-  const dto = await apiClient.get<AttemptTimeDto>(`/api/exam-attempts/${attemptId}/time`)
+  const dto = await apiClient.get<AttemptTimeDto>(`/api/exam-attempts/${attemptId}/time`, undefined, signal)
+
+  // Gọi giữa buổi thi nên một phản hồi hỏng (proxy trả `{}`) không được thành "hết giờ ngay" và kéo theo tự nộp:
+  // ném lỗi để nơi gọi giữ đồng hồ đang chạy.
+  if (!Number.isFinite(Date.parse(dto.serverNow)) || !Number.isFinite(Date.parse(dto.expiresAt))) {
+    throw new Error('Phản hồi giờ làm bài không hợp lệ.')
+  }
 
   return {
-    expiresAtLocal: toLocalDeadline(dto.serverNow, dto.expiresAt),
+    expiresAtMonotonic: toMonotonicDeadline(dto.serverNow, dto.expiresAt),
     remainingSeconds: dto.remainingSeconds,
     status: dto.status,
   }
