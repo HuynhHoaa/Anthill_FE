@@ -37,6 +37,9 @@ export interface ResultStats {
   totalAttempts: number
   gradedCount: number
 
+  /** Lượt đang làm dở: nằm trong `totalAttempts` nhưng chưa phải bài đã nộp. */
+  inProgressCount: number
+
   /**
    * `null` khi chưa có bài nào được chấm.
    *
