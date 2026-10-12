@@ -42,6 +42,9 @@ body {
   z-index: 30;
   background: linear-gradient(180deg, #312E81 0%, #3730A3 60%, #4338CA 100%);
   transition: transform 0.3s ease, width 0.25s ease;
+  /* Thanh bên nở ra trong 0.25s: nhãn xuất hiện ngay còn bề rộng thì tăng dần, nên không được để nhãn
+     bẻ dòng hay tràn ra ngoài trong lúc đó. */
+  overflow: hidden;
 }
 
 .sidebar-item {
@@ -57,6 +60,7 @@ body {
   transition: all 0.2s;
   cursor: pointer;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .sidebar-item:hover {

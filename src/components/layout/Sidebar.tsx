@@ -100,7 +100,7 @@ export default function Sidebar({
         {!collapsed && (
           <div className="min-w-0">
             <p className="text-white text-sm font-semibold truncate">{userName}</p>
-            <p className="text-xs text-indigo-300">{roleLabel}</p>
+            <p className="text-xs text-indigo-300 whitespace-nowrap">{roleLabel}</p>
             {trimmedRoleDetail && (
               <p className="text-[11px] text-indigo-400 truncate">{trimmedRoleDetail}</p>
             )}
