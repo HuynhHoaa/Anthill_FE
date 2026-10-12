@@ -13,6 +13,7 @@ import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
+import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { listNotifications, markAllAsRead, markAsRead } from '../../../services/notificationService'
 import { formatDateTime, formatRelativeTime, parseDateTime } from '../../../lib/format'
 import { notificationTypeLabels, type AppNotification, type NotificationType, type UserRole } from '../../../types'
@@ -193,7 +194,17 @@ export default function NotificationsPage({ audience }: NotificationsPageProps) 
 
   // Không còn tham số vai trò: server gắn mỗi thông báo với đúng một người nhận và lấy danh
   // tính từ token, nên "thông báo của tôi" là phép lọc theo khoá ngoại chứ không theo nhóm người.
-  const { data: notifications, loading, error, reload } = useAsync(() => listNotifications(), [])
+  const { data: notifications, loading, error, reload, refresh } = useAsync(() => listNotifications(), [])
+
+  // Thông báo mới đến thì danh sách tự thêm dòng. Chỉ nghe những sự kiện có sinh thông báo: nghe cả
+  // UnreadCountChanged thì mỗi lần bấm "đã đọc" lại kéo theo một lượt tải lại danh sách. DeadlineSoon chỉ
+  // sinh thông báo cho học sinh; giáo viên nhận mỗi em một sự kiện mà không có dòng nào để thêm.
+  useRealtimeRefresh(
+    audience === 'student'
+      ? ['ExamAssigned', 'ExamUpdated', 'AutoSubmitted', 'DeadlineSoon']
+      : ['ExamSubmitted', 'AutoSubmitted'],
+    refresh,
+  )
 
   const totalCount = notifications?.length ?? 0
   const unreadCount = useMemo(

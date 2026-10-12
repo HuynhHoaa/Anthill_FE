@@ -34,8 +34,8 @@ Không dùng thư viện quản lý state, thư viện gọi dữ liệu hay th�
 | Form & Validation | Tự viết, hiện lỗi theo từng trường do server trả về |
 | API Call | `fetch` qua `src/lib/apiClient.ts` |
 | Tải dữ liệu | Hook `useAsync` |
-| State dùng chung | React Context (Toast, Confirm) + localStorage / sessionStorage |
-| Realtime | Chưa kết nối (xem mục 6) |
+| State dùng chung | React Context (Toast, Confirm, Realtime) + localStorage / sessionStorage |
+| Realtime | SignalR (`@microsoft/signalr`), xem mục 6 |
 | Lint | oxlint |
 
 ---
@@ -51,7 +51,8 @@ EduQuiz.Frontend/
 ├── src/
 │   ├── app/
 │   │   ├── App.tsx                  # khai báo route, bắt 401 giữa phiên
-│   │   └── RequireRole.tsx          # chặn route theo role
+│   │   ├── RequireRole.tsx          # chặn route theo role
+│   │   └── RealtimeProvider.tsx     # giữ một kết nối SignalR cho cả phiên, đẩy toast theo sự kiện
 │   │
 │   ├── assets/
 │   │
@@ -60,6 +61,7 @@ EduQuiz.Frontend/
 │   │   │   ├── Badge.tsx
 │   │   │   ├── ConfirmDialog.tsx
 │   │   │   ├── ConfirmProvider.tsx
+│   │   │   ├── ConnectionBanner.tsx   # dải "Đang kết nối lại..." khi mất realtime quá 4 giây
 │   │   │   ├── ConsequenceList.tsx
 │   │   │   ├── EmptyState.tsx
 │   │   │   ├── ErrorState.tsx
@@ -178,11 +180,13 @@ EduQuiz.Frontend/
 │   │   ├── resultService.ts
 │   │   ├── dashboardService.ts
 │   │   ├── notificationService.ts
+│   │   ├── realtime.ts              # client SignalR, bus sự kiện, vòng nối lại
 │   │   ├── uploadService.ts         # upload ảnh câu hỏi/đáp án, kiểm tra trước loại và dung lượng
 │   │   └── mappers.ts               # đổi DTO của backend sang model của giao diện
 │   │
 │   ├── hooks/
-│   │   ├── useAsync.ts
+│   │   ├── useAsync.ts              # có thêm refresh(): nạp ngầm khi sự kiện realtime báo dữ liệu đã đổi
+│   │   ├── useRealtime.ts           # useUnreadCount, useRealtimeEvent, useRealtimeRefresh
 │   │   ├── useDebouncedValue.ts
 │   │   └── useMediaQuery.ts
 │   │
@@ -197,7 +201,7 @@ EduQuiz.Frontend/
 │   ├── types/
 │   │   └── index.ts                 # model dùng chung toàn app
 │   │
-│   └── main.tsx                     # BrowserRouter → ToastProvider → ConfirmProvider → App
+│   └── main.tsx                     # BrowserRouter → ToastProvider → RealtimeProvider → ConfirmProvider → App
 │
 ├── .env.example                     # VITE_API_BASE_URL
 ├── package.json
@@ -377,9 +381,14 @@ Page
 
 Realtime:
 
-- Backend có SignalR hub (`/hubs/notifications`) đẩy sự kiện giao bài, nộp bài, tự nộp bài và số thông báo chưa đọc.
-- Frontend **chưa** cài `@microsoft/signalr` và chưa kết nối hub. Số thông báo chưa đọc được tải lại qua `GET /api/notifications/unread-count` mỗi khi chuyển trang.
-- Khi nối realtime, SignalR chỉ dùng để nhận event; mọi nghiệp vụ vẫn đi qua REST API.
+- Backend có SignalR hub (`/hubs/notifications`) đẩy sự kiện giao bài, đổi giờ, nộp bài, tự nộp bài, sắp hết hạn và số thông báo chưa đọc.
+- Frontend nối hub bằng `@microsoft/signalr` trong `src/services/realtime.ts`, và **chỉ** file đó biết tới thư viện. `RealtimeProvider` mở kết nối khi có token, đóng khi đăng xuất, bị thu hồi phiên hay đổi người đăng nhập.
+- Kết nối tự viết vòng nối lại (0, 1, 2, 5, 10, 20, 30 giây, lệch ngẫu nhiên ±20%) thay cho `withAutomaticReconnect`: thư viện không thử lại khi lần mở **đầu tiên** hỏng và không cho chen bước kiểm phiên vào giữa các lần thử. Mỗi lần đứt, client hỏi lại một endpoint REST có token để 401 (phiên bị thu hồi) đi qua `apiClient` như mọi request.
+- Client **không gọi phương thức hub nào**: mỗi kết nối đã tự vào group riêng của người dùng, vào thêm `JoinExamGroup` thì giáo viên nhận `ExamSubmitted` hai lần.
+- Chuông thông báo đọc `useUnreadCount()` từ provider: một lần `GET /api/notifications/unread-count` khi mở phiên và sau mỗi lần nối lại, còn lại nhận `UnreadCountChanged`.
+- Trang nào hiển thị dữ liệu mà một sự kiện làm cũ đi thì gắn `useRealtimeRefresh(sự kiện, refresh)` với `refresh` của `useAsync`: nạp lại ngầm, không bật khung xương, hỏng thì giữ nguyên dữ liệu đang hiện, các sự kiện đến liền nhau được gom 500 ms thành một lần nạp.
+- Toast theo vai trò (học sinh: bài mới, đổi giờ, sắp đóng, bị tự nộp; giáo viên: học sinh nộp bài, gộp khi nhiều em nộp liền nhau) và không hiện ở trang làm bài. Dải mất kết nối chỉ hiện sau 4 giây.
+- SignalR chỉ dùng để nhận event; mọi nghiệp vụ vẫn đi qua REST API.
 
 ```text
 REST API xử lý nghiệp vụ chính

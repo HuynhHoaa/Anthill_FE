@@ -14,6 +14,7 @@ import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { SkeletonBlock, SkeletonTable } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
+import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import {
   deleteExam, duplicateExam, getExam, listExamAssignments, previewBlueprint, rescheduleAssignment,
@@ -253,7 +254,7 @@ export default function ExamDetailPage() {
 
   const search = useDebouncedValue(searchInput, 300)
 
-  const { data, loading, error, reload } = useAsync(async () => {
+  const { data, loading, error, reload, refresh } = useAsync(async () => {
     // useParams trả về chuỗi: chặn sớm khi id trên URL không phải số để báo lỗi rõ ràng.
     if (!Number.isFinite(examId)) {
       throw new Error('Mã bài kiểm tra trên đường dẫn không hợp lệ.')
@@ -271,6 +272,10 @@ export default function ExamDetailPage() {
     ])
     return { exam, assignments, blueprint }
   }, [examId])
+
+  // Em nộp bài hay bị tự nộp trong đề này: bảng theo dõi tự cập nhật. Không nghe DeadlineSoon: giáo viên
+  // nhận mỗi em một sự kiện và không ô nào trên trang đổi theo nó.
+  useRealtimeRefresh(['ExamSubmitted', 'AutoSubmitted'], refresh, event => event.examId === examId)
 
   const statusCounts = useMemo(() => {
     const counts: Record<StatusFilter, number> = {

@@ -61,6 +61,7 @@ export function setStoredToken(token: string): void {
   } catch {
     // Trình duyệt chặn localStorage thì bỏ qua, phiên chỉ sống trong bộ nhớ.
   }
+  notifyTokenChanged()
 }
 
 export function clearStoredToken(): void {
@@ -68,6 +69,36 @@ export function clearStoredToken(): void {
     window.localStorage.removeItem(TOKEN_STORAGE_KEY)
   } catch {
     // Không cần xử lý thêm.
+  }
+  notifyTokenChanged()
+}
+
+const tokenListeners = new Set<() => void>()
+
+function notifyTokenChanged(): void {
+  tokenListeners.forEach(listener => listener())
+}
+
+/**
+ * Báo khi token đổi: đăng nhập, đăng xuất, 401 giữa phiên, hoặc một tab khác làm các việc đó.
+ *
+ * Kết nối realtime gắn với token chứ không với trang, nên nó cần biết ngay lúc token thay đổi để mở,
+ * đóng hay nối lại. Sự kiện `storage` của trình duyệt chỉ bắn ở các tab KHÁC tab vừa ghi, vì vậy tab
+ * đang ghi phải tự gọi `notifyTokenChanged` — hai nguồn bổ sung cho nhau, không trùng.
+ *
+ * Chữ ký (subscribe, getStoredToken) khớp thẳng với `useSyncExternalStore`.
+ */
+export function subscribeToken(listener: () => void): () => void {
+  const handleStorage = (event: StorageEvent) => {
+    // key === null là localStorage.clear().
+    if (event.key === null || event.key === TOKEN_STORAGE_KEY) listener()
+  }
+
+  tokenListeners.add(listener)
+  window.addEventListener('storage', handleStorage)
+  return () => {
+    tokenListeners.delete(listener)
+    window.removeEventListener('storage', handleStorage)
   }
 }
 
@@ -135,6 +166,14 @@ function buildUrl(path: string, query?: ApiRequestOptions['query']): string {
   }
   const queryString = search.toString()
   return `${base}${normalizedPath}${queryString ? `?${queryString}` : ''}`
+}
+
+/**
+ * Địa chỉ đầy đủ của một đường dẫn trên API, cho những chỗ không đi qua `apiRequest` — như kết nối
+ * SignalR, nơi thư viện tự mở kết nối chứ không dùng fetch của mình.
+ */
+export function getApiUrl(path: string): string {
+  return buildUrl(path)
 }
 
 /** Chỉ nhận đúng hình dạng { [ô]: [chuỗi] } mà backend cam kết, bỏ qua mọi thứ khác. */
@@ -205,8 +244,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     const { message, fieldErrors } = await readError(response)
 
     // Chỉ đá về đăng nhập khi request CÓ mang token: 401 trên một lời gọi vốn không có token là
-    // chuyện bình thường (sai mật khẩu ở màn đăng nhập), gọi handler ở đó chỉ tạo vòng lặp.
-    if (response.status === 401 && token) {
+    // chuyện bình thường (sai mật khẩu ở màn đăng nhập), gọi handler ở đó chỉ tạo vòng lặp. Và token đó
+    // phải còn là token đang dùng: một request treo qua lúc đăng xuất rồi đăng nhập tài khoản khác mà
+    // nhận 401 thì không được đăng xuất nhầm phiên mới.
+    if (response.status === 401 && token && token === getStoredToken()) {
       onUnauthorized?.(message)
     }
 

@@ -10,6 +10,7 @@ import Pagination from '../../../components/common/Pagination'
 import { StatusBadge, TopicBadge } from '../../../components/common/Badge'
 import { SkeletonCards } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
+import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { listMyResults } from '../../../services/resultService'
 import { listMyExams } from '../../../services/attemptService'
@@ -35,12 +36,19 @@ export default function StudentResultsPage() {
     loading: resultsLoading,
     error: resultsError,
     reload: reloadResults,
+    refresh: refreshResults,
   } = useAsync(() => listMyResults({ search, page, pageSize: PAGE_SIZE }), [search, page])
 
-  const { data: summary } = useAsync(
+  const { data: summary, refresh: refreshSummary } = useAsync(
     () => listMyResults({ page: 1, pageSize: SUMMARY_PAGE_SIZE }),
     [],
   )
+
+  // Bài của chính em vừa bị hệ thống nộp thay: kết quả mới xuất hiện mà không phải tải lại trang.
+  useRealtimeRefresh(['AutoSubmitted'], () => {
+    refreshResults()
+    refreshSummary()
+  })
 
   const { data: myExams } = useAsync(() => listMyExams(), [])
 
