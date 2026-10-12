@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 /**
  * Phân trang phía client cho danh sách mà server đã trả đủ.
@@ -6,12 +6,19 @@ import { useMemo, useState } from 'react'
  * Dùng khi cùng một endpoint còn phục vụ những ô chọn cần cả danh sách (lọc theo lớp, chọn lớp để
  * giao bài), nên không thể đổi nó sang trả từng trang. Trang hiện tại luôn bị kẹp vào khoảng còn hợp
  * lệ: tìm kiếm hay xoá một dòng làm danh sách ngắn lại, và trang đang xem có thể đã vượt quá.
+ *
+ * Số trang đã kẹp được ghi ngược vào state. Nếu chỉ kẹp khi hiển thị thì state vẫn nhớ số trang cũ,
+ * và khi danh sách dài ra lại (lập thêm một lớp) người dùng bị kéo nhảy về đúng trang đó.
  */
 export function usePagination<T>(items: readonly T[], pageSize: number) {
   const [page, setPage] = useState(1)
 
   const lastPage = Math.max(1, Math.ceil(items.length / pageSize))
   const currentPage = Math.min(page, lastPage)
+
+  useEffect(() => {
+    if (page !== currentPage) setPage(currentPage)
+  }, [page, currentPage])
 
   const pageItems = useMemo(
     () => items.slice((currentPage - 1) * pageSize, currentPage * pageSize),
