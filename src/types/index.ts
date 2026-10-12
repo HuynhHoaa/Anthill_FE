@@ -170,7 +170,15 @@ export interface Exam {
   easyPercentage: number
   mediumPercentage: number
   hardPercentage: number
-  pointPerQuestion: number
+  /**
+   * Điểm của MỘT câu ở từng mức độ. Điểm gắn theo mức chứ không theo câu cụ thể vì đề là một ma trận:
+   * câu hỏi thật chỉ xuất hiện khi sinh bản đề.
+   */
+  pointEasy: number
+  pointMedium: number
+  pointHard: number
+  /** Số câu mỗi mức × điểm mức đó; server tính sẵn. Đề lưu mới luôn đúng 100, đề cũ có thể khác. */
+  totalScore: number
   /** Chủ đề câu hỏi được dùng để sinh đề. Chuỗi rỗng nghĩa là lấy từ tất cả chủ đề. */
   topic: string
   shuffleQuestions: boolean
@@ -438,7 +446,8 @@ export interface StudentExamItem {
   teacher: string
   durationMinutes: number
   totalQuestions: number
-  pointPerQuestion: number
+  /** Tổng điểm tối đa của đề, để hiện ở màn giới thiệu trước khi có lượt làm. */
+  totalScore: number
   shuffleQuestions: boolean
   shuffleAnswers: boolean
   status: StudentExamItemStatus

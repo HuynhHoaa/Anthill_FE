@@ -8,7 +8,9 @@ export interface ExamFormState {
   description: string
   durationMinutes: number
   totalQuestions: number
-  pointPerQuestion: number
+  pointEasy: number
+  pointMedium: number
+  pointHard: number
   topic: string
   easyPercentage: number
   mediumPercentage: number
@@ -45,7 +47,7 @@ const stringFields: (keyof ExamFormState)[] = [
   'title', 'description', 'topic', 'openAtLocal', 'closeAtLocal',
 ]
 const numberFields: (keyof ExamFormState)[] = [
-  'durationMinutes', 'totalQuestions', 'pointPerQuestion',
+  'durationMinutes', 'totalQuestions', 'pointEasy', 'pointMedium', 'pointHard',
   'easyPercentage', 'mediumPercentage', 'hardPercentage',
 ]
 const booleanFields: (keyof ExamFormState)[] = [

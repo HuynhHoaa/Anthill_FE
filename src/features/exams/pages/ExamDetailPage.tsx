@@ -22,7 +22,6 @@ import {
 } from '../../../services/examService'
 import {
   formatDate, formatDateTime, formatDuration, formatScore, getScoreTone, normalizeText,
-  roundToOneDecimal,
 } from '../../../lib/format'
 import { getTopicLabel } from '../../../lib/topicTheme'
 import { difficultyLabels, examStatusLabels } from '../../../types'
@@ -446,7 +445,7 @@ export default function ExamDetailPage() {
                       <FileText size={13} /> {exam.totalQuestions} câu
                     </span>
                     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-100 px-2.5 py-1.5 rounded-lg">
-                      <Target size={13} /> {roundToOneDecimal(exam.totalQuestions * exam.pointPerQuestion)} điểm
+                      <Target size={13} /> {formatScore(exam.totalScore)} điểm
                     </span>
                     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-100 px-2.5 py-1.5 rounded-lg">
                       <CalendarClock size={13} /> Tạo ngày {formatDate(exam.createdAt)}
@@ -771,11 +770,17 @@ export default function ExamDetailPage() {
               </div>
               <InfoRow label="Chủ đề" value={getTopicLabel(exam.topic)} />
               <InfoRow label="Số câu" value={`${exam.totalQuestions} câu`} />
-              <InfoRow label="Điểm mỗi câu" value={formatScore(exam.pointPerQuestion)} />
-              <InfoRow
-                label="Tổng điểm"
-                value={formatScore(roundToOneDecimal(exam.totalQuestions * exam.pointPerQuestion))}
-              />
+              <InfoRow label="Điểm mỗi câu Dễ" value={formatScore(exam.pointEasy)} />
+              <InfoRow label="Điểm mỗi câu Trung bình" value={formatScore(exam.pointMedium)} />
+              <InfoRow label="Điểm mỗi câu Khó" value={formatScore(exam.pointHard)} />
+              <InfoRow label="Tổng điểm" value={`${formatScore(exam.totalScore)} / 100`} />
+              {exam.totalScore !== 100 && (
+                <p className="text-xs text-amber-600 leading-relaxed pt-2">
+                  {isDraft
+                    ? 'Bản nháp chưa đủ 100 điểm. Khi chốt bài, hệ thống sẽ hỏi xác nhận.'
+                    : 'Đề này chưa đủ 100 điểm. Kết quả trong thống kê vẫn được quy về thang 100.'}
+                </p>
+              )}
               <InfoRow label="Trộn câu hỏi" value={exam.shuffleQuestions ? 'Có' : 'Không'} />
               <InfoRow label="Trộn đáp án" value={exam.shuffleAnswers ? 'Có' : 'Không'} />
               <InfoRow label="Hiện kết quả sau khi nộp" value={exam.showResultAfterSubmit ? 'Có' : 'Không'} />

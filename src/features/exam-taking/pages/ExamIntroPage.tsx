@@ -1,6 +1,6 @@
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, PlayCircle, Clock, FileText, Trophy, Award,
+  ArrowLeft, PlayCircle, Clock, FileText, Trophy,
   CalendarClock, Lock, Timer, ListChecks, Save, Shuffle, Eye,
   AlertTriangle, CheckCircle2, ShieldCheck, Hourglass, RefreshCw,
   type LucideIcon,
@@ -14,7 +14,7 @@ import { StatusBadge, TopicBadge } from '../../../components/common/Badge'
 import { useAsync } from '../../../hooks/useAsync'
 import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { getAssignment, listMyExams } from '../../../services/attemptService'
-import { formatDateTime, formatDuration, formatScore, parseDateTime, roundToOneDecimal } from '../../../lib/format'
+import { formatDateTime, formatDuration, formatScore, parseDateTime } from '../../../lib/format'
 import { useCountdown } from '../hooks/useCountdown'
 
 const urgentThresholdMs = 3 * 3600000
@@ -189,7 +189,7 @@ export default function ExamIntroPage() {
     const isExpired = assignment.status === 'expired' || justClosed
     const isUrgent = canStart && remainingMs < urgentThresholdMs
     const openTimeReached = openDate !== null && openDate.getTime() <= Date.now()
-    const maxScore = assignment.maxScore ?? roundToOneDecimal(assignment.totalQuestions * assignment.pointPerQuestion)
+    const maxScore = assignment.maxScore ?? assignment.totalScore
     // Bài đã chấm vẫn có thể bị giấu điểm, nên "đã chấm" chưa đủ để kết luận là có điểm để hiện.
     const hasVisibleScore = isGraded && assignment.score !== null
     const resultLink = assignment.attemptId ? `/hoc-sinh/ket-qua/${assignment.attemptId}` : '/hoc-sinh/ket-qua'
@@ -257,7 +257,7 @@ export default function ExamIntroPage() {
             {/* Cấu trúc đề */}
             <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 animate-fade-in-up">
               <h2 className="text-base font-bold text-slate-800 mb-4">Thông tin đề bài</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <InfoTile
                   icon={FileText}
                   label="Số câu hỏi"
@@ -282,13 +282,6 @@ export default function ExamIntroPage() {
                   value={`${formatScore(maxScore)} điểm`}
                   iconBg="bg-amber-50"
                   iconColor="text-amber-600"
-                />
-                <InfoTile
-                  icon={Award}
-                  label="Điểm mỗi câu"
-                  value={`${formatScore(assignment.pointPerQuestion)} điểm`}
-                  iconBg="bg-emerald-50"
-                  iconColor="text-emerald-600"
                 />
               </div>
 

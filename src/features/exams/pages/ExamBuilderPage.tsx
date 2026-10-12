@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertCircle, ArrowLeft, CalendarClock, CheckCircle2, Clock, Copy, FileText,
-  Info, Layers, Loader2, Lock, Plus, Save, Send, Target,
+  Info, Layers, Loader2, Lock, Plus, Save, Send, Sparkles, Target,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import ErrorState from '../../../components/common/ErrorState'
@@ -27,6 +27,10 @@ import {
   clearExamBuilderDraft, readExamBuilderDraft, saveExamBuilderDraft,
   type ExamFormState,
 } from '../utils/examDraftStorage'
+import {
+  calculateRequiredCounts, describeScoreDelta, describeScoreGap, EXAM_TOTAL_SCORE, hasTooManyDecimals, nearestSolvableCounts,
+  ratiosForCounts, suggestPoints, totalScoreOf, type LevelCounts, type LevelPoints,
+} from '../utils/examScoring'
 import {
   examDuplicateConfirmCopy, examPublishConfirmCopy, publishedExamEditConfirmCopy,
 } from '../utils/examConfirmations'
@@ -60,7 +64,9 @@ const errorKeyToTab: Record<FormErrorKey, BuilderTab> = {
 
   durationMinutes: 'blueprint',
   totalQuestions: 'blueprint',
-  pointPerQuestion: 'blueprint',
+  pointEasy: 'blueprint',
+  pointMedium: 'blueprint',
+  pointHard: 'blueprint',
   easyPercentage: 'blueprint',
   mediumPercentage: 'blueprint',
   hardPercentage: 'blueprint',
@@ -101,18 +107,29 @@ function fieldClass(message: string | undefined): string {
   return message ? inputInvalidClass : inputNormalClass
 }
 
+const DEFAULT_TOTAL_QUESTIONS = 20
+const DEFAULT_RATIOS: DifficultyRatios = { easy: 30, medium: 50, hard: 20 }
+
 function createInitialForm(): ExamFormState {
   const schedule = buildDefaultSchedule()
+  // Đề mới bắt đầu từ một cách chia điểm sẵn (đủ 100 nếu số câu chia được), để giáo viên không phải tự
+  // chia từ con số 0.
+  const points = suggestPoints(
+    calculateRequiredCounts(DEFAULT_TOTAL_QUESTIONS, DEFAULT_RATIOS.easy, DEFAULT_RATIOS.medium),
+  )?.points ?? { easy: 0, medium: 0, hard: 0 }
+
   return {
     title: '',
     description: '',
     durationMinutes: 45,
-    totalQuestions: 20,
-    pointPerQuestion: 0.5,
+    totalQuestions: DEFAULT_TOTAL_QUESTIONS,
+    pointEasy: points.easy,
+    pointMedium: points.medium,
+    pointHard: points.hard,
     topic: '',
-    easyPercentage: 30,
-    mediumPercentage: 50,
-    hardPercentage: 20,
+    easyPercentage: DEFAULT_RATIOS.easy,
+    mediumPercentage: DEFAULT_RATIOS.medium,
+    hardPercentage: DEFAULT_RATIOS.hard,
     shuffleQuestions: true,
     shuffleAnswers: true,
     showResultAfterSubmit: true,
@@ -144,6 +161,12 @@ function formatScheduleWindow(totalMinutes: number): string {
   return parts.length > 0 ? parts.join(' ') : 'Dưới 1 phút'
 }
 
+const pointFieldByLevel = {
+  easy: 'pointEasy',
+  medium: 'pointMedium',
+  hard: 'pointHard',
+} as const satisfies Record<DifficultyLevel, keyof ExamFormState>
+
 function validateForm(state: ExamFormState, mode: SaveMode): FormErrors {
   const nextErrors: FormErrors = {}
   const isDraft = mode === 'draft'
@@ -167,10 +190,23 @@ function validateForm(state: ExamFormState, mode: SaveMode): FormErrors {
     nextErrors.totalQuestions = 'Một đề chỉ nên có tối đa 100 câu hỏi.'
   }
 
-  if (state.pointPerQuestion <= 0) {
-    nextErrors.pointPerQuestion = 'Điểm mỗi câu phải lớn hơn 0.'
-  } else if (state.pointPerQuestion > 10) {
-    nextErrors.pointPerQuestion = 'Điểm mỗi câu tối đa là 10.'
+  // Điểm gắn theo mức độ: từng ô được kiểm riêng. Tổng khác 100 KHÔNG phải lỗi — giáo viên chọn số câu
+  // bất kỳ và nhiều cấu hình không chia ra đúng 100 — nên tổng chỉ được hỏi xác nhận lúc chốt, xem
+  // `handleSave`.
+  const counts = calculateRequiredCounts(state.totalQuestions, state.easyPercentage, state.mediumPercentage)
+  for (const level of orderedDifficultyLevels) {
+    const field = pointFieldByLevel[level]
+    const value = state[field]
+
+    if (value < 0) {
+      nextErrors[field] = 'Điểm không được âm.'
+    } else if (value > EXAM_TOTAL_SCORE) {
+      nextErrors[field] = `Điểm của một câu tối đa là ${EXAM_TOTAL_SCORE}.`
+    } else if (hasTooManyDecimals(value)) {
+      nextErrors[field] = 'Điểm chỉ được tối đa 2 chữ số thập phân.'
+    } else if (counts[level] > 0 && value <= 0) {
+      nextErrors[field] = 'Mức này có câu hỏi nên điểm phải lớn hơn 0.'
+    }
   }
 
   if (!isDraft && !state.openAtLocal) {
@@ -208,7 +244,9 @@ function blueprintDiffers(state: ExamFormState, exam: Exam): boolean {
     state.easyPercentage !== exam.easyPercentage ||
     state.mediumPercentage !== exam.mediumPercentage ||
     state.hardPercentage !== exam.hardPercentage ||
-    state.pointPerQuestion !== exam.pointPerQuestion ||
+    state.pointEasy !== exam.pointEasy ||
+    state.pointMedium !== exam.pointMedium ||
+    state.pointHard !== exam.pointHard ||
     state.topic.trim() !== exam.topic.trim() ||
     state.shuffleQuestions !== exam.shuffleQuestions ||
     state.shuffleAnswers !== exam.shuffleAnswers
@@ -237,7 +275,9 @@ function withFrozenFieldsFrom(state: ExamFormState, exam: Exam): ExamFormState {
     ...state,
     totalQuestions: exam.totalQuestions,
     durationMinutes: exam.durationMinutes,
-    pointPerQuestion: exam.pointPerQuestion,
+    pointEasy: exam.pointEasy,
+    pointMedium: exam.pointMedium,
+    pointHard: exam.pointHard,
     topic: exam.topic,
     easyPercentage: exam.easyPercentage,
     mediumPercentage: exam.mediumPercentage,
@@ -270,8 +310,9 @@ interface BlueprintPreviewCardProps {
   preview: BlueprintPreview | undefined
   loading: boolean
   error: string | undefined
-  totalQuestions: number
-  pointPerQuestion: number
+  /** Số câu mỗi mức của cấu hình đang soạn, tính cục bộ cùng công thức với server. */
+  counts: LevelCounts
+  points: LevelPoints
   /** Cấu hình đề đã khoá vì có em bắt đầu làm — thiếu câu lúc này không phải lỗi cần sửa. */
   frozen: boolean
   onRetry: () => void
@@ -281,7 +322,7 @@ interface BlueprintPreviewCardProps {
 
 /** Kết quả sinh đề luôn lấy từ examService.previewBlueprint để logic nằm đúng tầng nghiệp vụ. */
 function BlueprintPreviewCard({
-  preview, loading, error, totalQuestions, pointPerQuestion, frozen, onRetry, onAddQuestion, onOpenQuestionBank,
+  preview, loading, error, counts, points, frozen, onRetry, onAddQuestion, onOpenQuestionBank,
 }: BlueprintPreviewCardProps) {
   if (error) {
     return <ErrorState message={error} onRetry={onRetry} />
@@ -299,7 +340,8 @@ function BlueprintPreviewCard({
     )
   }
 
-  const totalPoints = Math.round(totalQuestions * pointPerQuestion * 10) / 10
+  const totalPoints = totalScoreOf(counts, points)
+  const scoreGap = describeScoreGap(totalPoints)
 
   return (
     <div className={`${cardClass} p-5`}>
@@ -321,10 +363,11 @@ function BlueprintPreviewCard({
       >
         <div>
           <p className="text-xs text-indigo-500 font-semibold uppercase tracking-wider">Tổng điểm của đề</p>
-          <p className="text-xl font-bold text-indigo-700 mt-0.5">{totalPoints} điểm</p>
+          <p className="text-xl font-bold text-indigo-700 mt-0.5">{totalPoints} / {EXAM_TOTAL_SCORE} điểm</p>
         </div>
-        <p className="text-xs text-indigo-500 text-right leading-relaxed">
-          {totalQuestions} câu × {pointPerQuestion} điểm
+        {/* Đề đã khoá không tô màu cảnh báo, cùng lý do với số câu thiếu bên dưới: giáo viên không chỉnh được nữa. */}
+        <p className={`text-xs text-right leading-relaxed ${scoreGap && !frozen ? 'text-amber-600 font-semibold' : 'text-indigo-500'}`}>
+          {describeScoreDelta(totalPoints) ?? 'Đã đủ điểm'}
         </p>
       </div>
 
@@ -546,7 +589,9 @@ export default function ExamBuilderPage() {
       description: loadedExam.description,
       durationMinutes: loadedExam.durationMinutes,
       totalQuestions: loadedExam.totalQuestions,
-      pointPerQuestion: loadedExam.pointPerQuestion,
+      pointEasy: loadedExam.pointEasy,
+      pointMedium: loadedExam.pointMedium,
+      pointHard: loadedExam.pointHard,
       topic: loadedExam.topic,
       easyPercentage: loadedExam.easyPercentage,
       mediumPercentage: loadedExam.mediumPercentage,
@@ -568,6 +613,46 @@ export default function ExamBuilderPage() {
     [form.easyPercentage, form.mediumPercentage, form.hardPercentage],
   )
   const ratioTotal = sumRatios(ratios)
+
+  // Số câu mỗi mức tính cục bộ để tổng điểm đổi ngay theo từng phím, không chờ lời gọi xem trước (có
+  // debounce). Công thức khớp server từng đơn vị; server vẫn là nơi kiểm lại khi lưu.
+  const counts = useMemo<LevelCounts>(
+    () => calculateRequiredCounts(form.totalQuestions, form.easyPercentage, form.mediumPercentage),
+    [form.totalQuestions, form.easyPercentage, form.mediumPercentage],
+  )
+  const points = useMemo<LevelPoints>(
+    () => ({ easy: form.pointEasy, medium: form.pointMedium, hard: form.pointHard }),
+    [form.pointEasy, form.pointMedium, form.pointHard],
+  )
+  const totalScore = totalScoreOf(counts, points)
+  const scoreGap = describeScoreGap(totalScore)
+  const scoreDelta = describeScoreDelta(totalScore)
+
+  // Đề mới: chừng nào giáo viên chưa tự sửa điểm thì đổi số câu hay tỷ lệ sẽ tự chia lại cho sát 100. Sửa
+  // tay một ô là tắt chế độ này (đề đang sửa và nháp khôi phục thì tắt từ đầu): từ đó giáo viên tự lo,
+  // giao diện chỉ nói còn thiếu hay thừa bao nhiêu.
+  const [pointsTouched, setPointsTouched] = useState(() => restoredForm !== undefined || isEditing)
+  const totalCount = counts.easy + counts.medium + counts.hard
+  const suggestion = useMemo(() => suggestPoints(counts), [counts])
+  // `exact: false` là số câu không thể ra đúng 100: gợi ý vẫn điền cách chia sát nhất, và form chỉ nói rõ.
+  const canSplitExactly = suggestion === null || suggestion.exact
+  const alternativeSplits = useMemo(
+    () => canSplitExactly
+      ? []
+      : nearestSolvableCounts(counts).filter(split => ratiosForCounts(split) !== null),
+    [canSplitExactly, counts],
+  )
+
+  useEffect(() => {
+    if (pointsTouched || !suggestion) return
+    const { easy, medium, hard } = suggestion.points
+
+    setForm(current =>
+      current.pointEasy === easy && current.pointMedium === medium && current.pointHard === hard
+        ? current
+        : { ...current, pointEasy: easy, pointMedium: medium, pointHard: hard },
+    )
+  }, [suggestion, pointsTouched])
 
   // Chỉ gọi lại preview khi cấu hình đã ngưng thay đổi, tránh bắn request ở mỗi lần kéo thanh trượt.
   const blueprintKey = [
@@ -601,6 +686,27 @@ export default function ExamBuilderPage() {
   // Server khoá cấu hình đề khi đã có em bắt đầu làm. Đọc thẳng cờ của server thay vì tự suy từ số
   // liệu, để luật khoá chỉ nằm ở một nơi.
   const isFrozen = isEditing && loadedExam?.blueprintFrozen === true
+  // Tổng chưa đủ 100 không bị chặn, chỉ được hỏi xác nhận lúc chốt. Không hỏi khi lần lưu không đụng tới bộ
+  // câu của một đề đã xuất bản (chỉ đổi tên, mô tả, lịch): với đề đã khoá giáo viên không còn cách chỉnh
+  // điểm, hỏi ở đó chỉ là ồn.
+  const scoreNeedsConfirmation = !(
+    loadedExam && loadedExam.lifecycle !== 'draft' && !blueprintDiffers(form, loadedExam)
+  )
+
+  // Bấm "Quay lại chỉnh" ở hộp xác nhận thì đưa giáo viên về đúng mục điểm.
+  const pointsSectionRef = useRef<HTMLElement>(null)
+  const [pointsFocusTick, setPointsFocusTick] = useState(0)
+  useEffect(() => {
+    if (pointsFocusTick === 0) return
+    pointsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+    // Chờ một nhịp: hộp xác nhận vừa đóng trả tiêu điểm về nút đã mở nó bằng một nhịp như vậy (xem
+    // `Modal`), và nếu focus ngay thì bị giành lại.
+    const timer = window.setTimeout(() => {
+      document.getElementById('exam-point-easy')?.focus({ preventScroll: true })
+    }, 60)
+    return () => window.clearTimeout(timer)
+  }, [pointsFocusTick])
   // Lịch khoá riêng, theo giờ: đề đã giao và còn dưới 2 giờ nữa là mở, hoặc đang mở. Tên và mô tả vẫn sửa được.
   const isScheduleLocked = isEditing && loadedExam?.scheduleLocked === true
   // Cấu hình đã khoá thì không đổi được, nên cũng không có gì để chặn: ngân hàng có vơi đi sau lúc sinh
@@ -629,6 +735,40 @@ export default function ExamBuilderPage() {
       return next
     })
     clearError(key)
+  }
+
+  const updatePoint = (field: (typeof pointFieldByLevel)[DifficultyLevel], rawValue: string) => {
+    setPointsTouched(true)
+    updateField(field, toSafeNumber(rawValue))
+  }
+
+  /** Điền cách chia gợi ý và bật lại chế độ tự chia theo số câu. */
+  const handleSuggestPoints = () => {
+    if (!suggestion) return
+
+    setPointsTouched(false)
+    setForm(current => ({
+      ...current,
+      pointEasy: suggestion.points.easy,
+      pointMedium: suggestion.points.medium,
+      pointHard: suggestion.points.hard,
+    }))
+    setErrors(current => {
+      const next = { ...current }
+      delete next.pointEasy
+      delete next.pointMedium
+      delete next.pointHard
+      return next
+    })
+  }
+
+  /** Đổi sang một cách chia số câu chia được đúng 100; điểm tự chia lại theo số câu mới. */
+  const handleUseSplit = (split: LevelCounts) => {
+    const nextRatios = ratiosForCounts(split)
+    if (!nextRatios) return
+
+    setPointsTouched(false)
+    applyRatios(nextRatios)
   }
 
   const applyRatios = (nextRatios: DifficultyRatios) => {
@@ -715,7 +855,9 @@ export default function ExamBuilderPage() {
       easyPercentage: form.easyPercentage,
       mediumPercentage: form.mediumPercentage,
       hardPercentage: form.hardPercentage,
-      pointPerQuestion: form.pointPerQuestion,
+      pointEasy: form.pointEasy,
+      pointMedium: form.pointMedium,
+      pointHard: form.pointHard,
       topic: form.topic,
       shuffleQuestions: form.shuffleQuestions,
       shuffleAnswers: form.shuffleAnswers,
@@ -783,9 +925,34 @@ export default function ExamBuilderPage() {
               goingToAssign,
             )
 
+    // Chốt một đề chưa đủ 100 điểm: nói thẳng con số và hỏi lại, cùng hộp với bước xuất bản hay lưu để
+    // giáo viên không phải qua hai hộp liên tiếp. Không xác nhận thì quay về mục điểm để chỉnh.
+    const scoreWarning = mode !== 'draft' && scoreNeedsConfirmation && scoreGap !== null
+
     if (confirmCopy) {
-      const confirmed = await confirm({ ...confirmCopy, onConfirm: persist })
-      if (!confirmed) return
+      const confirmed = await confirm({
+        ...confirmCopy,
+        ...(scoreWarning
+          ? {
+              details: (
+                <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-amber-800">
+                  {scoreGap} Chốt như vậy thì học sinh làm bài tối đa {totalScore} điểm. Muốn đủ{' '}
+                  {EXAM_TOTAL_SCORE}, hãy quay lại chỉnh số câu hoặc điểm mỗi câu.
+                </p>
+              ),
+              confirmLabel: `Vẫn ${confirmCopy.confirmLabel.charAt(0).toLowerCase()}${confirmCopy.confirmLabel.slice(1)}`,
+              cancelLabel: 'Quay lại chỉnh',
+            }
+          : {}),
+        onConfirm: persist,
+      })
+      if (!confirmed) {
+        if (scoreWarning) {
+          setActiveTab('blueprint')
+          setPointsFocusTick(tick => tick + 1)
+        }
+        return
+      }
     } else {
       setSavingMode(mode)
       try {
@@ -1142,7 +1309,7 @@ export default function ExamBuilderPage() {
                 <h2 className="text-base font-bold text-slate-800">Cấu hình đề</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="exam-total-questions" className={labelClass}>
                     Tổng số câu <span className="text-red-500">*</span>
@@ -1178,22 +1345,6 @@ export default function ExamBuilderPage() {
                   <FieldError message={errors.durationMinutes} />
                 </div>
 
-                <div>
-                  <label htmlFor="exam-point" className={labelClass}>
-                    Điểm mỗi câu <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="exam-point"
-                    type="number"
-                    min={0.1}
-                    max={10}
-                    step={0.1}
-                    value={form.pointPerQuestion}
-                    onChange={event => updateField('pointPerQuestion', toSafeNumber(event.target.value))}
-                    className={fieldClass(errors.pointPerQuestion)}
-                  />
-                  <FieldError message={errors.pointPerQuestion} />
-                </div>
               </div>
             </section>
             <DifficultyRatioEditor
@@ -1202,6 +1353,114 @@ export default function ExamBuilderPage() {
               errorMessage={errors.ratio}
               onChange={changeRatios}
             />
+
+            <section ref={pointsSectionRef} className={`${cardClass} p-6`}>
+              <div className="flex items-center justify-between gap-3 mb-1">
+                <div className="flex items-center gap-2">
+                  <Target size={18} className="text-indigo-600" />
+                  <h2 className="text-base font-bold text-slate-800">Điểm từng mức độ</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSuggestPoints}
+                  disabled={!suggestion}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Sparkles size={14} /> Gợi ý chia điểm
+                </button>
+              </div>
+              <p className="text-sm text-slate-500 mb-5 leading-relaxed">
+                Mỗi câu hỏi lấy điểm theo mức độ khó của nó. Tổng điểm chuẩn của một bài kiểm tra là {EXAM_TOTAL_SCORE}.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {orderedDifficultyLevels.map(level => {
+                  const field = pointFieldByLevel[level]
+                  const subtotal = Math.round(counts[level] * form[field] * 100) / 100
+
+                  return (
+                    <div key={level}>
+                      <label htmlFor={`exam-point-${level}`} className={labelClass}>
+                        Câu {difficultyLabels[level]}
+                        <span className="font-normal text-slate-400"> · {counts[level]} câu</span>
+                      </label>
+                      <input
+                        id={`exam-point-${level}`}
+                        type="number"
+                        min={0}
+                        max={EXAM_TOTAL_SCORE}
+                        step={0.05}
+                        value={form[field]}
+                        onChange={event => updatePoint(field, event.target.value)}
+                        className={fieldClass(errors[field])}
+                      />
+                      <p className="text-xs text-slate-400 mt-1.5">
+                        {counts[level]} câu × {form[field]} = {subtotal} điểm
+                      </p>
+                      <FieldError message={errors[field]} />
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div
+                className={`mt-5 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-2 ${
+                  scoreGap === null ? 'bg-emerald-50' : 'bg-amber-50'
+                }`}
+              >
+                <p
+                  className={`text-sm font-bold ${
+                    scoreGap === null ? 'text-emerald-700' : 'text-amber-700'
+                  }`}
+                >
+                  Tổng điểm: {totalScore} / {EXAM_TOTAL_SCORE}
+                </p>
+                <p
+                  className={`text-sm ${
+                    scoreGap === null ? 'text-emerald-700' : 'text-amber-700'
+                  }`}
+                >
+                  {scoreDelta ?? 'Đã đủ điểm.'}
+                </p>
+              </div>
+              {scoreGap !== null && (
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                  {scoreNeedsConfirmation
+                    ? `Chưa đủ ${EXAM_TOTAL_SCORE} điểm vẫn lưu được: lúc lưu bài, hệ thống sẽ hỏi bạn xác nhận (bản nháp thì không hỏi).`
+                    : `Đề này đã được chốt với tổng điểm chưa đủ ${EXAM_TOTAL_SCORE}. Chưa đổi cấu hình thì lưu không hỏi lại; đổi số câu hay điểm thì sẽ hỏi xác nhận.`}
+                </p>
+              )}
+
+              {suggestion && !suggestion.exact && totalCount > 0 && !isFrozen && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-amber-700 flex items-center gap-2">
+                    <Info size={15} className="flex-shrink-0" />
+                    Cách chia {counts.easy} Dễ · {counts.medium} Trung bình · {counts.hard} Khó không ra đúng {EXAM_TOTAL_SCORE} điểm
+                  </p>
+                  <p className="text-sm text-amber-700 mt-1 leading-relaxed">
+                    Điểm mỗi câu chỉ có tối đa hai chữ số thập phân nên với số câu này tổng chỉ chạm được{' '}
+                    {suggestion.total} / {EXAM_TOTAL_SCORE}. Bạn vẫn lưu được (hệ thống sẽ hỏi xác nhận)
+                    {alternativeSplits.length > 0
+                      ? ', hoặc đổi số câu mỗi mức đi một ít để ra đúng 100:'
+                      : '.'}
+                  </p>
+                  {alternativeSplits.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {alternativeSplits.map(split => (
+                        <button
+                          key={`${split.easy}-${split.medium}-${split.hard}`}
+                          type="button"
+                          onClick={() => handleUseSplit(split)}
+                          className="px-3 py-2 rounded-xl text-xs font-semibold text-amber-800 bg-white border border-amber-200 hover:bg-amber-100 transition-colors"
+                        >
+                          {split.easy} Dễ · {split.medium} Trung bình · {split.hard} Khó
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
             </fieldset>
           )}
         </div>
@@ -1211,8 +1470,8 @@ export default function ExamBuilderPage() {
             preview={blueprintQuery.data}
             loading={blueprintQuery.loading}
             error={blueprintQuery.error}
-            totalQuestions={form.totalQuestions}
-            pointPerQuestion={form.pointPerQuestion}
+            counts={counts}
+            points={points}
             frozen={isFrozen}
             onRetry={blueprintQuery.reload}
             onAddQuestion={goToQuestionEditor}

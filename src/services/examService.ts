@@ -21,7 +21,10 @@ export interface ExamPayload {
   easyPercentage: number
   mediumPercentage: number
   hardPercentage: number
-  pointPerQuestion: number
+  /** Điểm của MỘT câu ở từng mức; tổng (số câu mỗi mức × điểm) phải đúng 100 khi đề không phải nháp. */
+  pointEasy: number
+  pointMedium: number
+  pointHard: number
   shuffleQuestions: boolean
   shuffleAnswers: boolean
   showResultAfterSubmit: boolean
