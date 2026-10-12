@@ -12,6 +12,7 @@ import Pagination from '../../../components/common/Pagination'
 import SearchField from '../../../components/common/SearchField'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { SkeletonTable } from '../../../components/common/Skeleton'
+import TableScroller from '../../../components/common/TableScroller'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
@@ -46,7 +47,9 @@ const windowDotClass: Record<ExamLifecycle, string> = {
   closed: 'bg-slate-300',
 }
 
-const headCellClass = 'px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500'
+// Ô sát hơn (px-3) dưới cỡ xl, nơi bảng phải nhét vừa ~880px; từ xl trở lên giữ px-5 như các bảng khác.
+const headCellClass =
+  'px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500'
 
 const selectClass =
   'px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'
@@ -269,8 +272,8 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
 
   return (
     <tr className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-      <td className="px-5 py-3">
-        <p className="font-semibold text-slate-800" title={exam.description || undefined}>
+      <td className="px-3 xl:px-5 py-3">
+        <p className="font-semibold text-slate-800 line-clamp-2" title={exam.description || undefined}>
           {exam.title}
         </p>
         <div className="mt-1.5">
@@ -278,12 +281,15 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         </div>
       </td>
 
-      <td className="px-5 py-3 text-slate-600">
-        {formatDuration(exam.durationMinutes)} · {exam.totalQuestions} câu ·{' '}
-        {roundToOneDecimal(exam.totalQuestions * exam.pointPerQuestion)} điểm
+      <td className="px-3 xl:px-5 py-3 text-slate-600">
+        <p>{formatDuration(exam.durationMinutes)}</p>
+        <p className="text-xs text-slate-400 mt-0.5">
+          {exam.totalQuestions} câu · {roundToOneDecimal(exam.totalQuestions * exam.pointPerQuestion)} điểm
+        </p>
       </td>
 
-      <td className="px-5 py-3">
+      {/* Cột phụ: dưới cỡ xl nhường chỗ cho Tiến độ và Trạng thái, hai cột cần thấy ngay không cuộn. */}
+      <td className="px-3 xl:px-5 py-3 max-xl:hidden">
         {/*
           Nói tỷ lệ chứ không nói số câu: phép làm tròn từ tỷ lệ ra số câu do server giữ, nên một
           con số tự tính lại ở đây có thể lệch với đề thật sự được sinh ra. Cần số câu chính xác
@@ -304,7 +310,7 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         </div>
       </td>
 
-      <td className="px-5 py-3 whitespace-nowrap">
+      <td className="px-3 xl:px-5 py-3 whitespace-nowrap">
         <p className="text-xs text-slate-500" title={formatDateTime(exam.openAt)}>
           Mở <span className="font-semibold text-slate-600">{formatScheduleMoment(exam.openAt)}</span>
         </p>
@@ -313,28 +319,30 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         </p>
 
         {/* Lịch trên chỉ là mặc định. Lớp có khung giờ riêng phải hiện ra ngay ở danh sách, nếu không
-            giáo viên đọc "đã đóng" trong khi một lớp còn đang ngồi làm bài. */}
+            giáo viên đọc "đã đóng" trong khi một lớp còn đang ngồi làm bài. Chỉ một dòng tóm tắt (các chấm
+            màu là những trạng thái đang có), còn từng khung giờ nằm trong tooltip và ở trang chi tiết:
+            liệt kê từng lớp ở đây làm hàng cao gấp rưỡi, thanh trang nhảy lên xuống giữa các trang. */}
         {ownWindows.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-slate-100 space-y-1">
-            {ownWindows.slice(0, 2).map(window => (
-              <p
-                key={`${window.groupId ?? 'le'}-${window.openAt}`}
-                className="text-xs text-slate-500 flex items-center gap-1.5"
-                title={`${windowLabel(window)}: ${formatDateTime(window.openAt)} – ${formatDateTime(window.closeAt)} · ${lifecycleLabels[window.lifecycle]}`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${windowDotClass[window.lifecycle]}`} />
-                <span className="font-semibold text-slate-600 truncate max-w-[7rem]">{windowLabel(window)}</span>
-                <span className="whitespace-nowrap">{formatScheduleMoment(window.openAt)}</span>
-              </p>
-            ))}
-            {ownWindows.length > 2 && (
-              <p className="text-xs text-slate-400">+{ownWindows.length - 2} khung giờ riêng nữa</p>
-            )}
-          </div>
+          <p
+            className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5"
+            title={ownWindows
+              .map(
+                window =>
+                  `${windowLabel(window)}: ${formatDateTime(window.openAt)} – ${formatDateTime(window.closeAt)} · ${lifecycleLabels[window.lifecycle]}`,
+              )
+              .join('\n')}
+          >
+            <span className="flex items-center gap-0.5 flex-shrink-0" aria-hidden="true">
+              {[...new Set(ownWindows.map(window => window.lifecycle))].map(lifecycleValue => (
+                <span key={lifecycleValue} className={`w-1.5 h-1.5 rounded-full ${windowDotClass[lifecycleValue]}`} />
+              ))}
+            </span>
+            {ownWindows.length} khung giờ riêng
+          </p>
         )}
       </td>
 
-      <td className="px-5 py-3">
+      <td className="px-3 xl:px-5 py-3">
         {!hasAssignment && <p className="text-slate-400">Chưa giao</p>}
         {hasAssignment && !hasSubmission && submissionProgress}
         {hasAssignment && hasSubmission && (
@@ -349,17 +357,20 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         )}
       </td>
 
-      <td className="px-5 py-3">
+      <td className="px-3 xl:px-5 py-3">
         <LifecycleBadge lifecycle={exam.lifecycle} />
         {/* Vòng đời của đề tính theo lịch chung; các lớp có giờ riêng có thể đang ở trạng thái khác. */}
         {differsFromExam && (
-          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+          <p
+            className="text-xs text-slate-400 mt-1.5 truncate"
+            title={`Lớp: ${countWindowLifecycles(exam.assignmentWindows)}`}
+          >
             Lớp: {countWindowLifecycles(exam.assignmentWindows)}
           </p>
         )}
       </td>
 
-      <td className="px-5 py-3">
+      <td className="px-3 xl:px-5 py-3">
         <div className="flex items-center justify-end gap-2">
           <NavLink
             to={`/giao-vien/bai-kiem-tra/${exam.id}`}
@@ -473,15 +484,16 @@ export default function ExamListPage() {
         ))}
       </select>
 
-      {isFiltering && (
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap"
-        >
-          <FilterX size={15} /> Xoá bộ lọc
-        </button>
-      )}
+      {/* Luôn có mặt (mờ đi khi chưa lọc gì): hiện ra giữa chừng thì ô tìm kiếm bị đẩy sang trái ngay
+          khi người dùng gõ chữ đầu tiên. */}
+      <button
+        type="button"
+        onClick={resetFilters}
+        disabled={!isFiltering}
+        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-default disabled:hover:bg-slate-100"
+      >
+        <FilterX size={15} /> Xoá bộ lọc
+      </button>
 
       <NavLink
         to="/giao-vien/bai-kiem-tra/tao"
@@ -514,7 +526,7 @@ export default function ExamListPage() {
             <EmptyState
               icon={Search}
               title="Không tìm thấy bài kiểm tra phù hợp"
-              description="Không có bài kiểm tra nào khớp với từ khoá và bộ lọc hiện tại. Hãy thử từ khoá khác hoặc bỏ bộ lọc."
+              description="Không có bài kiểm tra nào khớp từ khoá và bộ lọc hiện tại. Thử từ khoá khác hoặc xoá bộ lọc."
               action={
                 <button
                   type="button"
@@ -550,23 +562,26 @@ export default function ExamListPage() {
               loading ? 'opacity-60' : ''
             }`}
           >
-            <div className="overflow-x-auto" style={wrapperStyle}>
-              {/* Bố cục cố định, cột chia theo tỉ lệ: đổi trang không làm các cột xê dịch. */}
-              <table ref={tableRef} className="w-full table-fixed text-sm min-w-[1180px]">
+            <TableScroller style={wrapperStyle}>
+              {/* Bố cục cố định, cột chia theo tỉ lệ: đổi trang không làm các cột xê dịch. Cột thao tác
+                  240px là vừa đủ cho "Chi tiết" + "Giao bài" + nút ba chấm. Bảy cột cần 1100px; dưới cỡ xl
+                  cột Độ khó ẩn đi và còn năm cột chia vừa ~880px, hẹp hơn nữa thì cuộn ngang và cột thao
+                  tác dính mép phải. */}
+              <table ref={tableRef} className="w-full table-fixed text-sm min-w-[760px] xl:min-w-[1100px]">
                 <colgroup>
-                  <col className="w-[22%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[14%]" />
+                  <col className="w-[20%] xl:w-[22%]" />
+                  <col className="w-[13%] xl:w-[12%]" />
+                  <col className="w-[10%] max-xl:hidden" />
+                  <col className="w-[17%] xl:w-[14%]" />
                   <col className="w-[9%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[21%]" />
+                  <col className="w-[13%] xl:w-[11%]" />
+                  <col className="w-60" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/60">
                     <th className={headCellClass}>Bài kiểm tra</th>
                     <th className={headCellClass}>Cấu hình</th>
-                    <th className={headCellClass}>Độ khó</th>
+                    <th className={`${headCellClass} max-xl:hidden`}>Độ khó</th>
                     <th className={headCellClass}>Lịch</th>
                     <th className={headCellClass}>Tiến độ nộp</th>
                     <th className={headCellClass}>Trạng thái</th>
@@ -584,7 +599,7 @@ export default function ExamListPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroller>
 
             <div className="px-5 pb-4">
               <Pagination page={data.page} pageSize={data.pageSize} total={data.total} onPageChange={setPage} />
