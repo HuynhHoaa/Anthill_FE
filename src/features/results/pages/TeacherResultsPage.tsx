@@ -257,10 +257,10 @@ export default function TeacherResultsPage() {
 
     // null nghĩa là chưa bài nào được chấm, không phải cả lớp 0 điểm — nên bỏ hẳn phần này đi
     // thay vì hiện một con số không có thật.
-    // Hai con số này đã quy về thang 10 (mỗi lượt chia cho điểm tối đa của đề của nó), còn từng dòng bên dưới
+    // Hai con số này đã quy về thang 100 (mỗi lượt chia cho điểm tối đa của đề của nó), còn từng dòng bên dưới
     // hiện điểm thô của đề; không ghi thang thì đọc như hai kết quả mâu thuẫn.
-    if (stats.averageScore !== null) parts.push(`TB ${formatScore(stats.averageScore)}/10`)
-    if (stats.highestScore !== null) parts.push(`cao nhất ${formatScore(stats.highestScore)}/10`)
+    if (stats.averageScore !== null) parts.push(`TB ${formatScore(stats.averageScore)}/100`)
+    if (stats.highestScore !== null) parts.push(`cao nhất ${formatScore(stats.highestScore)}/100`)
 
     // Tỷ lệ **hoàn thành**: phần trăm bài đã giao đã được nộp. Không phải tỷ lệ đạt điểm sàn —
     // backend không có khái niệm điểm sàn, nên giữ nhãn cũ là nói sai về con số mới.
@@ -347,7 +347,7 @@ export default function TeacherResultsPage() {
               <tbody>
                 {items.map(result => {
                   // Điểm vắng mặt nghĩa là đề đang giấu kết quả, chưa có gì để tô màu xếp loại.
-                  // Quy về thang 10 theo điểm tối đa của chính đề — hai đề khác điểm tối đa không bị
+                  // Quy về thang 100 theo điểm tối đa của chính đề — hai đề khác điểm tối đa không bị
                   // xếp loại lệch nhau (H7).
                   const scoreTone = result.score === null ? null : getScoreTone(result.score, result.maxScore)
                   const isGraded = result.status === 'graded'

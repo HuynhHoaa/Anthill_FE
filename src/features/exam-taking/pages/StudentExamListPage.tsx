@@ -68,7 +68,7 @@ function matchesTab(status: StudentExamItem['status'], tab: FilterTab): boolean 
 
 // ===== Score Ring =====
 function ScoreRing({ score, maxScore }: { score: number; maxScore?: number | null }) {
-  // Xếp loại qua đúng một nguồn dùng chung toàn hệ thống (getScoreTone), quy về thang 10 theo điểm
+  // Xếp loại qua đúng một nguồn dùng chung toàn hệ thống (getScoreTone), quy về thang 100 theo điểm
   // tối đa của chính đề này — trước đây hàm này tự tính ngưỡng riêng (chỉ 3 mức, không có "Trung
   // bình") nên cùng một bài làm có thể xếp khác màu ở đây so với trang kết quả (H7).
   const tone = getScoreTone(score, maxScore)

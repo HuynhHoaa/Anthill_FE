@@ -155,7 +155,7 @@ export async function getResultStats(params: ListResultsParams = {}): Promise<Re
   })
 
   // Khi chưa có bài nào được chấm, server bỏ hẳn hai khoá điểm chứ không gửi null. Quy về null ở đây để
-  // `ResultStats` đúng như nó khai: `undefined !== null` lọt qua phép kiểm và hiện ra "TB —/10".
+  // `ResultStats` đúng như nó khai: `undefined !== null` lọt qua phép kiểm và hiện ra "TB —/100".
   return { ...dto, averageScore: dto.averageScore ?? null, highestScore: dto.highestScore ?? null }
 }
 

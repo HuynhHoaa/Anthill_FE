@@ -13,16 +13,21 @@ function padNumber(value: number): string {
 export const NO_VALUE = '—'
 
 /**
- * Điểm số luôn hiển thị một chữ số thập phân: 8 -> '8.0', 7.25 -> '7.3'.
+ * Điểm số hiển thị đúng giá trị, tối đa hai chữ số thập phân và bỏ số 0 thừa: 100 -> '100',
+ * 85.5 -> '85.5', 77.75 -> '77.75'.
  *
- * `null` trả về dấu gạch ngang, **không** phải '0.0'. Server bỏ hẳn trường điểm khỏi JSON khi
- * người xem chưa được phép thấy (§3 quy tắc ⑥), và một bài bị giấu điểm hiện ra "0.0" trông y hệt
+ * Hai chữ số là độ chính xác của điểm trong hệ thống (điểm mỗi câu do giáo viên nhập tối đa hai chữ số).
+ * Làm tròn một chữ số thì điểm gõ vào là 3.25 hiện ra 3.3, và 99.95 hiện thành '100.0' — trông như điểm
+ * tuyệt đối trong khi chưa phải.
+ *
+ * `null` trả về dấu gạch ngang, **không** phải '0'. Server bỏ hẳn trường điểm khỏi JSON khi
+ * người xem chưa được phép thấy (§3 quy tắc ⑥), và một bài bị giấu điểm hiện ra "0" trông y hệt
  * một bài làm sai hết — học sinh đọc con số đó sẽ tưởng mình trượt.
  */
 export function formatScore(score: number | null | undefined): string {
   if (score === null || score === undefined) return NO_VALUE
   if (!Number.isFinite(score)) return NO_VALUE
-  return score.toFixed(1)
+  return String(Math.round(score * 100) / 100)
 }
 
 /**
@@ -105,24 +110,24 @@ export interface ScoreTone {
 }
 
 /**
- * Xếp loại điểm theo thang 10 — nguồn duy nhất cho mọi màn hình.
+ * Xếp loại điểm theo thang 100 — nguồn duy nhất cho mọi màn hình.
  *
- * Truyền `maxScore` (điểm tối đa của chính đề đó) để điểm được quy về thang 10 trước khi so ngưỡng:
+ * Truyền `maxScore` (điểm tối đa của chính đề đó) để điểm được quy về thang 100 trước khi so ngưỡng:
  * hai đề khác điểm tối đa nhau thì không được xếp loại theo cùng một mốc điểm thô, nếu không cùng
  * một bài làm sẽ hiện "Giỏi" ở màn hình này và "Yếu" ở màn hình khác (từng xảy ra thật giữa đây và
  * `ScoreRing` cũ của trang danh sách bài kiểm tra học sinh). Bỏ trống `maxScore` khi điểm truyền vào
- * đã sẵn ở thang 10 — ví dụ điểm trung bình nhiều đề mà server đã quy đổi trước khi gộp.
+ * đã sẵn ở thang 100 — ví dụ điểm trung bình nhiều đề mà server đã quy đổi trước khi gộp.
  */
 export function getScoreTone(score: number, maxScore?: number | null): ScoreTone {
   const safeScore = Number.isFinite(score) ? score : 0
-  const scoreOnTenScale = maxScore && maxScore > 0 ? (safeScore / maxScore) * 10 : safeScore
-  if (scoreOnTenScale >= 8) {
+  const scoreOnHundredScale = maxScore && maxScore > 0 ? (safeScore / maxScore) * 100 : safeScore
+  if (scoreOnHundredScale >= 80) {
     return { color: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'border-emerald-200', label: 'Giỏi' }
   }
-  if (scoreOnTenScale >= 6.5) {
+  if (scoreOnHundredScale >= 65) {
     return { color: 'text-amber-600', bg: 'bg-amber-50', ring: 'border-amber-200', label: 'Khá' }
   }
-  if (scoreOnTenScale >= 5) {
+  if (scoreOnHundredScale >= 50) {
     return { color: 'text-orange-600', bg: 'bg-orange-50', ring: 'border-orange-200', label: 'Trung bình' }
   }
   return { color: 'text-red-500', bg: 'bg-red-50', ring: 'border-red-200', label: 'Yếu' }
