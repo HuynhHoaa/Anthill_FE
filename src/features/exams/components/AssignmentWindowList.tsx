@@ -1,4 +1,4 @@
-import { CalendarClock, Users } from 'lucide-react'
+import { CalendarClock, Lock, Users } from 'lucide-react'
 import { LifecycleBadge } from '../../../components/common/Badge'
 import { formatDateTime } from '../../../lib/format'
 import type { AssignmentWindow } from '../../../types'
@@ -10,7 +10,14 @@ export function AssignmentWindowRow({ window }: { window: AssignmentWindow }) {
     <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-sm font-semibold text-slate-700 min-w-0 break-words">{windowLabel(window)}</span>
-        <LifecycleBadge lifecycle={window.lifecycle} />
+        <span className="inline-flex items-center gap-1.5 flex-shrink-0">
+          {window.scheduleLocked && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700">
+              <Lock size={11} /> Đã khoá giờ
+            </span>
+          )}
+          <LifecycleBadge lifecycle={window.lifecycle} />
+        </span>
       </div>
       <p className="mt-1.5 flex items-start gap-1.5 text-xs text-slate-500 leading-relaxed">
         <CalendarClock size={13} className="flex-shrink-0 mt-0.5" />

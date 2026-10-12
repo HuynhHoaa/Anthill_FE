@@ -130,9 +130,10 @@ kia theo tỷ lệ đang có. Sau 400ms kể từ lần chỉnh cuối, trang g�
 Tổng khác 100% hoặc ngân hàng không đủ câu thì nút "Lưu bài kiểm tra" ("Lưu thay đổi" khi sửa) và "Lưu
 và giao bài" bị khoá; đề mới hoặc đề nháp vẫn còn "Lưu nháp", còn đề đã xuất bản thì phải sửa ma trận
 cho hợp lệ mới lưu được. Form chia hai tab; lưu mà lỗi nằm ở tab kia thì trang tự chuyển sang tab đó.
-Từ lượt làm bài đầu tiên, số câu, tỷ lệ, chủ đề, điểm, thời lượng và tuỳ chọn trộn bị khoá (chỉ tên, mô tả,
-lịch và tuỳ chọn hiện kết quả còn sửa được), và trang có nút "Nhân bản đề" để dùng cấu hình khác trên một
-bản nháp mới.
+Từ lượt làm bài đầu tiên, số câu, tỷ lệ, chủ đề, điểm, thời lượng và tuỳ chọn trộn bị khoá (chỉ tên, mô tả
+và tuỳ chọn hiện kết quả còn sửa được), và trang có nút "Nhân bản đề" để dùng cấu hình khác trên một
+bản nháp mới. Lịch mở/đóng có luật khoá riêng theo giờ: đề đã giao mà còn dưới 2 giờ nữa là mở, hoặc đang
+mở, thì hai ô lịch bị tắt kèm một dòng giải thích; hết giờ đóng thì đổi lại được.
 
 **Bộ lọc trang Kết quả nằm trên URL** ([TeacherResultsPage.tsx](src/features/results/pages/TeacherResultsPage.tsx)).
 Bài kiểm tra, học sinh, nhóm lớp, trạng thái và số trang đọc thẳng từ query string (`bai-kiem-tra`,

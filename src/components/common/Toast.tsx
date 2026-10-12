@@ -19,6 +19,13 @@ interface ToastApi {
 }
 
 const TOAST_DURATION = 3200
+const TOAST_MAX_DURATION = 8000
+const TOAST_MS_PER_CHAR = 55
+
+/** Câu dài (một lý do đầy đủ) cần thêm thời gian để đọc xong; câu ngắn giữ nguyên mức cũ. */
+function toastDuration(message: string): number {
+  return Math.min(TOAST_MAX_DURATION, Math.max(TOAST_DURATION, message.length * TOAST_MS_PER_CHAR))
+}
 
 const toastStyles: Record<ToastType, { icon: LucideIcon; iconClass: string; barColor: string }> = {
   success: { icon: CheckCircle2, iconClass: 'text-emerald-500', barColor: '#10B981' },
@@ -34,9 +41,9 @@ function ToastRow({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: numb
   const { icon: Icon, iconClass, barColor } = toastStyles[toast.type]
 
   useEffect(() => {
-    const timer = window.setTimeout(() => onDismiss(toast.id), TOAST_DURATION)
+    const timer = window.setTimeout(() => onDismiss(toast.id), toastDuration(toast.message))
     return () => window.clearTimeout(timer)
-  }, [toast.id, onDismiss])
+  }, [toast.id, toast.message, onDismiss])
 
   return (
     <div

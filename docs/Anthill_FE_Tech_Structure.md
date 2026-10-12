@@ -317,7 +317,7 @@ UI cần validate:
 
 Form soạn đề được giữ tạm trong sessionStorage khi Teacher rời trang đi bổ sung câu hỏi cho ngân hàng.
 
-Khi đã có Student bắt đầu làm bài, server khoá cấu hình đề (`blueprintFrozen`): số câu, ba tỷ lệ, chủ đề, điểm mỗi câu, thời gian làm bài và tuỳ chọn trộn bị tắt trên form, chỉ tên, mô tả, lịch và tuỳ chọn hiện kết quả còn sửa được. Builder giải thích lý do và có nút "Nhân bản đề" để tạo một bản nháp cùng cấu hình rồi sửa trên bản sao. Nháp khôi phục từ sessionStorage, hay lần lưu bị từ chối (409) vì có em vừa bắt đầu giữa chừng, đều giữ phần còn sửa được và lấy lại các trường bị khoá từ server kèm một ghi chú. Bản sao chép nguyên lịch mở/đóng của đề gốc, nên builder cảnh báo khi giờ đóng đã qua.
+Khi đã có Student bắt đầu làm bài, server khoá cấu hình đề (`blueprintFrozen`): số câu, ba tỷ lệ, chủ đề, điểm mỗi câu, thời gian làm bài và tuỳ chọn trộn bị tắt trên form, chỉ tên, mô tả và tuỳ chọn hiện kết quả còn sửa được; lịch có luật khoá riêng theo giờ (`scheduleLocked`): đề đã giao mà còn dưới 2 giờ nữa là mở, hoặc đang mở, thì hai ô lịch bị tắt kèm một dòng giải thích, hết giờ đóng thì mở lại. Trang giao bài và trang chi tiết đề đọc cùng cờ ở từng khung giờ của lớp và từng em. Builder giải thích lý do và có nút "Nhân bản đề" để tạo một bản nháp cùng cấu hình rồi sửa trên bản sao. Nháp khôi phục từ sessionStorage, hay lần lưu bị từ chối (409) vì có em vừa bắt đầu giữa chừng hoặc vì lịch vừa bị khoá giờ, đều giữ phần còn sửa được và lấy lại các trường bị khoá từ server kèm một ghi chú. Bản sao chép nguyên lịch mở/đóng của đề gốc, nên builder cảnh báo khi giờ đóng đã qua.
 
 ### 5.5. Teacher Assigns Exam
 

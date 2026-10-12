@@ -31,7 +31,8 @@ import {
   examDuplicateConfirmCopy, examPublishConfirmCopy, publishedExamEditConfirmCopy,
 } from '../utils/examConfirmations'
 import {
-  buildDefaultSchedule, isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
+  buildDefaultSchedule, describeScheduleLock, isCloseAfterOpen, minutesBetween, opensWithinLockWindow,
+  SCHEDULE_LOCK_WARNING, toDateTimeLocalValue, toServiceDateTime,
 } from '../utils/examScheduleFormat'
 import { formatDateTime, parseDateTime } from '../../../lib/format'
 import type { ApiError } from '../../../lib/apiClient'
@@ -92,6 +93,7 @@ const inputBaseClass =
   'w-full px-4 py-2.5 rounded-xl border text-sm outline-none transition-all focus:ring-4'
 const inputNormalClass = `${inputBaseClass} border-slate-200 focus:border-indigo-400 focus:ring-indigo-50`
 const inputInvalidClass = `${inputBaseClass} border-red-300 focus:border-red-400 focus:ring-red-50`
+const lockedFieldClass = 'disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed'
 const labelClass = 'block text-sm font-semibold text-slate-700 mb-2'
 const cardClass = 'bg-white rounded-2xl border border-slate-100 shadow-sm'
 
@@ -242,6 +244,21 @@ function withFrozenFieldsFrom(state: ExamFormState, exam: Exam): ExamFormState {
     hardPercentage: exam.hardPercentage,
     shuffleQuestions: exam.shuffleQuestions,
     shuffleAnswers: exam.shuffleAnswers,
+  }
+}
+
+/** Form có đang giữ một lịch khác lịch đã lưu không, so ở độ chính xác phút như ô nhập giờ. */
+function scheduleDiffers(state: ExamFormState, exam: Exam): boolean {
+  return state.openAtLocal !== toDateTimeLocalValue(exam.openAt)
+    || state.closeAtLocal !== toDateTimeLocalValue(exam.closeAt)
+}
+
+/** Lấy lại lịch đã lưu, dùng khi lịch bị khoá mà form đang giữ một lịch khác. */
+function withScheduleFrom(state: ExamFormState, exam: Exam): ExamFormState {
+  return {
+    ...state,
+    openAtLocal: toDateTimeLocalValue(exam.openAt),
+    closeAtLocal: toDateTimeLocalValue(exam.closeAt),
   }
 }
 
@@ -475,17 +492,53 @@ export default function ExamBuilderPage() {
     // Trừ các trường server đã khoá: giữ bản đang soạn của chúng thì lần lưu nào cũng nhận 409, mà ô đã
     // tắt nên giáo viên không tự chỉnh về được.
     if (keepFormEditsRef.current) {
-      if (!loadedExam.blueprintFrozen || !frozenFieldsDiffer(formRef.current, loadedExam)) return
+      const resetBlueprint = loadedExam.blueprintFrozen && frozenFieldsDiffer(formRef.current, loadedExam)
+      const resetSchedule = loadedExam.scheduleLocked && scheduleDiffers(formRef.current, loadedExam)
+      if (!resetBlueprint && !resetSchedule) return
 
-      setForm(current => withFrozenFieldsFrom(current, loadedExam))
-      const lockedPart =
-        'số câu, tỷ lệ độ khó, chủ đề, điểm mỗi câu, thời gian làm bài và tuỳ chọn trộn đã trở về cấu hình đang áp dụng'
-      const keptPart = 'Tên, mô tả, lịch mở bài và tuỳ chọn hiện kết quả vẫn giữ bản bạn đang soạn.'
-      setFrozenNotice(
-        frozenMergeReasonRef.current === 'conflict'
-          ? `Chưa lưu được: trong lúc bạn sửa, đã có học sinh bắt đầu làm bài nên cấu hình đề vừa bị khoá. Vì vậy ${lockedPart}. ${keptPart} Kiểm tra lại rồi bấm lưu lần nữa, hoặc nhân bản đề nếu cần cấu hình khác.`
-          : `Bản nháp chưa lưu đã được khôi phục, trừ phần cấu hình đề: đã có ${loadedExam.startedCount} học sinh bắt đầu làm bài nên ${lockedPart}. ${keptPart}`,
-      )
+      setForm(current => {
+        const merged = resetBlueprint ? withFrozenFieldsFrom(current, loadedExam) : current
+        return resetSchedule ? withScheduleFrom(merged, loadedExam) : merged
+      })
+
+      const isConflict = frozenMergeReasonRef.current === 'conflict'
+      const notices: string[] = []
+
+      if (resetBlueprint) {
+        const lockedPart =
+          'số câu, tỷ lệ độ khó, chủ đề, điểm mỗi câu, thời gian làm bài và tuỳ chọn trộn đã trở về cấu hình đang áp dụng'
+        notices.push(
+          isConflict
+            ? `Chưa lưu được: trong lúc bạn sửa, đã có học sinh bắt đầu làm bài nên cấu hình đề vừa bị khoá. Vì vậy ${lockedPart}.`
+            : `Bản nháp chưa lưu đã được khôi phục, trừ phần cấu hình đề: đã có ${loadedExam.startedCount} học sinh bắt đầu làm bài nên ${lockedPart}.`,
+        )
+      }
+
+      if (resetSchedule) {
+        const lockSentence = describeScheduleLock('Lịch chung của đề', loadedExam.openAt)
+        notices.push(
+          // Lý do khoá đã nằm ngay dưới hai ô giờ; khôi phục nháp thì không nhắc lại, chỉ lúc lưu bị từ chối mới nói.
+          resetBlueprint
+            ? 'Giờ cũng giữ như đã lưu.'
+            : isConflict
+              ? `Chưa lưu được. ${lockSentence} Giờ đã về như cũ, phần bạn đã sửa vẫn còn. Bấm lưu lại.`
+              : 'Đã khôi phục bản nháp, riêng giờ giữ như đã lưu.',
+        )
+      }
+
+      // Chỉ nói "giữ bản đang soạn" khi có phần cấu hình bị đưa về; ca chỉ khoá giờ đã nói ở câu trên.
+      if (resetBlueprint) {
+        const keptPart = loadedExam.scheduleLocked
+          ? 'Tên, mô tả và tuỳ chọn hiện kết quả vẫn giữ bản bạn đang soạn.'
+          : 'Tên, mô tả, lịch mở bài và tuỳ chọn hiện kết quả vẫn giữ bản bạn đang soạn.'
+        notices.push(keptPart)
+
+        if (isConflict) {
+          notices.push('Kiểm tra lại rồi bấm lưu lần nữa, hoặc nhân bản đề nếu cần cấu hình khác.')
+        }
+      }
+
+      setFrozenNotice(notices.join(' '))
       return
     }
     setForm({
@@ -548,6 +601,8 @@ export default function ExamBuilderPage() {
   // Server khoá cấu hình đề khi đã có em bắt đầu làm. Đọc thẳng cờ của server thay vì tự suy từ số
   // liệu, để luật khoá chỉ nằm ở một nơi.
   const isFrozen = isEditing && loadedExam?.blueprintFrozen === true
+  // Lịch khoá riêng, theo giờ: đề đã giao và còn dưới 2 giờ nữa là mở, hoặc đang mở. Tên và mô tả vẫn sửa được.
+  const isScheduleLocked = isEditing && loadedExam?.scheduleLocked === true
   // Cấu hình đã khoá thì không đổi được, nên cũng không có gì để chặn: ngân hàng có vơi đi sau lúc sinh
   // đề thì bộ câu các em đang cầm vẫn nguyên, và server không kiểm lại ngân hàng khi cấu hình giữ
   // nguyên. Chặn ở đây là khoá luôn cả việc sửa tên hay dời lịch.
@@ -648,6 +703,10 @@ export default function ExamBuilderPage() {
       return
     }
 
+    // Lịch không đổi thì gửi lại nguyên giá trị đã lưu, không qua ô nhập giờ (chỉ tới phút). Một đề đã khoá lịch
+    // mà bị coi là "đổi giờ" chỉ vì mất vài giây là bị từ chối khi giáo viên chỉ muốn sửa tên.
+    const keepSavedSchedule = loadedExam !== null && loadedExam !== undefined && !scheduleDiffers(form, loadedExam)
+
     const payload: ExamPayload = {
       title: form.title,
       description: form.description,
@@ -660,8 +719,8 @@ export default function ExamBuilderPage() {
       topic: form.topic,
       shuffleQuestions: form.shuffleQuestions,
       shuffleAnswers: form.shuffleAnswers,
-      openAt: toServiceDateTime(form.openAtLocal),
-      closeAt: toServiceDateTime(form.closeAtLocal),
+      openAt: keepSavedSchedule ? loadedExam.openAt : toServiceDateTime(form.openAtLocal),
+      closeAt: keepSavedSchedule ? loadedExam.closeAt : toServiceDateTime(form.closeAtLocal),
       showResultAfterSubmit: form.showResultAfterSubmit,
 
       // Bỏ trống trường này nghĩa là đề CÓ HIỆU LỰC THẬT — server nói rõ như vậy. Nên nút "Lưu
@@ -740,7 +799,9 @@ export default function ExamBuilderPage() {
     }
 
     if (outcome.conflict) {
-      toast.error(`${outcome.conflict} Trang đã tải lại đề để bạn xem lại trước khi lưu.`)
+      toast.error(`Chưa lưu được. ${outcome.conflict}`)
+      // Dải giải thích nằm đầu trang; nút lưu thì ở cuối, nên trên màn hình nhỏ phải kéo lên cho người dùng thấy.
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
 
@@ -861,7 +922,7 @@ export default function ExamBuilderPage() {
                 <p className="text-sm text-amber-700 mt-1 leading-relaxed">
                   Đã có {loadedExam.startedCount} học sinh bắt đầu làm bài, nên số câu, tỷ lệ độ khó, chủ đề, điểm
                   mỗi câu, thời gian làm bài và tuỳ chọn trộn không đổi được nữa — đổi lúc này thì các em trong
-                  cùng lớp làm hai đề khác nhau. Tên, mô tả, lịch mở bài và tuỳ chọn hiện kết quả vẫn sửa được.
+                  cùng lớp làm hai đề khác nhau. Tên, mô tả{isScheduleLocked ? '' : ', lịch mở bài'} và tuỳ chọn hiện kết quả vẫn sửa được.
                   Muốn dùng cấu hình khác, hãy nhân bản đề rồi sửa trên bản sao.
                 </p>
               </div>
@@ -994,7 +1055,8 @@ export default function ExamBuilderPage() {
                     type="datetime-local"
                     value={form.openAtLocal}
                     onChange={event => updateField('openAtLocal', event.target.value)}
-                    className={fieldClass(errors.openAtLocal)}
+                    disabled={isScheduleLocked}
+                    className={`${fieldClass(errors.openAtLocal)} ${lockedFieldClass}`}
                   />
                   <FieldError message={errors.openAtLocal} />
                 </div>
@@ -1008,11 +1070,31 @@ export default function ExamBuilderPage() {
                     type="datetime-local"
                     value={form.closeAtLocal}
                     onChange={event => updateField('closeAtLocal', event.target.value)}
-                    className={fieldClass(errors.closeAtLocal)}
+                    disabled={isScheduleLocked}
+                    className={`${fieldClass(errors.closeAtLocal)} ${lockedFieldClass}`}
                   />
                   <FieldError message={errors.closeAtLocal} />
                 </div>
               </div>
+
+              {isScheduleLocked && loadedExam && (
+                <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700 leading-relaxed">
+                  <Lock size={16} className="flex-shrink-0 mt-0.5" />
+                  <span>
+                    {describeScheduleLock('Lịch chung của đề', loadedExam.openAt)} Hết giờ đóng bài mới đổi lại được.
+                    Cần dời gấp thì nhân bản đề rồi giao lại.
+                  </span>
+                </p>
+              )}
+
+              {/* Đề đã giao mà lịch chưa khoá: chọn giờ mở gần (dưới 2 giờ) là tự khoá mình ngay khi lưu, nên
+                  nói trước. Đề mới hay đề chưa giao không cần: lịch chưa có ai phụ thuộc. */}
+              {!isScheduleLocked && isEditing && (loadedExam?.assignedCount ?? 0) > 0 && opensWithinLockWindow(form.openAtLocal, form.closeAtLocal) && (
+                <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700 leading-relaxed">
+                  <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                  <span>{SCHEDULE_LOCK_WARNING}</span>
+                </p>
+              )}
 
               {scheduleWindowMinutes > 0 && (
                 <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">

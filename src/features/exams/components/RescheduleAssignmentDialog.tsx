@@ -4,13 +4,16 @@ import Modal from '../../../components/common/Modal'
 import { formatDateTime } from '../../../lib/format'
 import type { Exam, ExamAssignment } from '../../../types'
 import {
-  isCloseAfterOpen, minutesBetween, toDateTimeLocalValue, toServiceDateTime,
+  isCloseAfterOpen, minutesBetween, opensWithinLockWindow, SCHEDULE_LOCK_WARNING, toDateTimeLocalValue,
+  toServiceDateTime,
 } from '../utils/examScheduleFormat'
 
 interface RescheduleAssignmentDialogProps {
   open: boolean
   exam: Exam
   assignment: ExamAssignment | null
+  /** Khung giờ của em này vừa bị khoá (đọc từ bảng đã tải lại): chỉ còn đóng hộp. */
+  locked?: boolean
   loading: boolean
   error: string | null
   onSubmit: (window: { openAt?: string; closeAt?: string }) => void
@@ -28,7 +31,7 @@ const inputClass =
  * mà không ai giải thích được vì sao. Server cũng từ chối đúng như vậy.
  */
 export default function RescheduleAssignmentDialog({
-  open, exam, assignment, loading, error, onSubmit, onCancel,
+  open, exam, assignment, locked = false, loading, error, onSubmit, onCancel,
 }: RescheduleAssignmentDialogProps) {
   const [followExam, setFollowExam] = useState(false)
   const [openAtLocal, setOpenAtLocal] = useState('')
@@ -101,7 +104,7 @@ export default function RescheduleAssignmentDialog({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || locked}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60"
             style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
           >
@@ -113,11 +116,11 @@ export default function RescheduleAssignmentDialog({
     >
       <div className="space-y-4">
         <p className="text-sm text-slate-600 leading-relaxed">
-          Em đang làm bài trong khung{' '}
+          Khung giờ hiện tại của em:{' '}
           <span className="font-semibold text-slate-700">
             {formatDateTime(assignment.openAt)} – {formatDateTime(assignment.closeAt)}
           </span>
-          {assignment.hasScheduleOverride ? ' (khung riêng của em).' : ' theo lịch chung của đề.'}
+          {assignment.hasScheduleOverride ? ' (khung riêng của em).' : ' (theo lịch chung của đề).'}
         </p>
 
         <label className="flex items-start gap-3 rounded-xl bg-slate-50 px-4 py-3 cursor-pointer">
@@ -175,6 +178,16 @@ export default function RescheduleAssignmentDialog({
               <CalendarClock size={13} className="flex-shrink-0 mt-0.5" />
               Khung giờ phải chứa trọn {exam.durationMinutes} phút làm bài, nếu không em sẽ bị cắt bài giữa chừng.
             </p>
+
+            {!isPastWindow && opensWithinLockWindow(openAtLocal, closeAtLocal) && (
+              <div
+                role="alert"
+                className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex items-start gap-2 text-sm text-amber-700"
+              >
+                <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{SCHEDULE_LOCK_WARNING}</span>
+              </div>
+            )}
 
             {isPastWindow && (
               <div

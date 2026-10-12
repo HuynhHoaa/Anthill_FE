@@ -51,6 +51,59 @@ export function minutesBetween(openLocalValue: string, closeLocalValue: string):
   return Math.max(0, Math.round((closeDate.getTime() - openDate.getTime()) / MINUTE_IN_MS))
 }
 
+/** Khớp `ScheduleLockLeadMinutes` (120 phút) của server; chỉ dùng để viết câu báo, việc khoá do server quyết. */
+const SCHEDULE_LOCK_LEAD_MINUTES = 120
+const SCHEDULE_LOCK_LEAD_HOURS = SCHEDULE_LOCK_LEAD_MINUTES / 60
+
+const STARTS_WITH_CLASS_WORD = /^lớp\s/i
+
+/** "lớp 12A1", còn tên đã mở đầu bằng "Lớp" thì giữ nguyên để không ra "lớp Lớp 10A2". Dùng giữa câu. */
+export function classRef(className: string): string {
+  const name = className.trim()
+  return STARTS_WITH_CLASS_WORD.test(name) ? name : `lớp ${name}`
+}
+
+/** "Lớp 12A1" đứng đầu câu hoặc đầu dòng, cùng nguyên tắc với `classRef`. */
+export function classLabel(className: string): string {
+  const name = className.trim()
+  return STARTS_WITH_CLASS_WORD.test(name) ? name : `Lớp ${name}`
+}
+
+/** Chủ ngữ cho một lớp trong câu báo khoá. */
+export function classLockSubject(className: string): string {
+  return `Bài của ${classRef(className)}`
+}
+
+/**
+ * Giờ mở này cách bây giờ chưa đầy 2 giờ (hoặc đã qua) mà khung giờ chưa đóng — tức là nếu lưu thì khung giờ
+ * sẽ bị khoá ngay.
+ * Chỉ để cảnh báo trước khi lưu; server mới là nơi quyết định.
+ */
+export function opensWithinLockWindow(openAt: string, closeAt: string): boolean {
+  const openDate = parseDateTime(openAt)
+  const closeDate = parseDateTime(closeAt)
+  if (!openDate || !closeDate) return false
+
+  // Khung đã đóng thì không khoá: lưu một khung như vậy là đường cứu em lỡ giờ hay mở lại đề, không nên doạ.
+  if (closeDate.getTime() < Date.now()) return false
+
+  return openDate.getTime() - Date.now() < SCHEDULE_LOCK_LEAD_MINUTES * MINUTE_IN_MS
+}
+
+/** Câu cảnh báo đi kèm khi giờ mở vừa chọn rơi vào vùng khoá. */
+export const SCHEDULE_LOCK_WARNING =
+  `Giờ mở cách bây giờ chưa đầy ${SCHEDULE_LOCK_LEAD_HOURS} giờ. Lưu xong thì khung giờ này không đổi được nữa cho tới hết giờ đóng.`
+
+/** Vì sao một khung giờ đang khoá, nói đúng theo việc nó sắp mở hay đang mở. Giống câu server trả về. */
+export function describeScheduleLock(subject: string, openAt: string): string {
+  const openDate = parseDateTime(openAt)
+  const notOpenYet = openDate !== null && Date.now() < openDate.getTime()
+
+  return notOpenYet
+    ? `${subject} còn chưa đầy ${SCHEDULE_LOCK_LEAD_HOURS} giờ nữa là mở nên không đổi giờ được.`
+    : `${subject} đang mở nên không đổi giờ được.`
+}
+
 export interface DefaultSchedule {
   openAtLocal: string
   closeAtLocal: string
