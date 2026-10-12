@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   CheckCircle2, Eye, EyeOff, FilterX, Library, ListChecks,
-  Pencil, Plus, Search, SearchX, Target, Trash2,
+  Pencil, Plus, SearchX, Target, Trash2,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import Modal from '../../../components/common/Modal'
@@ -10,11 +10,14 @@ import { useConfirm } from '../../../components/common/ConfirmProvider'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
-import { SkeletonBlock } from '../../../components/common/Skeleton'
+import SearchField from '../../../components/common/SearchField'
+import { SkeletonTable } from '../../../components/common/Skeleton'
 import { DifficultyBadge } from '../../../components/common/Badge'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
+import { useMediaQuery } from '../../../hooks/useMediaQuery'
+import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
 import { resolveMediaUrl } from '../../../lib/apiClient'
 import { formatDate } from '../../../lib/format'
 import { getCurrentUser } from '../../../services/authService'
@@ -50,39 +53,17 @@ const statusOptions: { value: 'all' | QuestionStatus; label: string }[] = [
 ]
 
 const selectClass =
-  'px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'
+  'max-w-[14rem] px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'
 const iconButtonClass =
   'w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 flex items-center justify-center transition-colors'
 const primaryButtonClass =
   'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all'
+/** Nút tạo mới trên thanh tiêu đề: thấp bằng ô tìm kiếm cạnh nó. */
+const headerButtonClass =
+  'inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all whitespace-nowrap'
+const headCellClass = 'px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500'
+const chipClass = 'inline-flex items-center max-w-full px-2.5 py-1 rounded-full text-xs font-semibold'
 const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
-
-function QuestionListSkeleton() {
-  const rowKeys = [0, 1, 2, 3, 4, 5]
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50 overflow-hidden">
-      {rowKeys.map(rowKey => (
-        <div key={rowKey} className="p-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex-1 space-y-3">
-            <SkeletonBlock className="h-4 w-3/4" />
-            <div className="flex flex-wrap gap-2">
-              <SkeletonBlock className="h-6 w-28 rounded-full" />
-              <SkeletonBlock className="h-6 w-16 rounded-full" />
-              <SkeletonBlock className="h-6 w-20 rounded-full" />
-            </div>
-            <SkeletonBlock className="h-3 w-44" />
-          </div>
-          <div className="flex gap-2">
-            <SkeletonBlock className="h-9 w-28 rounded-xl" />
-            <SkeletonBlock className="h-9 w-9 rounded-xl" />
-            <SkeletonBlock className="h-9 w-9 rounded-xl" />
-            <SkeletonBlock className="h-9 w-9 rounded-xl" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
 
 interface QuestionRowProps {
   question: Question
@@ -91,13 +72,104 @@ interface QuestionRowProps {
   onDelete: (question: Question) => void
 }
 
-function QuestionRow({ question, onPreview, onToggleStatus, onDelete }: QuestionRowProps) {
+/** Ba nút thao tác chung của dòng bảng (desktop) và của thẻ (màn hình hẹp). */
+function QuestionActionButtons({ question, onToggleStatus, onDelete }: Omit<QuestionRowProps, 'onPreview'>) {
   const isActive = question.status === 'active'
   const toggleLabel = isActive ? 'Ẩn câu hỏi khỏi ngân hàng đề' : 'Đưa câu hỏi trở lại ngân hàng đề'
 
   return (
+    <>
+      <NavLink
+        to={`/giao-vien/cau-hoi/${question.id}/sua`}
+        title="Sửa câu hỏi"
+        aria-label="Sửa câu hỏi"
+        className={iconButtonClass}
+      >
+        <Pencil size={15} />
+      </NavLink>
+      <button
+        type="button"
+        onClick={() => onToggleStatus(question)}
+        title={toggleLabel}
+        aria-label={toggleLabel}
+        className={iconButtonClass}
+      >
+        {isActive ? <EyeOff size={15} /> : <Eye size={15} />}
+      </button>
+      <button
+        type="button"
+        onClick={() => onDelete(question)}
+        title="Xoá câu hỏi"
+        aria-label="Xoá câu hỏi"
+        className="w-9 h-9 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors"
+      >
+        <Trash2 size={15} />
+      </button>
+    </>
+  )
+}
+
+function QuestionRow({ question, onPreview, onToggleStatus, onDelete }: QuestionRowProps) {
+  return (
+    <tr className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+      <td className="px-5 py-2.5">
+        <div className="flex items-center gap-3">
+          {question.imageUrl && (
+            <img
+              src={resolveMediaUrl(question.imageUrl)}
+              alt="Ảnh minh hoạ câu hỏi"
+              className="w-10 h-10 rounded-lg border border-slate-100 bg-slate-50 object-cover flex-shrink-0"
+            />
+          )}
+          {/* Bấm vào nội dung để xem trước: một nút chữ đỡ tốn cả một cột cho nút "Xem trước". */}
+          <button
+            type="button"
+            onClick={() => onPreview(question)}
+            title="Xem trước câu hỏi"
+            className="block min-w-0 text-left font-semibold text-slate-800 hover:text-indigo-600 hover:underline transition-colors"
+          >
+            <span className="line-clamp-2 leading-snug">{question.content}</span>
+          </button>
+        </div>
+      </td>
+
+      <td className="px-5 py-2.5">
+        <span className={`${chipClass} bg-indigo-50 text-indigo-700`} title={question.topic}>
+          <span className="truncate">{question.topic}</span>
+        </span>
+      </td>
+
+      <td className="px-5 py-2.5">
+        <DifficultyBadge level={question.difficulty} />
+      </td>
+
+      <td className="px-5 py-2.5 whitespace-nowrap">
+        <p className="font-semibold text-slate-700">{question.defaultPoint} điểm</p>
+        <p className="text-xs text-slate-400 mt-0.5">{question.answers.length} đáp án</p>
+      </td>
+
+      <td className="px-5 py-2.5">
+        <span className={`${chipClass} whitespace-nowrap ${statusToneClass[question.status]}`}>
+          {questionStatusLabels[question.status]}
+        </span>
+      </td>
+
+      <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">{formatDate(question.updatedAt)}</td>
+
+      <td className="px-5 py-2.5">
+        <div className="flex items-center justify-end gap-2">
+          <QuestionActionButtons question={question} onToggleStatus={onToggleStatus} onDelete={onDelete} />
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+/** Dòng dạng thẻ cho màn hình hẹp, nơi bảng bảy cột phải cuộn ngang mới thấy hết. */
+function QuestionCard({ question, onPreview, onToggleStatus, onDelete }: QuestionRowProps) {
+  return (
     <div className="p-5 hover:bg-slate-50 transition-colors">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+      <div className="flex flex-col gap-4">
         <div className="flex gap-4 flex-1 min-w-0">
           {question.imageUrl && (
             <img
@@ -109,14 +181,12 @@ function QuestionRow({ question, onPreview, onToggleStatus, onDelete }: Question
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-slate-800 leading-relaxed line-clamp-2">{question.content}</p>
             <div className="flex flex-wrap items-center gap-2 mt-2.5">
-              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700">
-                {question.topic}
-              </span>
+              <span className={`${chipClass} bg-indigo-50 text-indigo-700`}>{question.topic}</span>
               <DifficultyBadge level={question.difficulty} />
-              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusToneClass[question.status]}`}>
+              <span className={`${chipClass} ${statusToneClass[question.status]}`}>
                 {questionStatusLabels[question.status]}
               </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+              <span className={`${chipClass} gap-1 bg-slate-100 text-slate-600`}>
                 <Target size={11} /> {question.defaultPoint} điểm
               </span>
             </div>
@@ -134,32 +204,7 @@ function QuestionRow({ question, onPreview, onToggleStatus, onDelete }: Question
           >
             <Eye size={15} /> Xem trước
           </button>
-          <NavLink
-            to={`/giao-vien/cau-hoi/${question.id}/sua`}
-            title="Sửa câu hỏi"
-            aria-label="Sửa câu hỏi"
-            className={iconButtonClass}
-          >
-            <Pencil size={15} />
-          </NavLink>
-          <button
-            type="button"
-            onClick={() => onToggleStatus(question)}
-            title={toggleLabel}
-            aria-label={toggleLabel}
-            className={iconButtonClass}
-          >
-            {isActive ? <EyeOff size={15} /> : <Eye size={15} />}
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(question)}
-            title="Xoá câu hỏi"
-            aria-label="Xoá câu hỏi"
-            className="w-9 h-9 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors"
-          >
-            <Trash2 size={15} />
-          </button>
+          <QuestionActionButtons question={question} onToggleStatus={onToggleStatus} onDelete={onDelete} />
         </div>
       </div>
     </div>
@@ -267,8 +312,12 @@ export default function QuestionBankPage() {
     [debouncedSearch, topicFilter, difficultyFilter, statusFilter, page],
   )
 
+  // Bảy cột chỉ vừa từ cỡ lg; hẹp hơn thì dùng thẻ như trước, để khỏi phải cuộn ngang tìm nút thao tác.
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
+
   const pagedQuestions = listState.data
   const questions = pagedQuestions?.items ?? []
+  const { tableRef, wrapperStyle } = useStableTableHeight(questions, PAGE_SIZE, pagedQuestions?.total ?? 0)
   const summary = summaryState.data
   // Tên môn đứng đầu để nói rõ cả ngân hàng thuộc đúng một môn, tránh nhầm dropdown chủ đề
   // thành bộ chọn môn. Hồ sơ chưa có môn thì phụ đề tự lược bớt phần đó.
@@ -383,7 +432,7 @@ export default function QuestionBankPage() {
   if (listState.error) {
     listBody = <ErrorState message={listState.error} onRetry={listState.reload} />
   } else if (listState.loading && !pagedQuestions) {
-    listBody = <QuestionListSkeleton />
+    listBody = <SkeletonTable rows={8} cols={7} />
   } else if (questions.length === 0) {
     listBody = isFiltering ? (
       <EmptyState
@@ -415,21 +464,67 @@ export default function QuestionBankPage() {
   } else {
     listBody = (
       <>
-        <div
-          className={`bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50 overflow-hidden transition-opacity animate-fade-in-up ${
-            listState.loading ? 'opacity-60' : ''
-          }`}
-        >
-          {questions.map(question => (
-            <QuestionRow
-              key={question.id}
-              question={question}
-              onPreview={setPreviewQuestion}
-              onToggleStatus={target => void handleToggleStatus(target)}
-              onDelete={target => void handleDelete(target)}
-            />
-          ))}
-        </div>
+        {isDesktop ? (
+          <div
+            className={`bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-opacity animate-fade-in-up ${
+              listState.loading ? 'opacity-60' : ''
+            }`}
+          >
+            <div className="overflow-x-auto" style={wrapperStyle}>
+              {/* Bố cục cố định: các cột hẹp có bề rộng riêng, cột câu hỏi nhận phần còn lại, nên đổi trang
+                  không làm cột nào xê dịch. */}
+              <table ref={tableRef} className="w-full table-fixed text-sm min-w-[1100px]">
+                <colgroup>
+                  <col />
+                  <col className="w-40" />
+                  <col className="w-32" />
+                  <col className="w-28" />
+                  <col className="w-32" />
+                  <col className="w-32" />
+                  <col className="w-44" />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/60">
+                    <th className={headCellClass}>Câu hỏi</th>
+                    <th className={headCellClass}>Chủ đề</th>
+                    <th className={headCellClass}>Độ khó</th>
+                    <th className={headCellClass}>Điểm</th>
+                    <th className={headCellClass}>Trạng thái</th>
+                    <th className={headCellClass}>Cập nhật</th>
+                    <th className={`${headCellClass} text-right`}>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {questions.map(question => (
+                    <QuestionRow
+                      key={question.id}
+                      question={question}
+                      onPreview={setPreviewQuestion}
+                      onToggleStatus={target => void handleToggleStatus(target)}
+                      onDelete={target => void handleDelete(target)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div
+            className={`bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50 overflow-hidden transition-opacity animate-fade-in-up ${
+              listState.loading ? 'opacity-60' : ''
+            }`}
+          >
+            {questions.map(question => (
+              <QuestionCard
+                key={question.id}
+                question={question}
+                onPreview={setPreviewQuestion}
+                onToggleStatus={target => void handleToggleStatus(target)}
+                onDelete={target => void handleDelete(target)}
+              />
+            ))}
+          </div>
+        )}
         {pagedQuestions && (
           <Pagination
             page={page}
@@ -442,100 +537,89 @@ export default function QuestionBankPage() {
     )
   }
 
+  // Ô tìm kiếm và nút tạo mới nằm trên thanh tiêu đề (từ cỡ lg), thay cho một thẻ riêng phía trên danh sách.
+  const tools = (
+    <div className="flex flex-wrap items-center justify-end gap-2.5 w-full">
+      <div className="flex-1 min-w-[12rem] max-w-xs">
+        <SearchField
+          value={searchInput}
+          onChange={handleSearchChange}
+          placeholder="Tìm theo nội dung hoặc chủ đề"
+          label="Tìm câu hỏi"
+        />
+      </div>
+      <NavLink to="/giao-vien/cau-hoi/tao" className={headerButtonClass} style={primaryButtonStyle}>
+        <Plus size={16} /> Tạo câu hỏi
+      </NavLink>
+    </div>
+  )
+
   return (
     <TeacherLayout
       pageTitle="Ngân hàng câu hỏi"
       pageSubtitle={summaryText ?? 'Quản lý câu hỏi theo chủ đề và độ khó'}
+      compactContent
+      headerTools={tools}
     >
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5 animate-fade-in-up">
-        <div className="flex flex-col xl:flex-row xl:items-center gap-3">
-          <div className="relative flex-1 min-w-0">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={event => handleSearchChange(event.target.value)}
-              aria-label="Tìm câu hỏi"
-              placeholder="Tìm theo nội dung hoặc chủ đề..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all"
-            />
-          </div>
+      {/* Ba ô lọc đứng thành một hàng mảnh ngay trên bảng; ô tìm kiếm và nút tạo đã lên thanh tiêu đề. */}
+      <div className="flex flex-wrap items-center gap-2.5 mb-3">
+        <select
+          value={topicFilter}
+          onChange={event => handleTopicChange(event.target.value)}
+          aria-label="Lọc theo chủ đề"
+          className={selectClass}
+        >
+          <option value="all">Tất cả chủ đề</option>
+          {topicOptions.map(topic => (
+            <option key={topic} value={topic}>
+              {topic}
+            </option>
+          ))}
+        </select>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 xl:flex xl:items-center">
-            <select
-              value={topicFilter}
-              onChange={event => handleTopicChange(event.target.value)}
-              aria-label="Lọc theo chủ đề"
-              className={selectClass}
-            >
-              <option value="all">Tất cả chủ đề</option>
-              {topicOptions.map(topic => (
-                <option key={topic} value={topic}>
-                  {topic}
-                </option>
-              ))}
-            </select>
+        <select
+          value={difficultyFilter}
+          onChange={event => handleDifficultyChange(event.target.value as 'all' | DifficultyLevel)}
+          aria-label="Lọc theo độ khó"
+          className={selectClass}
+        >
+          {difficultyOptions.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
 
-            <select
-              value={difficultyFilter}
-              onChange={event => handleDifficultyChange(event.target.value as 'all' | DifficultyLevel)}
-              aria-label="Lọc theo độ khó"
-              className={selectClass}
-            >
-              {difficultyOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+        <select
+          value={statusFilter}
+          onChange={event => handleStatusChange(event.target.value as 'all' | QuestionStatus)}
+          aria-label="Lọc theo trạng thái"
+          className={selectClass}
+        >
+          {statusOptions.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
 
-            <select
-              value={statusFilter}
-              onChange={event => handleStatusChange(event.target.value as 'all' | QuestionStatus)}
-              aria-label="Lọc theo trạng thái"
-              className={selectClass}
-            >
-              {statusOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <NavLink
-            to="/giao-vien/cau-hoi/tao"
-            className={`${primaryButtonClass} xl:flex-shrink-0`}
-            style={primaryButtonStyle}
-          >
-            <Plus size={16} /> Tạo câu hỏi
-          </NavLink>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-slate-50">
-          <p className="text-sm text-slate-500">
-            {listState.error ? (
-              'Chưa thống kê được số câu hỏi khớp bộ lọc.'
-            ) : !pagedQuestions ? (
-              'Đang tải danh sách câu hỏi...'
-            ) : (
-              <>
-                Tìm thấy{' '}
-                <strong className="text-slate-700 font-semibold">{pagedQuestions.total}</strong> câu hỏi
-                {isFiltering ? ' khớp bộ lọc' : ''}
-              </>
+        {isFiltering && (
+          <div className="ml-auto flex items-center gap-3">
+            {pagedQuestions && !listState.error && (
+              <p className="text-sm text-slate-500">
+                Tìm thấy <strong className="text-slate-700 font-semibold">{pagedQuestions.total}</strong> câu hỏi khớp
+                bộ lọc
+              </p>
             )}
-          </p>
-          {isFiltering && (
             <button
               type="button"
               onClick={handleClearFilters}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors whitespace-nowrap"
             >
               <FilterX size={15} /> Xoá bộ lọc
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {listBody}
