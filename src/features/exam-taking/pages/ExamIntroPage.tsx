@@ -221,7 +221,7 @@ export default function ExamIntroPage() {
     notes.push({
       icon: Eye,
       text: assignment.showResultAfterSubmit
-        ? 'Điểm và đáp án đúng sẽ hiển thị ngay sau khi bạn nộp bài.'
+        ? 'Điểm hiện ngay sau khi bạn nộp bài. Đáp án từng câu mở sau khi cả lớp hết giờ làm bài.'
         : 'Điểm sẽ hiển thị sau khi giáo viên chấm bài, không xem được đáp án ngay khi nộp.',
     })
 

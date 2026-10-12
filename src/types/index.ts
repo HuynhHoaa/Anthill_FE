@@ -422,6 +422,8 @@ export interface AttemptDetail {
   autoSubmitted: boolean
   /** Giáo viên sở hữu đề luôn xem được đáp án; học sinh chỉ xem khi đề cho phép (§3 quy tắc ⑥). */
   showAnswers: boolean
+  /** Khi nào học sinh xem được đáp án từng câu; null nếu server không báo. */
+  answersVisibleAt: string | null
   questions: AttemptAnswerDetail[]
 }
 

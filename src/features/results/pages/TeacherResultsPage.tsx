@@ -243,8 +243,10 @@ export default function TeacherResultsPage() {
 
     // null nghĩa là chưa bài nào được chấm, không phải cả lớp 0 điểm — nên bỏ hẳn phần này đi
     // thay vì hiện một con số không có thật.
-    if (stats.averageScore !== null) parts.push(`TB ${formatScore(stats.averageScore)}`)
-    if (stats.highestScore !== null) parts.push(`cao nhất ${formatScore(stats.highestScore)}`)
+    // Hai con số này đã quy về thang 10 (mỗi lượt chia cho điểm tối đa của đề của nó), còn từng dòng bên dưới
+    // hiện điểm thô của đề; không ghi thang thì đọc như hai kết quả mâu thuẫn.
+    if (stats.averageScore !== null) parts.push(`TB ${formatScore(stats.averageScore)}/10`)
+    if (stats.highestScore !== null) parts.push(`cao nhất ${formatScore(stats.highestScore)}/10`)
 
     // Tỷ lệ **hoàn thành**: phần trăm bài đã giao đã được nộp. Không phải tỷ lệ đạt điểm sàn —
     // backend không có khái niệm điểm sàn, nên giữ nhãn cũ là nói sai về con số mới.

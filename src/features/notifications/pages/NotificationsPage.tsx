@@ -16,7 +16,7 @@ import { useAsync } from '../../../hooks/useAsync'
 import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { listNotifications, markAllAsRead, markAsRead } from '../../../services/notificationService'
 import { formatDateTime, formatRelativeTime, parseDateTime } from '../../../lib/format'
-import { notificationTypeLabels, type AppNotification, type NotificationType, type UserRole } from '../../../types'
+import type { AppNotification, NotificationType, UserRole } from '../../../types'
 
 type FilterKey = 'all' | 'unread'
 type DayGroupKey = 'today' | 'yesterday' | 'older'
@@ -32,7 +32,7 @@ const notificationVisuals: Record<NotificationType, NotificationVisual> = {
   examSubmitted: { icon: CheckCircle2, iconClass: 'text-emerald-600', bgClass: 'bg-emerald-50' },
   examUpdated: { icon: Edit3, iconClass: 'text-blue-600', bgClass: 'bg-blue-50' },
   deadlineSoon: { icon: AlertTriangle, iconClass: 'text-amber-600', bgClass: 'bg-amber-50' },
-  autoSubmitted: { icon: Clock, iconClass: 'text-red-500', bgClass: 'bg-red-50' },
+  autoSubmitted: { icon: Clock, iconClass: 'text-amber-500', bgClass: 'bg-amber-50' },
 }
 
 /**
@@ -41,7 +41,6 @@ const notificationVisuals: Record<NotificationType, NotificationVisual> = {
  * lọt qua (hoặc bảng trên thiếu một khoá sau này) chỉ hiện một biểu tượng chung, không kéo sập trang.
  */
 const fallbackVisual: NotificationVisual = { icon: Sparkles, iconClass: 'text-slate-500', bgClass: 'bg-slate-100' }
-const fallbackLabel = 'Thông báo'
 
 const filterTabs: { key: FilterKey; label: string; icon: LucideIcon }[] = [
   { key: 'all', label: 'Tất cả', icon: Inbox },
@@ -115,9 +114,6 @@ function NotificationRow({ notification, processing, onOpen }: NotificationRowPr
         <span className="flex flex-wrap items-center gap-2">
           <span className={`text-sm ${notification.isRead ? 'font-semibold text-slate-700' : 'font-bold text-slate-800'}`}>
             {notification.title}
-          </span>
-          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${visual.bgClass} ${visual.iconClass}`}>
-            {notificationTypeLabels[notification.type] ?? fallbackLabel}
           </span>
         </span>
 

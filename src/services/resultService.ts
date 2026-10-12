@@ -97,6 +97,8 @@ interface AttemptDetailDto {
   maxScore?: number
   correctCount?: number
   canSeeAnswers: boolean
+  /** Giờ đáp án chi tiết được mở cho học sinh: giờ đóng muộn nhất trong mọi lượt giao của đề. */
+  answersVisibleAt?: string | null
   questions: AttemptDetailQuestionDto[]
 }
 
@@ -172,6 +174,7 @@ export async function getAttemptDetail(attemptId: number): Promise<AttemptDetail
     durationMinutes: dto.durationUsedMinutes ?? 0,
     autoSubmitted: dto.autoSubmitted,
     showAnswers: dto.canSeeAnswers,
+    answersVisibleAt: dto.answersVisibleAt ?? null,
 
     // Câu bỏ trống vẫn nằm trong danh sách với selectedAnswerId là null — đó thường là những câu
     // đáng xem nhất khi soi lại bài, nên lọc chúng đi là bỏ mất phần quan trọng nhất.
