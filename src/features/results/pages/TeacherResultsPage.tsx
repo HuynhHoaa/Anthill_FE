@@ -8,13 +8,14 @@ import Pagination from '../../../components/common/Pagination'
 import SearchField from '../../../components/common/SearchField'
 import { StatusBadge } from '../../../components/common/Badge'
 import { SkeletonTable } from '../../../components/common/Skeleton'
+import TableScroller from '../../../components/common/TableScroller'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
 import { useAsync } from '../../../hooks/useAsync'
 import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
 import { getResultStats, listResults } from '../../../services/resultService'
-import { listExams } from '../../../services/examService'
+import { listAllExams } from '../../../services/examService'
 import { listGroups } from '../../../services/groupService'
 import { getStudent } from '../../../services/studentService'
 import { formatDateTime, formatDuration, formatScore, getScoreTone, NO_VALUE } from '../../../lib/format'
@@ -61,12 +62,25 @@ function readFilterParam(params: URLSearchParams, key: string): string | null {
   return trimmed === '' || trimmed === 'all' ? null : trimmed
 }
 
+/**
+ * Id trên URL phải là số nguyên không âm vừa một `int`. 'abc', '-3' hay '99999999999' gõ tay mà đưa
+ * nguyên xi cho server thì nhận 400 và cả trang thành khung lỗi; coi như không lọc, giống cách
+ * trạng thái lạ rơi về 'all' và số trang lạ rơi về 1.
+ */
+function readIdParam(params: URLSearchParams, key: string): string | null {
+  const value = readFilterParam(params, key)
+  return value !== null && /^\d{1,9}$/.test(value) ? value : null
+}
+
+/** Trang sau cùng còn có ý nghĩa; server kẹp số trang quá lớn, nhưng một `int` tràn thì nó trả 400. */
+const MAX_PAGE = 100_000
+
 /** URL gõ tay có thể chứa 'abc', '0' hoặc số âm — mọi giá trị lạ đều rơi về trang đầu. */
 function toSafePage(raw: string | null): number {
   const parsed = Number(raw)
   if (!Number.isFinite(parsed)) return 1
   const pageNumber = Math.floor(parsed)
-  return pageNumber > 0 ? pageNumber : 1
+  return pageNumber > 0 ? Math.min(pageNumber, MAX_PAGE) : 1
 }
 
 function toStatusFilter(raw: string | null): 'all' | ExamStatus {
@@ -76,9 +90,9 @@ function toStatusFilter(raw: string | null): 'all' | ExamStatus {
 export default function TeacherResultsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const examFilter = readFilterParam(searchParams, EXAM_PARAM)
-  const studentFilter = readFilterParam(searchParams, STUDENT_PARAM)
-  const groupFilter = readFilterParam(searchParams, GROUP_PARAM) ?? 'all'
+  const examFilter = readIdParam(searchParams, EXAM_PARAM)
+  const studentFilter = readIdParam(searchParams, STUDENT_PARAM)
+  const groupFilter = readIdParam(searchParams, GROUP_PARAM) ?? 'all'
   const statusFilter = toStatusFilter(searchParams.get(STATUS_PARAM))
   const page = toSafePage(searchParams.get(PAGE_PARAM))
 
@@ -130,7 +144,7 @@ export default function TeacherResultsPage() {
     () => ({
       search,
       status: statusFilter,
-      // Id không có thật cho ra NaN, nghĩa là không khớp dòng nào — đúng ý người gõ URL.
+      // Id đã được `readIdParam` bảo đảm là số; id không có thật (đề đã xoá) cho bảng rỗng, không phải lỗi.
       examId: examFilter === null ? undefined : Number(examFilter),
       studentId: studentFilter === null ? undefined : Number(studentFilter),
       groupId: groupFilter === 'all' ? undefined : Number(groupFilter),
@@ -158,7 +172,7 @@ export default function TeacherResultsPage() {
     refreshResults()
     refreshStats()
   })
-  const { data: exams } = useAsync(() => listExams({ page: 1, pageSize: 100 }), [])
+  const { data: exams } = useAsync(() => listAllExams(), [])
   const { data: groups } = useAsync(() => listGroups(), [])
 
   // Chỉ nạp đúng một học sinh để lấy tên cho chip, không kéo cả danh sách về.
@@ -167,14 +181,14 @@ export default function TeacherResultsPage() {
     [studentFilter],
   )
 
-  const examOptions = useMemo(() => exams?.items ?? [], [exams])
+  const examOptions = useMemo(() => exams ?? [], [exams])
   const groupOptions = useMemo(() => groups ?? [], [groups])
   const items = useMemo(() => results?.items ?? [], [results])
   const { tableRef, wrapperStyle } = useStableTableHeight(items, PAGE_SIZE, results?.total ?? 0)
 
   /**
-   * Danh sách đề chỉ nạp 100 mục đầu, nên deep-link tới một đề nằm ngoài đó sẽ không tra được
-   * nhãn. Lấy tạm nhãn từ chính các dòng kết quả đang hiển thị.
+   * Ô chọn nạp đủ danh sách đề (tới trần 2000), nhưng một đề vừa bị xoá hay nằm ngoài trần thì deep-link
+   * tới nó không tra được nhãn. Lấy tạm nhãn từ chính các dòng kết quả đang hiển thị.
    */
   const examFilterLabel = useMemo(() => {
     if (examFilter === null) return ''
@@ -250,7 +264,8 @@ export default function TeacherResultsPage() {
 
     // Tỷ lệ **hoàn thành**: phần trăm bài đã giao đã được nộp. Không phải tỷ lệ đạt điểm sàn —
     // backend không có khái niệm điểm sàn, nên giữ nhãn cũ là nói sai về con số mới.
-    parts.push(`hoàn thành ${stats.completionRate}%`)
+    // Không có bài nào khớp bộ lọc thì "hoàn thành 0%" là con số bịa ra từ phép chia 0 cho 0.
+    if (stats.totalAttempts > 0) parts.push(`hoàn thành ${stats.completionRate}%`)
 
     return `${hasActiveFilters ? 'Theo bộ lọc đang chọn' : 'Tất cả kết quả'}: ${parts.join(' · ')}`
   }, [stats, hasActiveFilters])
@@ -305,16 +320,16 @@ export default function TeacherResultsPage() {
             resultsLoading ? 'opacity-60' : 'opacity-100'
           }`}
         >
-          <div className="overflow-x-auto" style={wrapperStyle}>
+          <TableScroller style={wrapperStyle}>
             {/* Bố cục cố định: cột hẹp có bề rộng riêng, bài kiểm tra và học sinh chia đều phần còn lại. Đổi trang
                 không làm cột nào xê dịch, tên dài thì cắt bớt thay vì đẩy cột. */}
-            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[1060px]">
+            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[760px] xl:min-w-[1060px]">
               <colgroup>
                 <col />
                 <col />
-                <col className="w-44" />
+                <col className="w-44 max-xl:hidden" />
                 <col className="w-32" />
-                <col className="w-36" />
+                <col className="w-36 max-xl:hidden" />
                 <col className="w-32" />
                 <col className="w-28" />
               </colgroup>
@@ -322,9 +337,9 @@ export default function TeacherResultsPage() {
                 <tr className="border-b border-slate-100 bg-slate-50/60">
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Bài kiểm tra</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Học sinh</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Nhóm lớp</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 max-xl:hidden">Nhóm lớp</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Điểm</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Thời gian làm</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 max-xl:hidden">Thời gian làm</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
                   <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Chi tiết</th>
                 </tr>
@@ -372,10 +387,13 @@ export default function TeacherResultsPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-2.5">
+                      <td className="px-5 py-2.5 max-xl:hidden">
                         {/* Không tra ra id thì nhóm chỉ hiện ra chứ không bấm lọc được, vì lọc theo
                             tên sẽ trả về bảng rỗng ngay khi nhóm được đổi tên. */}
-                        {groupId === undefined ? (
+                        {!result.group ? (
+                          // Giao đích danh từng em thì kết quả không thuộc nhóm nào.
+                          <span className="text-xs text-slate-400">Giao riêng</span>
+                        ) : groupId === undefined ? (
                           <span
                             title={result.group}
                             className="inline-flex items-center max-w-full px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 whitespace-nowrap"
@@ -414,7 +432,7 @@ export default function TeacherResultsPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
+                      <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap max-xl:hidden">
                         {isInProgress ? NO_VALUE : formatDuration(result.durationMinutes)}
                       </td>
                       <td className="px-5 py-2.5">
@@ -433,7 +451,7 @@ export default function TeacherResultsPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScroller>
         </div>
 
         <Pagination

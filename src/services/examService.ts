@@ -68,6 +68,32 @@ export function listExams(params: ListExamsParams = {}): Promise<Paged<Exam>> {
   })
 }
 
+/** Server kẹp cỡ trang ở 200, nên danh sách đầy đủ phải gom nhiều trang. */
+const ALL_EXAMS_PAGE_SIZE = 200
+/** Trần để một tài khoản bất thường không kéo cả hệ thống vào một ô chọn: 10 trang = 2000 đề. */
+const ALL_EXAMS_MAX_PAGES = 10
+
+/**
+ * Mọi đề của giáo viên, cho những ô chọn cần đủ danh sách (lọc kết quả theo đề).
+ *
+ * `listExams` chỉ trả một trang; ô chọn nạp 100 đề đầu thì đề thứ 101 trở đi không chọn được, trong
+ * khi vẫn có kết quả của chúng trong bảng.
+ */
+export async function listAllExams(): Promise<Exam[]> {
+  const first = await listExams({ page: 1, pageSize: ALL_EXAMS_PAGE_SIZE })
+  if (first.pageSize <= 0) return first.items
+
+  const pageCount = Math.min(Math.ceil(first.total / first.pageSize), ALL_EXAMS_MAX_PAGES)
+  if (pageCount <= 1) return first.items
+
+  const rest = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) =>
+      listExams({ page: index + 2, pageSize: first.pageSize }),
+    ),
+  )
+  return [...first.items, ...rest.flatMap(page => page.items)]
+}
+
 export function getExam(id: number): Promise<Exam> {
   return apiClient.get<Exam>(`/api/exams/${id}`)
 }

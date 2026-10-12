@@ -58,6 +58,12 @@ export interface ResultStats {
   completionRate: number
 }
 
+/** Bản thật trên dây của `ResultStats`: hai khoá điểm có thể vắng mặt. */
+type ResultStatsDto = Omit<ResultStats, 'averageScore' | 'highestScore'> & {
+  averageScore?: number | null
+  highestScore?: number | null
+}
+
 interface AttemptDetailAnswerDto {
   id: number
   ordinal: number
@@ -139,14 +145,18 @@ export async function listMyResults(params: {
  * Gọi mà bỏ bộ lọc đi thì bốn ô nói về toàn hệ thống trong khi bảng ngay dưới đã lọc — người xem
  * không có cách nào biết hai phần đang nói về hai chuyện khác nhau.
  */
-export function getResultStats(params: ListResultsParams = {}): Promise<ResultStats> {
-  return apiClient.get<ResultStats>('/api/results/stats', {
+export async function getResultStats(params: ListResultsParams = {}): Promise<ResultStats> {
+  const dto = await apiClient.get<ResultStatsDto>('/api/results/stats', {
     search: params.search,
     status: params.status,
     examId: params.examId,
     studentId: params.studentId,
     groupId: params.groupId,
   })
+
+  // Khi chưa có bài nào được chấm, server bỏ hẳn hai khoá điểm chứ không gửi null. Quy về null ở đây để
+  // `ResultStats` đúng như nó khai: `undefined !== null` lọt qua phép kiểm và hiện ra "TB —/10".
+  return { ...dto, averageScore: dto.averageScore ?? null, highestScore: dto.highestScore ?? null }
 }
 
 /** Chi tiết một lượt làm bài, soi từng câu. */
