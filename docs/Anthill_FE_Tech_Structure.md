@@ -146,7 +146,8 @@ EduQuiz.Frontend/
 │   │   │       ├── blueprintRatio.ts
 │   │   │       ├── examConfirmations.ts
 │   │   │       ├── examDraftStorage.ts
-│   │   │       └── examScheduleFormat.ts
+│   │   │       ├── examScheduleFormat.ts
+│   │   │       └── examScoring.ts
 │   │   │
 │   │   ├── exam-taking/
 │   │   │   ├── pages/
@@ -306,8 +307,9 @@ Teacher Dashboard
 → Bài kiểm tra
 → Tạo bài kiểm tra
 → Nhập tên, mô tả, thời gian làm bài, lịch mở/đóng chung
-→ Chọn tổng số câu, chủ đề, điểm mỗi câu
+→ Chọn tổng số câu, chủ đề
 → Nhập tỷ lệ Easy / Medium / Hard (có preset và nút cân bằng về 100%)
+→ Nhập điểm một câu ở từng mức độ (hiện "n / 100", có nút "Gợi ý chia điểm")
 → Preview số câu khả dụng (gọi POST /api/exams/blueprint-preview sau 400ms kể từ lần chỉnh cuối)
 → Lưu nháp / Lưu bài kiểm tra / Lưu và giao bài
 ```
@@ -317,11 +319,12 @@ UI cần validate:
 - Easy + Medium + Hard = 100% (trừ khi lưu nháp).
 - Tổng số câu phải lớn hơn 0.
 - Ngân hàng câu hỏi phải đủ số câu theo từng difficulty (trừ khi lưu nháp).
+- Điểm từng mức độ: không âm, tối đa 2 chữ số thập phân, mức có câu thì lớn hơn 0. Tổng (số câu mỗi mức × điểm mức đó) khác 100 **không** chặn lưu: form hiện "n / 100" và nói thiếu hay thừa bao nhiêu; khi chốt (không phải nháp) mà chưa đủ thì hộp xác nhận hiện thêm đúng con số đó, chọn "Quay lại chỉnh" thì đưa về mục điểm. Không hỏi với bản nháp, và không hỏi với một đề đã xuất bản mà lần lưu không đổi bộ câu. Số câu mỗi mức tính cục bộ bằng cùng công thức với server (`features/exams/utils/examScoring.ts`); cách chia số câu không thể ra đúng 100 thì form điền cách chia sát 100 nhất và gợi ý số câu gần nhất chia được đúng.
 - Thời gian làm bài phải hợp lệ và không dài hơn khoảng mở bài.
 
 Form soạn đề được giữ tạm trong sessionStorage khi Teacher rời trang đi bổ sung câu hỏi cho ngân hàng.
 
-Khi đã có Student bắt đầu làm bài, server khoá cấu hình đề (`blueprintFrozen`): số câu, ba tỷ lệ, chủ đề, điểm mỗi câu, thời gian làm bài và tuỳ chọn trộn bị tắt trên form, chỉ tên, mô tả và tuỳ chọn hiện kết quả còn sửa được; lịch có luật khoá riêng theo giờ (`scheduleLocked`): đề đã giao mà còn dưới 2 giờ nữa là mở, hoặc đang mở, thì hai ô lịch bị tắt kèm một dòng giải thích, hết giờ đóng thì mở lại. Trang giao bài và trang chi tiết đề đọc cùng cờ ở từng khung giờ của lớp và từng em. Builder giải thích lý do và có nút "Nhân bản đề" để tạo một bản nháp cùng cấu hình rồi sửa trên bản sao. Nháp khôi phục từ sessionStorage, hay lần lưu bị từ chối (409) vì có em vừa bắt đầu giữa chừng hoặc vì lịch vừa bị khoá giờ, đều giữ phần còn sửa được và lấy lại các trường bị khoá từ server kèm một ghi chú. Bản sao chép nguyên lịch mở/đóng của đề gốc, nên builder cảnh báo khi giờ đóng đã qua.
+Khi đã có Student bắt đầu làm bài, server khoá cấu hình đề (`blueprintFrozen`): số câu, ba tỷ lệ, chủ đề, điểm từng mức độ, thời gian làm bài và tuỳ chọn trộn bị tắt trên form, chỉ tên, mô tả và tuỳ chọn hiện kết quả còn sửa được; lịch có luật khoá riêng theo giờ (`scheduleLocked`): đề đã giao mà còn dưới 2 giờ nữa là mở, hoặc đang mở, thì hai ô lịch bị tắt kèm một dòng giải thích, hết giờ đóng thì mở lại. Trang giao bài và trang chi tiết đề đọc cùng cờ ở từng khung giờ của lớp và từng em. Builder giải thích lý do và có nút "Nhân bản đề" để tạo một bản nháp cùng cấu hình rồi sửa trên bản sao. Nháp khôi phục từ sessionStorage, hay lần lưu bị từ chối (409) vì có em vừa bắt đầu giữa chừng hoặc vì lịch vừa bị khoá giờ, đều giữ phần còn sửa được và lấy lại các trường bị khoá từ server kèm một ghi chú. Bản sao chép nguyên lịch mở/đóng của đề gốc, nên builder cảnh báo khi giờ đóng đã qua.
 
 ### 5.5. Teacher Assigns Exam
 
