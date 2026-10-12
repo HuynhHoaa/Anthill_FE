@@ -12,6 +12,7 @@ import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
 import SearchField from '../../../components/common/SearchField'
 import { SkeletonTable } from '../../../components/common/Skeleton'
+import TableScroller from '../../../components/common/TableScroller'
 import { DifficultyBadge } from '../../../components/common/Badge'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
@@ -75,7 +76,7 @@ interface QuestionRowProps {
 /** Ba nút thao tác chung của dòng bảng (desktop) và của thẻ (màn hình hẹp). */
 function QuestionActionButtons({ question, onToggleStatus, onDelete }: Omit<QuestionRowProps, 'onPreview'>) {
   const isActive = question.status === 'active'
-  const toggleLabel = isActive ? 'Ẩn câu hỏi khỏi ngân hàng đề' : 'Đưa câu hỏi trở lại ngân hàng đề'
+  const toggleLabel = isActive ? 'Ẩn câu hỏi khỏi ngân hàng' : 'Đưa câu hỏi trở lại ngân hàng'
 
   return (
     <>
@@ -312,8 +313,10 @@ export default function QuestionBankPage() {
     [debouncedSearch, topicFilter, difficultyFilter, statusFilter, page],
   )
 
-  // Bảy cột chỉ vừa từ cỡ lg; hẹp hơn thì dùng thẻ như trước, để khỏi phải cuộn ngang tìm nút thao tác.
-  const isDesktop = useMediaQuery('(min-width: 1024px)')
+  // Bảng cần 1100px, cộng thanh bên dạng dải icon (76px) và lề trang (64px) là ~1240px: dưới cỡ xl thì
+  // dùng thẻ, để khỏi phải cuộn ngang mới thấy nút thao tác. (Đặt ở lg thì từ 1024 tới ~1240px cột nút
+  // nằm ngoài màn hình.)
+  const isDesktop = useMediaQuery('(min-width: 80rem)')
 
   const pagedQuestions = listState.data
   const questions = pagedQuestions?.items ?? []
@@ -406,8 +409,8 @@ export default function QuestionBankPage() {
     }
     toast.success(
       nextStatus === 'hidden'
-        ? 'Đã ẩn câu hỏi khỏi ngân hàng đề.'
-        : 'Đã đưa câu hỏi trở lại ngân hàng đề.',
+        ? 'Đã ẩn câu hỏi khỏi ngân hàng.'
+        : 'Đã đưa câu hỏi trở lại ngân hàng.',
     )
     reloadAll()
   }
@@ -453,7 +456,7 @@ export default function QuestionBankPage() {
       <EmptyState
         icon={Library}
         title="Ngân hàng câu hỏi đang trống"
-        description="Hãy tạo câu hỏi đầu tiên để bắt đầu xây dựng đề kiểm tra cho lớp của bạn."
+        description="Tạo câu hỏi đầu tiên, rồi dựng đề kiểm tra từ ngân hàng này."
         action={
           <NavLink to="/giao-vien/cau-hoi/tao" className={primaryButtonClass} style={primaryButtonStyle}>
             <Plus size={16} /> Tạo câu hỏi
@@ -470,7 +473,7 @@ export default function QuestionBankPage() {
               listState.loading ? 'opacity-60' : ''
             }`}
           >
-            <div className="overflow-x-auto" style={wrapperStyle}>
+            <TableScroller style={wrapperStyle}>
               {/* Bố cục cố định: các cột hẹp có bề rộng riêng, cột câu hỏi nhận phần còn lại, nên đổi trang
                   không làm cột nào xê dịch. */}
               <table ref={tableRef} className="w-full table-fixed text-sm min-w-[1100px]">
@@ -506,7 +509,7 @@ export default function QuestionBankPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroller>
           </div>
         ) : (
           <div
