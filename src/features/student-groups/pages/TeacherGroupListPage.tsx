@@ -5,7 +5,7 @@
  * sách trả về đã được server giới hạn trong những lớp giáo viên này được phân công **và** đã công
  * bố; màn hình không lọc lại lần nữa.
  */
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Eye, Search, UsersRound, X } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
@@ -16,9 +16,9 @@ import SearchField from '../../../components/common/SearchField'
 import { SkeletonTable } from '../../../components/common/Skeleton'
 import TableScroller from '../../../components/common/TableScroller'
 import { useAsync } from '../../../hooks/useAsync'
-import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { usePagination } from '../../../hooks/usePagination'
 import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
+import { useUrlListState } from '../../../hooks/useUrlListState'
 import { formatDate } from '../../../lib/format'
 import { listGroups } from '../../../services/groupService'
 
@@ -29,9 +29,9 @@ const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wide
 const PAGE_SIZE = 12
 
 export default function TeacherGroupListPage() {
-  const [searchInput, setSearchInput] = useState('')
-  const debouncedSearch = useDebouncedValue(searchInput, 300)
-  const trimmedSearch = debouncedSearch.trim()
+  // Từ khoá và số trang nằm trên URL: Back từ trang chi tiết một lớp về đúng chỗ đang xem.
+  const { searchInput, setSearchInput, search, page, setPage, clearAll } = useUrlListState({})
+  const trimmedSearch = search.trim()
   const hasSearch = trimmedSearch.length > 0
 
   const { data: groups, loading, error, reload } = useAsync(
@@ -50,7 +50,7 @@ export default function TeacherGroupListPage() {
   }, [allGroups])
 
   const rows = groups ?? []
-  const { currentPage, pageItems, setPage } = usePagination(rows, PAGE_SIZE)
+  const { currentPage, pageItems } = usePagination(rows, PAGE_SIZE, page, setPage, groups !== undefined)
   const { tableRef, wrapperStyle } = useStableTableHeight(pageItems, PAGE_SIZE, rows.length)
   const showSkeleton = loading && groups === undefined
   const isRefreshing = loading && groups !== undefined
@@ -64,10 +64,7 @@ export default function TeacherGroupListPage() {
         <div className="w-full max-w-sm">
           <SearchField
             value={searchInput}
-            onChange={value => {
-              setSearchInput(value)
-              setPage(1)
-            }}
+            onChange={setSearchInput}
             placeholder="Tìm theo tên hoặc mô tả lớp"
             label="Tìm kiếm lớp"
           />
@@ -88,7 +85,7 @@ export default function TeacherGroupListPage() {
               action={
                 <button
                   type="button"
-                  onClick={() => setSearchInput('')}
+                  onClick={clearAll}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                 >
                   <X size={15} /> Xoá tìm kiếm

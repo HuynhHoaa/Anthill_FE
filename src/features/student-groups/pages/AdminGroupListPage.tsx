@@ -20,9 +20,9 @@ import { SkeletonTable } from '../../../components/common/Skeleton'
 import TableScroller from '../../../components/common/TableScroller'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
-import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { usePagination } from '../../../hooks/usePagination'
 import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
+import { useUrlListState } from '../../../hooks/useUrlListState'
 import { formatDate } from '../../../lib/format'
 import { deleteGroup, listGroups, publishGroup, unpublishGroup } from '../../../services/groupService'
 import type { StudentGroup } from '../../../types'
@@ -88,9 +88,9 @@ export default function AdminGroupListPage() {
   const toast = useToast()
   const confirm = useConfirm()
   const navigate = useNavigate()
-  const [searchInput, setSearchInput] = useState('')
-  const debouncedSearch = useDebouncedValue(searchInput, 300)
-  const trimmedSearch = debouncedSearch.trim()
+  // Từ khoá và số trang nằm trên URL: Back từ trang chi tiết một lớp về đúng chỗ đang xem.
+  const { searchInput, setSearchInput, search, page, setPage, clearAll } = useUrlListState({})
+  const trimmedSearch = search.trim()
   const hasSearch = trimmedSearch.length > 0
 
   const { data: groups, loading, error, reload } = useAsync(
@@ -223,7 +223,7 @@ export default function AdminGroupListPage() {
   }
 
   const rows = groups ?? []
-  const { currentPage, pageItems, setPage } = usePagination(rows, PAGE_SIZE)
+  const { currentPage, pageItems } = usePagination(rows, PAGE_SIZE, page, setPage, groups !== undefined)
   const { tableRef, wrapperStyle } = useStableTableHeight(pageItems, PAGE_SIZE, rows.length)
   const showSkeleton = loading && groups === undefined
   const isRefreshing = loading && groups !== undefined
@@ -239,10 +239,7 @@ export default function AdminGroupListPage() {
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={searchInput}
-              onChange={event => {
-                setSearchInput(event.target.value)
-                setPage(1)
-              }}
+              onChange={event => setSearchInput(event.target.value)}
               className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"
               placeholder="Tìm theo tên hoặc mô tả lớp"
               aria-label="Tìm kiếm lớp"
@@ -250,10 +247,7 @@ export default function AdminGroupListPage() {
             {searchInput && (
               <button
                 type="button"
-                onClick={() => {
-                  setSearchInput('')
-                  setPage(1)
-                }}
+                onClick={clearAll}
                 aria-label="Xoá tìm kiếm"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
               >
@@ -286,7 +280,7 @@ export default function AdminGroupListPage() {
               action={
                 <button
                   type="button"
-                  onClick={() => setSearchInput('')}
+                  onClick={clearAll}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                 >
                   <X size={15} /> Xoá tìm kiếm
