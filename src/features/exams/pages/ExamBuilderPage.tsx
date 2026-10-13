@@ -686,7 +686,7 @@ export default function ExamBuilderPage() {
   // Server khoá cấu hình đề khi đã có em bắt đầu làm. Đọc thẳng cờ của server thay vì tự suy từ số
   // liệu, để luật khoá chỉ nằm ở một nơi.
   const isFrozen = isEditing && loadedExam?.blueprintFrozen === true
-  // Tổng chưa đủ 100 không bị chặn, chỉ được hỏi xác nhận lúc chốt. Không hỏi khi lần lưu không đụng tới bộ
+  // Tổng khác 100 không bị chặn, chỉ được hỏi xác nhận lúc chốt. Không hỏi khi lần lưu không đụng tới bộ
   // câu của một đề đã xuất bản (chỉ đổi tên, mô tả, lịch): với đề đã khoá giáo viên không còn cách chỉnh
   // điểm, hỏi ở đó chỉ là ồn.
   const scoreNeedsConfirmation = !(
@@ -925,7 +925,7 @@ export default function ExamBuilderPage() {
               goingToAssign,
             )
 
-    // Chốt một đề chưa đủ 100 điểm: nói thẳng con số và hỏi lại, cùng hộp với bước xuất bản hay lưu để
+    // Chốt một đề có tổng khác 100 điểm: nói thẳng con số và hỏi lại, cùng hộp với bước xuất bản hay lưu để
     // giáo viên không phải qua hai hộp liên tiếp. Không xác nhận thì quay về mục điểm để chỉnh.
     const scoreWarning = mode !== 'draft' && scoreNeedsConfirmation && scoreGap !== null
 
@@ -1389,7 +1389,9 @@ export default function ExamBuilderPage() {
                         type="number"
                         min={0}
                         max={EXAM_TOTAL_SCORE}
-                        step={0.05}
+                        // Điểm có tối đa hai chữ số thập phân (gợi ý có thể ra 1,26). Một bước cố định thì trình
+                        // duyệt chặn nút lưu bằng "hai giá trị hợp lệ gần nhất" ngay khi giá trị không là bội của nó.
+                        step="any"
                         value={form[field]}
                         onChange={event => updatePoint(field, event.target.value)}
                         className={fieldClass(errors[field])}
@@ -1426,8 +1428,8 @@ export default function ExamBuilderPage() {
               {scoreGap !== null && (
                 <p className="mt-2 text-xs text-slate-500 leading-relaxed">
                   {scoreNeedsConfirmation
-                    ? `Chưa đủ ${EXAM_TOTAL_SCORE} điểm vẫn lưu được: lúc lưu bài, hệ thống sẽ hỏi bạn xác nhận (bản nháp thì không hỏi).`
-                    : `Đề này đã được chốt với tổng điểm chưa đủ ${EXAM_TOTAL_SCORE}. Chưa đổi cấu hình thì lưu không hỏi lại; đổi số câu hay điểm thì sẽ hỏi xác nhận.`}
+                    ? `Tổng khác ${EXAM_TOTAL_SCORE} điểm vẫn lưu được: lúc lưu bài, hệ thống sẽ hỏi bạn xác nhận (bản nháp thì không hỏi).`
+                    : `Đề này đã được chốt với tổng điểm khác ${EXAM_TOTAL_SCORE}. Chưa đổi cấu hình thì lưu không hỏi lại; đổi số câu hay điểm thì sẽ hỏi xác nhận.`}
                 </p>
               )}
 
@@ -1438,10 +1440,11 @@ export default function ExamBuilderPage() {
                     Cách chia {counts.easy} Dễ · {counts.medium} Trung bình · {counts.hard} Khó không ra đúng {EXAM_TOTAL_SCORE} điểm
                   </p>
                   <p className="text-sm text-amber-700 mt-1 leading-relaxed">
-                    Điểm mỗi câu chỉ có tối đa hai chữ số thập phân nên với số câu này tổng chỉ chạm được{' '}
-                    {suggestion.total} / {EXAM_TOTAL_SCORE}. Bạn vẫn lưu được (hệ thống sẽ hỏi xác nhận)
+                    Điểm mỗi câu chỉ có tối đa hai chữ số thập phân nên số câu này không chia ra đúng{' '}
+                    {EXAM_TOTAL_SCORE}; cách chia gợi ý cho tổng {suggestion.total} / {EXAM_TOTAL_SCORE}. Bạn vẫn
+                    lưu được (hệ thống sẽ hỏi xác nhận)
                     {alternativeSplits.length > 0
-                      ? ', hoặc đổi số câu mỗi mức đi một ít để ra đúng 100:'
+                      ? ', hoặc đổi số câu mỗi mức đi một ít để ra đúng 100 (điểm sẽ tự chia lại):'
                       : '.'}
                   </p>
                   {alternativeSplits.length > 0 && (

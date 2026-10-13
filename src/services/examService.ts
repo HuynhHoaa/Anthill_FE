@@ -21,7 +21,7 @@ export interface ExamPayload {
   easyPercentage: number
   mediumPercentage: number
   hardPercentage: number
-  /** Điểm của MỘT câu ở từng mức; tổng (số câu mỗi mức × điểm) phải đúng 100 khi đề không phải nháp. */
+  /** Điểm của MỘT câu ở từng mức. Tổng (số câu mỗi mức × điểm) chuẩn là 100 nhưng không bắt buộc. */
   pointEasy: number
   pointMedium: number
   pointHard: number

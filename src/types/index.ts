@@ -177,7 +177,7 @@ export interface Exam {
   pointEasy: number
   pointMedium: number
   pointHard: number
-  /** Số câu mỗi mức × điểm mức đó; server tính sẵn. Đề lưu mới luôn đúng 100, đề cũ có thể khác. */
+  /** Số câu mỗi mức × điểm mức đó; server tính sẵn. Chuẩn là 100 nhưng không bắt buộc: có thể khác. */
   totalScore: number
   /** Chủ đề câu hỏi được dùng để sinh đề. Chuỗi rỗng nghĩa là lấy từ tất cả chủ đề. */
   topic: string
