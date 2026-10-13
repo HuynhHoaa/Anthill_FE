@@ -194,6 +194,9 @@ function validateForm(state: ExamFormState, mode: SaveMode): FormErrors {
   // bất kỳ và nhiều cấu hình không chia ra đúng 100 — nên tổng chỉ được hỏi xác nhận lúc chốt, xem
   // `handleSave`.
   const counts = calculateRequiredCounts(state.totalQuestions, state.easyPercentage, state.mediumPercentage)
+  // "Mức có câu thì điểm > 0" chỉ có nghĩa khi ba tỷ lệ cộng đúng 100 (như validator ở server): nháp nhập dở
+  // 30/30/0 cho mức Khó cả phần dư 4 câu dù giáo viên nhập 0%, và không nên bị đòi điểm cho mức đó.
+  const ratiosAddUp = state.easyPercentage + state.mediumPercentage + state.hardPercentage === 100
   for (const level of orderedDifficultyLevels) {
     const field = pointFieldByLevel[level]
     const value = state[field]
@@ -204,7 +207,7 @@ function validateForm(state: ExamFormState, mode: SaveMode): FormErrors {
       nextErrors[field] = `Điểm của một câu tối đa là ${EXAM_TOTAL_SCORE}.`
     } else if (hasTooManyDecimals(value)) {
       nextErrors[field] = 'Điểm chỉ được tối đa 2 chữ số thập phân.'
-    } else if (counts[level] > 0 && value <= 0) {
+    } else if (ratiosAddUp && counts[level] > 0 && value <= 0) {
       nextErrors[field] = 'Mức này có câu hỏi nên điểm phải lớn hơn 0.'
     }
   }
