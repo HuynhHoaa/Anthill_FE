@@ -13,7 +13,7 @@ import { useAsync } from '../../../hooks/useAsync'
 import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { getStudentDashboard } from '../../../services/dashboardService'
 import { getCurrentUser } from '../../../services/authService'
-import { formatDateTime, formatScore } from '../../../lib/format'
+import { formatDateTime, formatScore, getScoreTone } from '../../../lib/format'
 import { getTopicLabel } from '../../../lib/topicTheme'
 import type { ResultSummary, StudentExamItem } from '../../../types'
 
@@ -72,24 +72,31 @@ function Countdown({ deadline }: { deadline: Date }) {
   return <span>{timeLeft}</span>
 }
 
-function ScoreRing({ score }: { score: number | null }) {
+function ScoreRing({ score, maxScore }: { score: number | null; maxScore: number | null }) {
   // score null nghĩa là đề đang giấu điểm chứ không phải được 0 — vẽ vòng xám trung tính, vì một
   // vòng đỏ ghi 0.0 sẽ khiến học sinh tưởng mình làm sai hết.
-  const { color, label } =
-    score === null ? { color: '#94A3B8', label: 'Chưa hiện' } :
-    score >= 8   ? { color: '#10B981', label: 'Giỏi' } :
-    score >= 6.5 ? { color: '#F59E0B', label: 'Khá' } :
-    score >= 5   ? { color: '#F97316', label: 'TB' } :
-                   { color: '#EF4444', label: 'Yếu' }
+  if (score === null) {
+    return (
+      <div className="flex flex-col items-center flex-shrink-0">
+        <div className="w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg bg-slate-50 text-slate-400 border-[2.5px] border-slate-300">
+          {formatScore(score)}
+        </div>
+        <span className="text-xs font-medium mt-1 text-slate-400">Chưa hiện</span>
+      </div>
+    )
+  }
+
+  // Xếp loại qua getScoreTone như mọi màn hình khác, quy về thang 100 theo điểm tối đa của chính đề này.
+  // Ngưỡng riêng ở đây từng chạy trên điểm thô: 40/100 hiện "Giỏi" khi ngưỡng cũ là 8.
+  const tone = getScoreTone(score, maxScore)
   return (
     <div className="flex flex-col items-center flex-shrink-0">
       <div
-        className="w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg"
-        style={{ background: `${color}18`, color, border: `2.5px solid ${color}` }}
+        className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg border-[2.5px] ${tone.bg} ${tone.color} ${tone.ring}`}
       >
         {formatScore(score)}
       </div>
-      <span className="text-xs font-medium mt-1" style={{ color }}>{label}</span>
+      <span className={`text-xs font-medium mt-1 ${tone.color}`}>{tone.label}</span>
     </div>
   )
 }
@@ -170,7 +177,7 @@ function ResultRow({ result }: { result: ResultSummary }) {
 
   return (
     <div className="flex flex-wrap items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
-      {isGraded ? <ScoreRing score={result.score} /> : <PendingRing />}
+      {isGraded ? <ScoreRing score={result.score} maxScore={result.maxScore} /> : <PendingRing />}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-slate-800 truncate">{result.examTitle}</p>
         <p className="text-xs text-slate-400 mt-0.5">

@@ -16,6 +16,7 @@ import { SkeletonBlock, SkeletonTable } from '../../../components/common/Skeleto
 import { useAsync } from '../../../hooks/useAsync'
 import {
   formatDate, formatDateTime, formatScore, getInitials, getScoreTone, NO_VALUE, roundToOneDecimal,
+  toHundredScale,
 } from '../../../lib/format'
 import { listGroups } from '../../../services/groupService'
 import { DELETION_RETENTION_DAYS, getStudent } from '../../../services/studentService'
@@ -89,10 +90,11 @@ export default function StudentDetailPage() {
   // để ô số liệu không bao giờ mâu thuẫn với số dòng đang hiển thị.
   const averageScore = useMemo(() => {
     // Bài đã chấm nhưng bị giấu điểm không mang con số nào; tính chúng như 0 sẽ kéo trung bình
-    // xuống mà giáo viên không thấy dấu hiệu gì trên bảng bên dưới.
+    // xuống mà giáo viên không thấy dấu hiệu gì trên bảng bên dưới. Mỗi điểm quy về thang 100 theo điểm
+    // tối đa của đề đó: đề cũ 9 điểm và đề mới 100 điểm không cộng thô được.
     const visibleScores = historyItems
       .filter(result => result.status === 'graded')
-      .map(result => result.score)
+      .map(result => (result.score === null ? null : toHundredScale(result.score, result.maxScore)))
       .filter((score): score is number => score !== null)
 
     if (visibleScores.length === 0) return null
@@ -173,7 +175,7 @@ export default function StudentDetailPage() {
             <tbody>
               {historyItems.map(result => {
                 // Chưa được phép xem điểm thì cũng chưa có xếp loại nào để tô màu.
-                const scoreTone = result.score === null ? null : getScoreTone(result.score)
+                const scoreTone = result.score === null ? null : getScoreTone(result.score, result.maxScore)
                 const isGraded = result.status === 'graded'
                 const isInProgress = result.status === 'inprogress'
 
@@ -380,6 +382,7 @@ export default function StudentDetailPage() {
                 ) : (
                   <p className={`text-2xl font-bold leading-none ${getScoreTone(averageScore).color}`}>
                     {formatScore(averageScore)}
+                    <span className="text-sm font-semibold text-slate-400"> /100</span>
                   </p>
                 ),
               )}

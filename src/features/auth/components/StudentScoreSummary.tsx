@@ -1,6 +1,6 @@
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
-import { formatScore, roundToOneDecimal } from '../../../lib/format'
+import { formatScore, roundToOneDecimal, toHundredScale } from '../../../lib/format'
 import { listMyResults } from '../../../services/resultService'
 
 /** Lấy rộng tay để tính thống kê trên toàn bộ lượt làm bài của học sinh. */
@@ -36,9 +36,10 @@ export default function StudentScoreSummary() {
   const gradedResults = data.items.filter(result => result.status === 'graded')
 
   // Bài đã chấm vẫn có thể bị giấu điểm. Cộng những bài đó vào như điểm 0 sẽ kéo trung bình xuống
-  // và học sinh không có cách nào biết con số mình đang đọc bị pha loãng, nên loại hẳn chúng ra.
+  // và học sinh không có cách nào biết con số mình đang đọc bị pha loãng, nên loại hẳn chúng ra. Mỗi điểm
+  // quy về thang 100 theo điểm tối đa của đề đó trước khi gộp: đề cũ 9 điểm và đề mới 100 điểm không cộng thô.
   const visibleScores = gradedResults
-    .map(result => result.score)
+    .map(result => (result.score === null ? null : toHundredScale(result.score, result.maxScore)))
     .filter((score): score is number => score !== null)
 
   const hasScore = visibleScores.length > 0
@@ -69,8 +70,8 @@ export default function StudentScoreSummary() {
 
   const summaryItems = [
     { label: 'Bài đã làm', value: `${data.total}` },
-    { label: 'Điểm trung bình', value: formatScore(averageScore) },
-    { label: 'Điểm cao nhất', value: formatScore(bestScore) },
+    { label: 'Điểm trung bình', value: `${formatScore(averageScore)}/100` },
+    { label: 'Điểm cao nhất', value: `${formatScore(bestScore)}/100` },
   ]
 
   return (

@@ -114,17 +114,19 @@ function describeMissingAttempt(status: ExamStatus): string {
 
 interface AssignmentRowProps {
   assignment: ExamAssignment
+  /** Điểm tối đa của đề, để xếp loại điểm của em theo thang 100 (đề cũ có thể không phải 100). */
+  maxScore: number
   onReschedule: (assignment: ExamAssignment) => void
   /** Bấm vào nút "Dời giờ" đang bị chặn: cho giáo viên đọc lý do thay vì im lặng. */
   onRescheduleBlocked: (reason: string) => void
   onRevoke: (assignment: ExamAssignment) => void
 }
 
-function AssignmentRow({ assignment, onReschedule, onRescheduleBlocked, onRevoke }: AssignmentRowProps) {
+function AssignmentRow({ assignment, maxScore, onReschedule, onRescheduleBlocked, onRevoke }: AssignmentRowProps) {
   const canViewAttempt =
     assignment.attemptId !== undefined &&
     (assignment.status === 'submitted' || assignment.status === 'graded')
-  const scoreTone = assignment.score === undefined ? undefined : getScoreTone(assignment.score)
+  const scoreTone = assignment.score === undefined ? undefined : getScoreTone(assignment.score, maxScore)
 
   // Chỉ em được chọn đích danh mới dời giờ riêng được, và chỉ khi em chưa bắt đầu: giờ của em theo
   // lớp thuộc về cả lớp, còn em đã vào thi thì hạn nộp đã chốt. Cùng hai điều kiện server dùng — server
@@ -685,6 +687,7 @@ export default function ExamDetailPage() {
                           <AssignmentRow
                             key={assignment.id}
                             assignment={assignment}
+                            maxScore={exam.totalScore}
                             onReschedule={setRescheduling}
                             onRescheduleBlocked={reason => toast.info(reason)}
                             onRevoke={target => void requestRevoke(target)}
@@ -777,8 +780,8 @@ export default function ExamDetailPage() {
               {exam.totalScore !== 100 && (
                 <p className="text-xs text-amber-600 leading-relaxed pt-2">
                   {isDraft
-                    ? 'Bản nháp chưa đủ 100 điểm. Khi chốt bài, hệ thống sẽ hỏi xác nhận.'
-                    : 'Đề này chưa đủ 100 điểm. Kết quả trong thống kê vẫn được quy về thang 100.'}
+                    ? 'Tổng điểm của bản nháp khác 100. Khi chốt bài, hệ thống sẽ hỏi xác nhận.'
+                    : 'Tổng điểm của đề này khác 100. Kết quả trong thống kê vẫn được quy về thang 100.'}
                 </p>
               )}
               <InfoRow label="Trộn câu hỏi" value={exam.shuffleQuestions ? 'Có' : 'Không'} />

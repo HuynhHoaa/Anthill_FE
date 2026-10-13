@@ -133,6 +133,17 @@ export function getScoreTone(score: number, maxScore?: number | null): ScoreTone
   return { color: 'text-red-500', bg: 'bg-red-50', ring: 'border-red-200', label: 'Yếu' }
 }
 
+/**
+ * Điểm quy về thang 100 theo điểm tối đa của chính đề đó; `null` khi không biết điểm tối đa.
+ *
+ * Dùng trước mọi phép trung bình hay lấy điểm cao nhất gộp nhiều đề, cùng quy tắc server áp cho các số
+ * liệu tổng hợp. Một em có đề cũ 9 điểm (được 9) và đề mới 100 điểm (được 60) thì trung bình thô là 34,5,
+ * còn quy về thang 100 là 75.
+ */
+export function toHundredScale(score: number, maxScore: number | null | undefined): number | null {
+  return maxScore !== null && maxScore !== undefined && maxScore > 0 ? (score / maxScore) * 100 : null
+}
+
 /** Khoảng thời gian tương đối, dùng cho danh sách thông báo. */
 export function formatRelativeTime(value: string): string {
   const parsed = parseDateTime(value)

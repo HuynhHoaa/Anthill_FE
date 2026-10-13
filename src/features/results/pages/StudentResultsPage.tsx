@@ -14,7 +14,7 @@ import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { listMyResults } from '../../../services/resultService'
 import { listMyExams } from '../../../services/attemptService'
-import { formatDateTime, formatDuration, formatScore } from '../../../lib/format'
+import { formatDateTime, formatDuration, formatScore, toHundredScale } from '../../../lib/format'
 import ScoreRing from '../components/ScoreRing'
 
 const PAGE_SIZE = 6
@@ -84,8 +84,9 @@ export default function StudentResultsPage() {
     // Bài đã chấm vẫn có thể bị giấu kết quả. Những bài đó không có con số nào để cộng, và coi
     // chúng như 0 sẽ kéo cả điểm trung bình lẫn tỷ lệ câu đúng xuống mà không để lại dấu vết gì
     // trên màn hình — nên lọc hẳn ra trước khi tính.
+    // Mỗi điểm quy về thang 100 theo điểm tối đa của đề đó trước khi gộp.
     const visibleScores = gradedResults
-      .map(result => result.score)
+      .map(result => (result.score === null ? null : toHundredScale(result.score, result.maxScore)))
       .filter((score): score is number => score !== null)
 
     if (visibleScores.length === 0) {
@@ -105,8 +106,8 @@ export default function StudentResultsPage() {
     const totalQuestions = visibleCounts.reduce((total, entry) => total + entry.total, 0)
     const totalCorrect = visibleCounts.reduce((total, entry) => total + entry.correct, 0)
 
-    parts.push(`điểm trung bình ${formatScore(totalScore / visibleScores.length)}`)
-    parts.push(`cao nhất ${formatScore(Math.max(...visibleScores))}`)
+    parts.push(`điểm trung bình ${formatScore(totalScore / visibleScores.length)}/100`)
+    parts.push(`cao nhất ${formatScore(Math.max(...visibleScores))}/100`)
     if (totalQuestions > 0) {
       parts.push(`${Math.round((totalCorrect / totalQuestions) * 100)}% câu đúng`)
     }
