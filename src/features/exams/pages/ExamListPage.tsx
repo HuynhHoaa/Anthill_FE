@@ -318,9 +318,14 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
       </td>
 
       <td className="px-3 py-3" title={classUsage.hint}>
-        <span className={classUsage.count > 0 ? 'font-semibold text-slate-700' : 'text-slate-400'}>
-          {classUsage.count}
-        </span>
+        {classUsage.count > 0 ? (
+          <span className="font-semibold text-slate-700">{classUsage.count}</span>
+        ) : exam.assignedCount > 0 ? (
+          // Giao riêng từng em, không qua lớp nào: "0" cạnh "1/3 đã nộp" đọc như mâu thuẫn.
+          <span className="text-xs text-slate-500">Riêng</span>
+        ) : (
+          <span className="text-slate-400">0</span>
+        )}
       </td>
 
       <td className="px-3 py-3">
