@@ -22,6 +22,7 @@ import { formatDateTime, formatDuration, parseDateTime } from '../../../lib/form
 import { lifecycleLabels } from '../../../types'
 import type { Exam, ExamLifecycle } from '../../../types'
 import { examDeleteConfirmCopy, examDuplicateConfirmCopy } from '../utils/examConfirmations'
+import ClassUsagePopover from '../components/ClassUsagePopover'
 
 // Tám dòng (mỗi dòng ~77px) cùng thanh trang vừa một cửa sổ cao ~900px mà không phải cuộn.
 const PAGE_SIZE = 8
@@ -41,6 +42,10 @@ const primaryGradient = 'linear-gradient(135deg,#6366F1,#8B5CF6)'
 // Ô sát hơn (px-3) dưới cỡ xl, nơi bảng phải nhét vừa ~880px; từ xl trở lên giữ px-5 như các bảng khác.
 const headCellClass =
   'px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500'
+
+/** Cột chỉ chứa một con số: lề hẹp ở mọi cỡ để không chiếm chỗ của các cột còn lại. */
+const narrowHeadCellClass =
+  'px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap'
 
 const selectClass =
   'px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'
@@ -261,7 +266,7 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
       </td>
 
       {/* Cột phụ: dưới cỡ xl nhường chỗ cho Tiến độ và Trạng thái, hai cột cần thấy ngay không cuộn. */}
-      <td className="px-3 xl:px-5 py-3 max-xl:hidden">
+      <td className="px-3 py-3 max-xl:hidden">
         {/*
           Nói tỷ lệ chứ không nói số câu: phép làm tròn từ tỷ lệ ra số câu do server giữ, nên một
           con số tự tính lại ở đây có thể lệch với đề thật sự được sinh ra. Cần số câu chính xác
@@ -291,8 +296,12 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         </p>
       </td>
 
-      <td className="px-3 xl:px-5 py-3">
-        {!hasAssignment && <p className="text-slate-400">Chưa giao</p>}
+      <td className="px-3 py-3">
+        <ClassUsagePopover windows={exam.assignmentWindows} />
+      </td>
+
+      <td className="px-3 py-3">
+        {!hasAssignment && <p className="text-slate-400 whitespace-nowrap">Chưa giao</p>}
         {hasAssignment && !hasSubmission && submissionProgress}
         {hasAssignment && hasSubmission && (
           <NavLink
@@ -306,7 +315,7 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         )}
       </td>
 
-      <td className="px-3 xl:px-5 py-3">
+      <td className="px-3 py-3">
         {/* Một trạng thái duy nhất, theo lịch chung của đề. Giờ mở/đóng riêng của từng lớp nằm ở trang chi tiết. */}
         <LifecycleBadge lifecycle={exam.lifecycle} />
       </td>
@@ -446,7 +455,7 @@ export default function ExamListPage() {
       compactContent
       headerTools={tools}
     >
-      {loading && !data && <SkeletonTable rows={8} cols={7} />}
+      {loading && !data && <SkeletonTable rows={8} cols={8} />}
 
       {error && !loading && <ErrorState message={error} onRetry={reload} />}
 
@@ -494,27 +503,31 @@ export default function ExamListPage() {
           >
             <TableScroller style={wrapperStyle}>
               {/* Bố cục cố định, cột chia theo tỉ lệ: đổi trang không làm các cột xê dịch. Cột thao tác
-                  240px là vừa đủ cho "Chi tiết" + "Giao bài" + nút ba chấm. Bảy cột cần 1100px; dưới cỡ xl
-                  cột Độ khó ẩn đi và còn năm cột chia vừa ~880px, hẹp hơn nữa thì cuộn ngang và cột thao
+                  240px là vừa đủ cho "Chi tiết" + "Giao bài" + nút ba chấm. Tám cột cần 1100px; dưới cỡ xl
+                  cột Độ khó ẩn đi và còn sáu cột chia vừa ~900px, hẹp hơn nữa thì cuộn ngang và cột thao
                   tác dính mép phải. */}
               <table ref={tableRef} className="w-full table-fixed text-sm min-w-[760px] xl:min-w-[1100px]">
                 <colgroup>
-                  <col className="w-[20%] xl:w-[22%]" />
-                  <col className="w-[13%] xl:w-[12%]" />
-                  <col className="w-[10%] max-xl:hidden" />
-                  <col className="w-[17%] xl:w-[14%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[13%] xl:w-[11%]" />
+                  <col className="w-[17%] xl:w-[18%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[8%] max-xl:hidden" />
+                  <col className="w-[17%] xl:w-[15%]" />
+                  <col className="w-[6%] xl:w-[7%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[12%] xl:w-[10%]" />
                   <col className="w-60" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/60">
                     <th className={headCellClass}>Bài kiểm tra</th>
                     <th className={headCellClass}>Cấu hình</th>
-                    <th className={`${headCellClass} max-xl:hidden`}>Độ khó</th>
+                    <th className={`${narrowHeadCellClass} max-xl:hidden`}>Độ khó</th>
                     <th className={headCellClass}>Lịch</th>
-                    <th className={headCellClass}>Tiến độ nộp</th>
-                    <th className={headCellClass}>Trạng thái</th>
+                    <th className={narrowHeadCellClass}>Số lớp</th>
+                    <th className={narrowHeadCellClass} title="Số học sinh đã nộp bài / số học sinh được giao">
+                      Đã nộp
+                    </th>
+                    <th className={narrowHeadCellClass}>Trạng thái</th>
                     <th className={`${headCellClass} text-right`}>Thao tác</th>
                   </tr>
                 </thead>
