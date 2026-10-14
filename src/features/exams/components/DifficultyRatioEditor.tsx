@@ -111,7 +111,9 @@ export default function DifficultyRatioEditor({
               type="range"
               min={0}
               max={100}
-              step={5}
+              // Bước 5 cho dễ kéo, nhưng giá trị không chia hết cho 5 (một cách chia số câu gợi ý có thể ra
+              // 27%) thì thanh trượt bị làm tròn về 25 và nói khác ô số bên dưới. Lúc đó dùng bước 1.
+              step={clampPercentage(ratios[level]) % 5 === 0 ? 5 : 1}
               value={clampPercentage(ratios[level])}
               onChange={event => changeLevel(level, event.target.value)}
               className="w-full"

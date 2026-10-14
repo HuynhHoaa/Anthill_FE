@@ -376,7 +376,9 @@ function BlueprintPreviewCard({
 
       <div className="space-y-3">
         {orderedDifficultyLevels.map(level => {
-          const requiredCount = preview.required[level]
+          // Số câu cần lấy tính cục bộ (cùng công thức server): tổng điểm ở trên đổi ngay theo từng phím, nên
+          // con số này không thể chờ lời gọi xem trước có debounce. Từ server chỉ lấy số câu ngân hàng đang có.
+          const requiredCount = counts[level]
           const availableCount = preview.available[level]
           // Đề đã khoá thì không tô đỏ: giáo viên không đổi được cấu hình, và bộ câu các em đang cầm
           // đã sinh xong từ trước nên ngân hàng vơi đi không làm hỏng gì.
