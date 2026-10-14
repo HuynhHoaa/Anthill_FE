@@ -100,7 +100,7 @@ export function publishedExamEditConfirmCopy(
           : `Đề "${exam.title}" đang được giao cho ${exam.assignedCount} học sinh: tên, mô tả${scheduleText} và tuỳ chọn mới sẽ hiện ngay với các em. Cấu hình đề không đổi nên bộ câu hỏi của các em giữ nguyên.`
   const graded =
     exam.submittedCount > 0
-      ? ` ${exam.submittedCount} bài đã nộp và điểm đã chấm giữ nguyên, vì hệ thống chấm trên đúng bộ câu hỏi từng em đã làm.`
+      ? ` ${exam.submittedCount} bài đã nộp và điểm đã chấm không đổi.`
       : ''
 
   return {

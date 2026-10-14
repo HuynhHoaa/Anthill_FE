@@ -21,6 +21,11 @@ export interface ConfirmOptions {
   cancelLabel?: string
   tone?: 'danger' | 'primary'
   /**
+   * `false` thì phím Enter không xác nhận hộp này (nút và Esc vẫn như thường). Dùng cho hộp nói về một điều
+   * cần cân nhắc: Enter gõ thêm một lần ngay sau khi hộp mở không nên thành lời "vâng". Mặc định `true`.
+   */
+  enterConfirms?: boolean
+  /**
    * Việc cần làm khi người dùng xác nhận.
    *
    * Truyền vào đây thay vì tự gọi sau khi `await` để hộp thoại giữ nguyên, quay vòng trên nút xác
@@ -262,6 +267,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         confirmLabel={options?.confirmLabel}
         cancelLabel={options?.cancelLabel}
         tone={options?.tone}
+        enterConfirms={options?.enterConfirms}
         loading={busy}
         error={error}
         confirmDisabled={input !== undefined && inputValue.trim().length < input.minLength}

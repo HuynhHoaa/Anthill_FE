@@ -14,7 +14,9 @@ import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { listMyResults } from '../../../services/resultService'
 import { listMyExams } from '../../../services/attemptService'
-import { formatDateTime, formatDuration, formatScore, toHundredScale } from '../../../lib/format'
+import {
+  formatDateTime, formatDuration, formatScore, roundToOneDecimal, toHundredScale,
+} from '../../../lib/format'
 import ScoreRing from '../components/ScoreRing'
 
 const PAGE_SIZE = 6
@@ -106,7 +108,7 @@ export default function StudentResultsPage() {
     const totalQuestions = visibleCounts.reduce((total, entry) => total + entry.total, 0)
     const totalCorrect = visibleCounts.reduce((total, entry) => total + entry.correct, 0)
 
-    parts.push(`điểm trung bình ${formatScore(totalScore / visibleScores.length)}/100`)
+    parts.push(`điểm trung bình ${formatScore(roundToOneDecimal(totalScore / visibleScores.length))}/100`)
     parts.push(`cao nhất ${formatScore(Math.max(...visibleScores))}/100`)
     if (totalQuestions > 0) {
       parts.push(`${Math.round((totalCorrect / totalQuestions) * 100)}% câu đúng`)

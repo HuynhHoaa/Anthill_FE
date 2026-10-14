@@ -939,12 +939,14 @@ export default function ExamBuilderPage() {
           ? {
               details: (
                 <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-amber-800">
-                  {scoreGap} Chốt như vậy thì học sinh làm bài tối đa {totalScore} điểm. Muốn đủ{' '}
-                  {EXAM_TOTAL_SCORE}, hãy quay lại chỉnh số câu hoặc điểm mỗi câu.
+                  {scoreGap} Học sinh sẽ làm bài tối đa {totalScore} điểm. Muốn đủ {EXAM_TOTAL_SCORE},
+                  quay lại chỉnh số câu hoặc điểm.
                 </p>
               ),
               confirmLabel: `Vẫn ${confirmCopy.confirmLabel.charAt(0).toLowerCase()}${confirmCopy.confirmLabel.slice(1)}`,
               cancelLabel: 'Quay lại chỉnh',
+              // Hộp nói về một điều cần cân nhắc: Enter gõ thêm ngay sau khi hộp mở không được là lời "vâng".
+              enterConfirms: false,
             }
           : {}),
         onConfirm: persist,
@@ -1408,31 +1410,36 @@ export default function ExamBuilderPage() {
                 })}
               </div>
 
+              {/* Đề đã khoá không đổi được điểm nên thanh tổng chỉ cho biết, không nhắc việc bằng màu cảnh báo. */}
               <div
                 className={`mt-5 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-2 ${
-                  scoreGap === null ? 'bg-emerald-50' : 'bg-amber-50'
+                  scoreGap === null ? 'bg-emerald-50' : isFrozen ? 'bg-slate-50' : 'bg-amber-50'
                 }`}
               >
                 <p
                   className={`text-sm font-bold ${
-                    scoreGap === null ? 'text-emerald-700' : 'text-amber-700'
+                    scoreGap === null ? 'text-emerald-700' : isFrozen ? 'text-slate-600' : 'text-amber-700'
                   }`}
                 >
                   Tổng điểm: {totalScore} / {EXAM_TOTAL_SCORE}
                 </p>
                 <p
                   className={`text-sm ${
-                    scoreGap === null ? 'text-emerald-700' : 'text-amber-700'
+                    scoreGap === null ? 'text-emerald-700' : isFrozen ? 'text-slate-600' : 'text-amber-700'
                   }`}
                 >
                   {scoreDelta ?? 'Đã đủ điểm.'}
                 </p>
               </div>
-              {scoreGap !== null && (
+              {scoreGap !== null && !isFrozen && (
                 <p className="mt-2 text-xs text-slate-500 leading-relaxed">
                   {scoreNeedsConfirmation
-                    ? `Tổng khác ${EXAM_TOTAL_SCORE} điểm vẫn lưu được: lúc lưu bài, hệ thống sẽ hỏi bạn xác nhận (bản nháp thì không hỏi).`
-                    : `Đề này đã được chốt với tổng điểm khác ${EXAM_TOTAL_SCORE}. Chưa đổi cấu hình thì lưu không hỏi lại; đổi số câu hay điểm thì sẽ hỏi xác nhận.`}
+                    ? `Tổng khác ${EXAM_TOTAL_SCORE} vẫn lưu được. Lưu bài sẽ hỏi xác nhận, lưu nháp thì không.`
+                    : `Đề đã chốt với tổng khác ${EXAM_TOTAL_SCORE}. Đổi tên hay lịch thì lưu không hỏi; đổi số câu hay điểm thì sẽ hỏi xác nhận.`}
+                  {/* Sửa tay một ô là tắt chế độ tự chia lại: nói ra, kẻo đổi số câu mà điểm đứng yên thì khó hiểu. */}
+                  {pointsTouched && scoreNeedsConfirmation
+                    ? ' Điểm đang giữ nguyên; bấm "Gợi ý chia điểm" để chia lại.'
+                    : ''}
                 </p>
               )}
 
@@ -1440,15 +1447,14 @@ export default function ExamBuilderPage() {
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                   <p className="text-sm font-semibold text-amber-700 flex items-center gap-2">
                     <Info size={15} className="flex-shrink-0" />
-                    Cách chia {counts.easy} Dễ · {counts.medium} Trung bình · {counts.hard} Khó không ra đúng {EXAM_TOTAL_SCORE} điểm
+                    {counts.easy} Dễ · {counts.medium} Trung bình · {counts.hard} Khó không chia ra đúng {EXAM_TOTAL_SCORE} điểm
                   </p>
                   <p className="text-sm text-amber-700 mt-1 leading-relaxed">
-                    Điểm mỗi câu chỉ có tối đa hai chữ số thập phân nên số câu này không chia ra đúng{' '}
-                    {EXAM_TOTAL_SCORE}; cách chia gợi ý cho tổng {suggestion.total} / {EXAM_TOTAL_SCORE}. Bạn vẫn
-                    lưu được (hệ thống sẽ hỏi xác nhận)
+                    Điểm mỗi câu chỉ lẻ tối đa 2 chữ số thập phân nên số câu này không ra đúng {EXAM_TOTAL_SCORE}{' '}
+                    (gần nhất {suggestion.total}).
                     {alternativeSplits.length > 0
-                      ? ', hoặc đổi số câu mỗi mức đi một ít để ra đúng 100 (điểm sẽ tự chia lại):'
-                      : '.'}
+                      ? ' Muốn đủ 100, chọn một cách chia (điểm sẽ tự chia lại):'
+                      : ''}
                   </p>
                   {alternativeSplits.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-3">
@@ -1527,7 +1533,7 @@ export default function ExamBuilderPage() {
               {savingMode === 'publish'
                 ? <Loader2 size={17} className="animate-spin" />
                 : <Save size={17} />}
-              {isEditing ? 'Lưu thay đổi' : 'Lưu bài kiểm tra'}
+              {canSaveDraft ? 'Lưu bài kiểm tra' : 'Lưu thay đổi'}
             </button>
 
             <button

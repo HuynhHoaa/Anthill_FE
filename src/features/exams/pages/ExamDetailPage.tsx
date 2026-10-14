@@ -30,6 +30,7 @@ import {
   examDeleteConfirmCopy, examDuplicateConfirmCopy, examRevokeAssignmentConfirmCopy,
 } from '../utils/examConfirmations'
 import { classRef, describeScheduleLock } from '../utils/examScheduleFormat'
+import TableScroller from '../../../components/common/TableScroller'
 import AssignmentWindowList from '../components/AssignmentWindowList'
 import RescheduleAssignmentDialog from '../components/RescheduleAssignmentDialog'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
@@ -190,6 +191,8 @@ function AssignmentRow({ assignment, maxScore, onReschedule, onRescheduleBlocked
         {assignment.score !== undefined && scoreTone ? (
           <span className={`inline-flex items-center px-2.5 py-1 rounded-lg font-bold ${scoreTone.bg} ${scoreTone.color}`}>
             {formatScore(assignment.score)}
+            {/* Màu theo điểm tối đa của đề, nên phải nói điểm tối đa: 50/50 xanh còn 50/100 cam. */}
+            <span className="text-xs font-medium opacity-70">&nbsp;/ {formatScore(maxScore)}</span>
           </span>
         ) : (
           <span className="text-slate-400">—</span>
@@ -667,7 +670,7 @@ export default function ExamDetailPage() {
                 </div>
               ) : (
                 <>
-                  <div className="overflow-x-auto">
+                  <TableScroller>
                     <table className="w-full text-sm min-w-[1100px]">
                       <thead className="bg-slate-50/60">
                         <tr>
@@ -695,7 +698,7 @@ export default function ExamDetailPage() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </TableScroller>
                   {filteredAssignments.length > ROWS_PER_PAGE && (
                     <div className="px-5 pb-4">
                       <Pagination
@@ -773,9 +776,19 @@ export default function ExamDetailPage() {
               </div>
               <InfoRow label="Chủ đề" value={getTopicLabel(exam.topic)} />
               <InfoRow label="Số câu" value={`${exam.totalQuestions} câu`} />
-              <InfoRow label="Điểm mỗi câu Dễ" value={formatScore(exam.pointEasy)} />
-              <InfoRow label="Điểm mỗi câu Trung bình" value={formatScore(exam.pointMedium)} />
-              <InfoRow label="Điểm mỗi câu Khó" value={formatScore(exam.pointHard)} />
+              {/* Mức không có câu nào thì điểm của nó vô nghĩa: hiện gạch thay vì một số 0. */}
+              <InfoRow
+                label="Điểm mỗi câu Dễ"
+                value={data.blueprint.required.easy > 0 ? formatScore(exam.pointEasy) : '—'}
+              />
+              <InfoRow
+                label="Điểm mỗi câu Trung bình"
+                value={data.blueprint.required.medium > 0 ? formatScore(exam.pointMedium) : '—'}
+              />
+              <InfoRow
+                label="Điểm mỗi câu Khó"
+                value={data.blueprint.required.hard > 0 ? formatScore(exam.pointHard) : '—'}
+              />
               <InfoRow label="Tổng điểm" value={`${formatScore(exam.totalScore)} / 100`} />
               {exam.totalScore !== 100 && (
                 <p className="text-xs text-amber-600 leading-relaxed pt-2">

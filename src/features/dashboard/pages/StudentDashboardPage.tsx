@@ -97,6 +97,8 @@ function ScoreRing({ score, maxScore }: { score: number | null; maxScore: number
         {formatScore(score)}
       </div>
       <span className={`text-xs font-medium mt-1 ${tone.color}`}>{tone.label}</span>
+      {/* Hai đề khác điểm tối đa nằm cạnh nhau: không có "trên N" thì 50 xanh và 50 cam trông như một lỗi. */}
+      {maxScore !== null && <span className="text-[11px] text-slate-400">trên {formatScore(maxScore)}</span>}
     </div>
   )
 }
@@ -276,11 +278,15 @@ export default function StudentDashboardPage() {
             ? <>Bạn đã hoàn thành hết bài được giao. Cùng xem lại kết quả nhé!</>
             : <>Hiện không có bài kiểm tra nào đang mở dành cho bạn.</>
 
+  // Hai ô tổng hợp đã quy về thang 100 (server chia từng bài cho điểm tối đa của nó): ghi rõ thang.
+  const onHundred = (value: number | null | undefined) =>
+    value === null || value === undefined ? formatScore(value) : `${formatScore(value)}/100`
+
   const heroPills = [
     { icon: FileText,    value: String(stats?.assignedCount ?? 0),      label: 'Được giao', background: 'rgba(255,255,255,0.15)' },
     { icon: CheckSquare, value: String(stats?.completedCount ?? 0),     label: 'Đã xong',   background: 'rgba(16,185,129,0.3)' },
-    { icon: Trophy,      value: formatScore(stats?.averageScore),     label: 'Điểm TB',   background: 'rgba(245,158,11,0.3)' },
-    { icon: Award,       value: formatScore(stats?.bestScore),        label: 'Cao nhất',  background: 'rgba(59,130,246,0.35)' },
+    { icon: Trophy,      value: onHundred(stats?.averageScore),       label: 'Điểm TB',   background: 'rgba(245,158,11,0.3)' },
+    { icon: Award,       value: onHundred(stats?.bestScore),          label: 'Cao nhất',  background: 'rgba(59,130,246,0.35)' },
   ]
 
   return (

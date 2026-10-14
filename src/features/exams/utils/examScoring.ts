@@ -68,7 +68,7 @@ export function describeScoreGap(total: number): string | null {
 
   const gap = Math.abs(TOTAL_UNITS - units) / 100
   const direction = units < TOTAL_UNITS ? 'thiếu' : 'thừa'
-  return `Tổng điểm đang là ${trimNumber(total)} / ${EXAM_TOTAL_SCORE}, ${direction} ${trimNumber(gap)}.`
+  return `Tổng điểm đang là ${trimNumber(total)} / ${EXAM_TOTAL_SCORE}, ${direction} ${trimNumber(gap)} điểm.`
 }
 
 /** Chỉ phần chênh, để đặt cạnh một con số tổng đã hiện sẵn: "thiếu 4.5 điểm". `null` khi đã đúng 100. */
