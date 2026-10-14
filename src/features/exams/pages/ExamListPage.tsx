@@ -22,6 +22,7 @@ import { formatDateTime, formatDuration, parseDateTime } from '../../../lib/form
 import { lifecycleLabels } from '../../../types'
 import type { Exam, ExamLifecycle } from '../../../types'
 import { examDeleteConfirmCopy, examDuplicateConfirmCopy } from '../utils/examConfirmations'
+import ClassUsagePopover from '../components/ClassUsagePopover'
 
 // Tám dòng (mỗi dòng ~77px) cùng thanh trang vừa một cửa sổ cao ~900px mà không phải cuộn.
 const PAGE_SIZE = 8
@@ -43,29 +44,8 @@ const headCellClass =
   'px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500'
 
 /** Cột chỉ chứa một con số: lề hẹp ở mọi cỡ để không chiếm chỗ của các cột còn lại. */
-const narrowHeadCellClass = 'px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500'
-
-/**
- * Số lớp đang dùng một đề, cùng tên các lớp để hiện khi rê chuột.
- *
- * Mỗi lớp đã giao là một khung trong `assignmentWindows`. Các học sinh được chọn riêng gom theo giờ
- * và không mang `groupId`, nên không bị tính là lớp.
- */
-function describeClassUsage(exam: Pick<Exam, 'assignmentWindows' | 'assignedCount'>) {
-  const classes = new Map<number, string>()
-  for (const window of exam.assignmentWindows) {
-    if (window.groupId !== undefined) classes.set(window.groupId, window.groupName ?? '')
-  }
-
-  const count = classes.size
-  if (count > 0) {
-    return { count, hint: Array.from(classes.values()).filter(Boolean).join(', ') }
-  }
-  return {
-    count,
-    hint: exam.assignedCount > 0 ? 'Chỉ giao cho học sinh chọn riêng, không qua lớp nào' : 'Chưa giao cho lớp nào',
-  }
-}
+const narrowHeadCellClass =
+  'px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap'
 
 const selectClass =
   'px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'
@@ -254,7 +234,6 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
     ? Math.round((exam.submittedCount / exam.assignedCount) * 100)
     : 0
   const isDraft = exam.lifecycle === 'draft'
-  const classUsage = describeClassUsage(exam)
 
   const submissionProgress = (
     <div className="w-full max-w-24">
@@ -317,19 +296,12 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         </p>
       </td>
 
-      <td className="px-3 py-3" title={classUsage.hint}>
-        {classUsage.count > 0 ? (
-          <span className="font-semibold text-slate-700">{classUsage.count}</span>
-        ) : exam.assignedCount > 0 ? (
-          // Giao riêng từng em, không qua lớp nào: "0" cạnh "1/3 đã nộp" đọc như mâu thuẫn.
-          <span className="text-xs text-slate-500">Riêng</span>
-        ) : (
-          <span className="text-slate-400">0</span>
-        )}
+      <td className="px-3 py-3">
+        <ClassUsagePopover windows={exam.assignmentWindows} />
       </td>
 
       <td className="px-3 py-3">
-        {!hasAssignment && <p className="text-slate-400">Chưa giao</p>}
+        {!hasAssignment && <p className="text-slate-400 whitespace-nowrap">Chưa giao</p>}
         {hasAssignment && !hasSubmission && submissionProgress}
         {hasAssignment && hasSubmission && (
           <NavLink
@@ -551,7 +523,7 @@ export default function ExamListPage() {
                     <th className={headCellClass}>Cấu hình</th>
                     <th className={`${narrowHeadCellClass} max-xl:hidden`}>Độ khó</th>
                     <th className={headCellClass}>Lịch</th>
-                    <th className={narrowHeadCellClass} title="Số lớp đang dùng đề này">Số lớp</th>
+                    <th className={narrowHeadCellClass}>Số lớp</th>
                     <th className={narrowHeadCellClass} title="Số học sinh đã nộp bài / số học sinh được giao">
                       Đã nộp
                     </th>
