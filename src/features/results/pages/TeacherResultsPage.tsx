@@ -323,7 +323,7 @@ export default function TeacherResultsPage() {
           <TableScroller style={wrapperStyle}>
             {/* Bố cục cố định: cột hẹp có bề rộng riêng, bài kiểm tra và học sinh chia đều phần còn lại. Đổi trang
                 không làm cột nào xê dịch, tên dài thì cắt bớt thay vì đẩy cột. */}
-            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[760px] xl:min-w-[1060px]">
+            <table ref={tableRef} className="stack-table w-full table-fixed text-sm min-w-[760px] xl:min-w-[1060px]">
               <colgroup>
                 <col />
                 <col />
@@ -356,7 +356,7 @@ export default function TeacherResultsPage() {
 
                   return (
                     <tr key={result.attemptId} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                      <td className="px-5 py-2.5">
+                      <td data-card="head" className="px-5 py-2.5">
                         <NavLink
                           to={`/giao-vien/bai-kiem-tra/${result.examId}`}
                           title={result.examTitle}
@@ -368,7 +368,7 @@ export default function TeacherResultsPage() {
                           {isInProgress ? 'Chưa nộp' : `Nộp ${formatDateTime(result.submittedAt)}`}
                         </p>
                       </td>
-                      <td className="px-5 py-2.5">
+                      <td data-label="Học sinh" className="px-5 py-2.5">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -387,7 +387,7 @@ export default function TeacherResultsPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-2.5 max-xl:hidden">
+                      <td data-label="Nhóm lớp" className="px-5 py-2.5 max-xl:hidden">
                         {/* Không tra ra id thì nhóm chỉ hiện ra chứ không bấm lọc được, vì lọc theo
                             tên sẽ trả về bảng rỗng ngay khi nhóm được đổi tên. */}
                         {!result.group ? (
@@ -411,7 +411,7 @@ export default function TeacherResultsPage() {
                           </button>
                         )}
                       </td>
-                      <td className="px-5 py-2.5">
+                      <td data-label="Điểm" className="px-5 py-2.5">
                         {isGraded ? (
                           <>
                             <p className={`font-bold ${scoreTone?.color ?? 'text-slate-400'}`}>
@@ -432,13 +432,13 @@ export default function TeacherResultsPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap max-xl:hidden">
+                      <td data-label="Thời gian làm" className="px-5 py-2.5 text-slate-600 whitespace-nowrap max-xl:hidden">
                         {isInProgress ? NO_VALUE : formatDuration(result.durationMinutes)}
                       </td>
-                      <td className="px-5 py-2.5">
+                      <td data-label="Trạng thái" className="px-5 py-2.5">
                         <StatusBadge status={result.status} />
                       </td>
-                      <td className="px-5 py-2.5 text-right">
+                      <td data-card="foot" className="px-5 py-2.5 text-right">
                         <NavLink
                           to={`/giao-vien/ket-qua/${result.attemptId}`}
                           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"

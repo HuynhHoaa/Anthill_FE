@@ -166,6 +166,77 @@ body {
   box-shadow: -10px 0 10px -10px rgba(15, 23, 42, 0.18);
 }
 
+/* ===== Bảng thành thẻ ở màn hẹp (class `stack-table`) ===== */
+/*
+ * Dưới 768px một bảng nhiều cột chỉ còn cách cuộn ngang, và cột điểm hay nút thì nằm ngoài màn hình. Ở đó mỗi
+ * dòng thành một thẻ: ô đầu (data-card="head") là tiêu đề, ô cuối (data-card="foot") là hàng nút, các ô còn lại
+ * xếp hai cột, nhãn lấy từ data-label. Chỉ là CSS, nên mỗi bảng chỉ cần thêm class và các thuộc tính đó.
+ * Các !important gỡ bề rộng tối thiểu, chiều cao dòng, cột dính phải và lề ô mà utility của từng trang đặt.
+ */
+@media (max-width: 47.99rem) {
+  .stack-table {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  .stack-table colgroup,
+  .stack-table thead {
+    display: none;
+  }
+
+  .stack-table tbody {
+    display: block;
+  }
+
+  .stack-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem 1rem;
+    height: auto !important;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .stack-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .stack-table td {
+    display: block !important;
+    min-width: 0;
+    padding: 0 !important;
+    position: static !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    white-space: normal !important;
+    text-align: left !important;
+    /* Email dài hay mã không có chỗ ngắt: cho gãy ở bất cứ đâu thay vì tràn ra ngoài thẻ. */
+    overflow-wrap: anywhere;
+  }
+
+  /* Ô con tự đặt nowrap (dòng "Khôi phục được tới …" của tài khoản chờ xoá) cũng phải được xuống dòng. */
+  .stack-table td * {
+    white-space: normal !important;
+  }
+
+  .stack-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.125rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+
+  .stack-table td[data-card='head'],
+  .stack-table td[data-card='foot'] {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ===== Gradient Text ===== */
 .gradient-text {
   background: linear-gradient(135deg, #6366F1, #8B5CF6);

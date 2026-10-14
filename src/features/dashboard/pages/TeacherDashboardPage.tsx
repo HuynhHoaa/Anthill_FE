@@ -188,7 +188,7 @@ export default function TeacherDashboardPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="stack-table w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50/60">
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 rounded-l-xl">Tên bài kiểm tra</th>
@@ -206,7 +206,7 @@ export default function TeacherDashboardPage() {
                       onClick={() => navigate(`/giao-vien/bai-kiem-tra/${exam.id}`)}
                       className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer"
                     >
-                      <td className="px-4 py-3.5">
+                      <td data-card="head" className="px-4 py-3.5">
                         <Link
                           to={`/giao-vien/bai-kiem-tra/${exam.id}`}
                           onClick={event => event.stopPropagation()}
@@ -216,19 +216,19 @@ export default function TeacherDashboardPage() {
                         </Link>
                         <p className="text-xs text-slate-400 mt-0.5">{getTopicLabel(exam.topic)}</p>
                       </td>
-                      <td className="px-4 py-3.5 whitespace-nowrap">
+                      <td data-label="Thời lượng" className="px-4 py-3.5 whitespace-nowrap">
                         <span className="flex items-center gap-1 text-slate-500">
                           <Clock size={13} />{formatDuration(exam.durationMinutes)}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-slate-700 whitespace-nowrap">{exam.totalQuestions} câu</td>
-                      <td className="px-4 py-3.5 whitespace-nowrap">
+                      <td data-label="Số câu" className="px-4 py-3.5 text-slate-700 whitespace-nowrap">{exam.totalQuestions} câu</td>
+                      <td data-label="Đã nộp" className="px-4 py-3.5 whitespace-nowrap">
                         <span className="flex items-center gap-1 text-slate-500">
                           <Users size={13} />{exam.submittedCount}/{exam.assignedCount} HS
                         </span>
                       </td>
-                      <td className="px-4 py-3.5"><LifecycleBadge lifecycle={exam.lifecycle} /></td>
-                      <td className="px-4 py-3.5 text-slate-400 text-xs whitespace-nowrap">{formatDateTime(exam.closeAt)}</td>
+                      <td data-label="Trạng thái" className="px-4 py-3.5"><LifecycleBadge lifecycle={exam.lifecycle} /></td>
+                      <td data-label="Hạn nộp" className="px-4 py-3.5 text-slate-400 text-xs whitespace-nowrap">{formatDateTime(exam.closeAt)}</td>
                     </tr>
                   ))}
                 </tbody>

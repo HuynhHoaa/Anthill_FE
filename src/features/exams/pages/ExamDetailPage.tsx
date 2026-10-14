@@ -158,7 +158,7 @@ function AssignmentRow({ assignment, maxScore, onReschedule, onRescheduleBlocked
 
   return (
     <tr className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-      <td className={`${cellClass} font-semibold text-slate-800 whitespace-nowrap`}>
+      <td data-card="head" className={`${cellClass} font-semibold text-slate-800 whitespace-nowrap`}>
         <span className="inline-flex items-center gap-2">
           {assignment.studentName}
           {/* Dòng của em đã bị xoá tài khoản vẫn ở lại cùng bài và điểm; không có nhãn thì một em chờ xoá
@@ -167,12 +167,12 @@ function AssignmentRow({ assignment, maxScore, onReschedule, onRescheduleBlocked
         </span>
       </td>
       {/* Tài khoản đã xoá không có mã thật (service đã quy mã giữ chỗ về rỗng). */}
-      <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>{assignment.studentCode || '—'}</td>
-      <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>{assignment.group}</td>
-      <td className={`${cellClass} whitespace-nowrap`}>
+      <td data-label="Mã học sinh" className={`${cellClass} text-slate-500 whitespace-nowrap`}>{assignment.studentCode || '—'}</td>
+      <td data-label="Nhóm lớp" className={`${cellClass} text-slate-500 whitespace-nowrap`}>{assignment.group}</td>
+      <td data-label="Trạng thái" className={`${cellClass} whitespace-nowrap`}>
         <StatusBadge status={assignment.status} />
       </td>
-      <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>
+      <td data-label="Khung giờ làm bài" className={`${cellClass} text-slate-500 whitespace-nowrap`}>
         <span className="block">
           {formatDateTime(assignment.openAt)} – {formatDateTime(assignment.closeAt)}
         </span>
@@ -181,13 +181,13 @@ function AssignmentRow({ assignment, maxScore, onReschedule, onRescheduleBlocked
           {assignment.scheduleLocked && <span className="text-amber-700 font-medium"> · đã khoá giờ</span>}
         </span>
       </td>
-      <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>
+      <td data-label="Bắt đầu" className={`${cellClass} text-slate-500 whitespace-nowrap`}>
         {assignment.startedAt ? formatDateTime(assignment.startedAt) : '—'}
       </td>
-      <td className={`${cellClass} text-slate-500 whitespace-nowrap`}>
+      <td data-label="Nộp lúc" className={`${cellClass} text-slate-500 whitespace-nowrap`}>
         {assignment.submittedAt ? formatDateTime(assignment.submittedAt) : '—'}
       </td>
-      <td className={`${cellClass} whitespace-nowrap`}>
+      <td data-label="Điểm" className={`${cellClass} whitespace-nowrap`}>
         {assignment.score !== undefined && scoreTone ? (
           <span className={`inline-flex items-center px-2.5 py-1 rounded-lg font-bold ${scoreTone.bg} ${scoreTone.color}`}>
             {formatScore(assignment.score)}
@@ -198,7 +198,7 @@ function AssignmentRow({ assignment, maxScore, onReschedule, onRescheduleBlocked
           <span className="text-slate-400">—</span>
         )}
       </td>
-      <td className={`${cellClass} text-right whitespace-nowrap`}>
+      <td data-card="foot" className={`${cellClass} text-right whitespace-nowrap`}>
         {/* aria-disabled thay vì disabled: nút vẫn focus được bằng bàn phím và chạm được trên điện thoại, và
             bấm vào thì hiện lý do. Nút `disabled` bị bỏ qua hoàn toàn nên lý do chỉ còn nằm trong tooltip. */}
         <button
@@ -671,7 +671,7 @@ export default function ExamDetailPage() {
               ) : (
                 <>
                   <TableScroller>
-                    <table className="w-full text-sm min-w-[1100px]">
+                    <table className="stack-table w-full text-sm min-w-[1100px]">
                       <thead className="bg-slate-50/60">
                         <tr>
                           <th className={headerCellClass}>Học sinh</th>

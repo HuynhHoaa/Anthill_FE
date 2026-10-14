@@ -161,7 +161,7 @@ export default function StudentDetailPage() {
         }`}
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[880px]">
+          <table className="stack-table w-full text-sm min-w-[880px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/60">
                 <th className={`${headerCellClass} text-left`}>Bài kiểm tra</th>
@@ -184,7 +184,7 @@ export default function StudentDetailPage() {
                     key={result.attemptId}
                     className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-b-0"
                   >
-                    <td className="px-5 py-4">
+                    <td data-card="head" className="px-5 py-4">
                       <NavLink
                         to={`/giao-vien/bai-kiem-tra/${result.examId}`}
                         title="Mở chi tiết bài kiểm tra"
@@ -193,10 +193,10 @@ export default function StudentDetailPage() {
                         {result.examTitle}
                       </NavLink>
                     </td>
-                    <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
+                    <td data-label="Ngày nộp" className="px-5 py-4 text-slate-600 whitespace-nowrap">
                       {isInProgress ? NO_VALUE : formatDateTime(result.submittedAt)}
                     </td>
-                    <td className="px-5 py-4">
+                    <td data-label="Điểm" className="px-5 py-4">
                       {isGraded ? (
                         <span
                           className={`inline-flex items-center px-2.5 py-1 rounded-lg font-bold ${scoreTone ? `${scoreTone.bg} ${scoreTone.color}` : 'bg-slate-50 text-slate-400'}`}
@@ -214,15 +214,15 @@ export default function StudentDetailPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
+                    <td data-label="Số câu đúng" className="px-5 py-4 text-slate-600 whitespace-nowrap">
                       {result.correctCount === null
                         ? NO_VALUE
                         : `${result.correctCount}/${result.totalQuestions} câu`}
                     </td>
-                    <td className="px-5 py-4">
+                    <td data-label="Trạng thái" className="px-5 py-4">
                       <StatusBadge status={result.status} />
                     </td>
-                    <td className="px-5 py-4 text-right">
+                    <td data-card="foot" className="px-5 py-4 text-right">
                       <NavLink
                         to={`/giao-vien/ket-qua/${result.attemptId}`}
                         title={`Xem chi tiết bài làm ${result.examTitle}`}

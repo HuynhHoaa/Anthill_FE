@@ -254,7 +254,7 @@ export default function StudentListPage() {
             }`}
           >
             <TableScroller>
-              <table className="w-full text-sm min-w-[920px]">
+              <table className="stack-table w-full text-sm min-w-[920px]">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/60">
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Học sinh</th>
@@ -280,7 +280,7 @@ export default function StudentListPage() {
                           isRetired ? 'text-slate-400' : ''
                         }`}
                       >
-                        <td className="px-5 py-4">
+                        <td data-card="head" className="px-5 py-4">
                           <div className="flex items-center gap-3">
                             <div
                               className={`w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0 ${
@@ -302,15 +302,15 @@ export default function StudentListPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-4 text-slate-600">
+                        <td data-label="Nhóm/lớp" className="px-5 py-4 text-slate-600">
                           <span className="inline-flex items-center gap-1.5">
                             <Users size={14} className="text-slate-400" /> {student.group}
                           </span>
                         </td>
-                        <td className="px-5 py-4 text-slate-500 whitespace-nowrap">
+                        <td data-label="Ngày tạo" className="px-5 py-4 text-slate-500 whitespace-nowrap">
                           {formatDate(student.createdAt)}
                         </td>
-                        <td className="px-5 py-4">
+                        <td data-label="Kết quả" className="px-5 py-4">
                           {student.completedExams > 0 ? (
                             <>
                               <p className={`font-bold ${scoreTone.color}`}>
@@ -324,7 +324,7 @@ export default function StudentListPage() {
                             <p className="text-xs text-slate-400">Chưa làm bài nào</p>
                           )}
                         </td>
-                        <td className="px-5 py-4">
+                        <td data-label="Trạng thái" className="px-5 py-4">
                           <StudentStatusPill status={student.status} deletionScheduledAt={student.deletionScheduledAt} />
                           {/* Mốc xoá hẳn phải đọc được mà không cần rê chuột — điện thoại không có
                               tooltip, và đây là trang mà lối "N tài khoản đang chờ xoá" dẫn tới. */}
@@ -334,7 +334,7 @@ export default function StudentListPage() {
                             </p>
                           )}
                         </td>
-                        <td className="px-5 py-4">
+                        <td data-card="foot" className="px-5 py-4">
                           <div className="flex items-center justify-end gap-2">
                             {student.status === 'pendingDeletion' && (
                               <button

@@ -46,7 +46,7 @@ export default function GroupStudentTable({
       }`}
     >
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[960px]">
+        <table className="stack-table w-full min-w-[960px]">
           <thead className="bg-slate-50/60">
             <tr>
               <th className={`${headerCellClass} text-left`}>Học sinh</th>
@@ -74,7 +74,7 @@ export default function GroupStudentTable({
                   key={student.id}
                   className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-b-0"
                 >
-                  <td className="px-5 py-4">
+                  <td data-card="head" className="px-5 py-4">
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${avatarTone.bg} ${avatarTone.text}`}
@@ -94,9 +94,9 @@ export default function GroupStudentTable({
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-4 text-sm font-medium text-slate-600">{student.code}</td>
-                  <td className="px-5 py-4 text-sm text-slate-500">{student.email}</td>
-                  <td className="px-5 py-4">
+                  <td data-label="Mã học sinh" className="px-5 py-4 text-sm font-medium text-slate-600">{student.code}</td>
+                  <td data-label="Email" className="px-5 py-4 text-sm text-slate-500">{student.email}</td>
+                  <td data-label="Điểm trung bình" className="px-5 py-4">
                     {student.completedExams > 0 ? (
                       <span
                         className={`inline-flex items-center px-2.5 py-1 rounded-lg text-sm font-bold ${scoreTone.bg} ${scoreTone.color}`}
@@ -107,13 +107,13 @@ export default function GroupStudentTable({
                       <span className="text-sm text-slate-400">Chưa có</span>
                     )}
                   </td>
-                  <td className="px-5 py-4 text-sm text-slate-600">{student.completedExams} bài</td>
-                  <td className="px-5 py-4">
+                  <td data-label="Bài đã làm" className="px-5 py-4 text-sm text-slate-600">{student.completedExams} bài</td>
+                  <td data-label="Trạng thái" className="px-5 py-4">
                     {/* Dùng chung một viên trạng thái với trang học sinh, để hai nơi không bao giờ
                         tô cùng một trạng thái bằng hai màu. */}
                     <StudentStatusPill status={student.status} deletionScheduledAt={student.deletionScheduledAt} />
                   </td>
-                  <td className="px-5 py-4">
+                  <td data-card="foot" className="px-5 py-4">
                     <div className="flex items-center justify-end gap-2">
                       <NavLink
                         to={studentLink}

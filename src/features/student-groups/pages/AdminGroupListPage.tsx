@@ -316,7 +316,7 @@ export default function AdminGroupListPage() {
                 thao tác 320px là vừa đủ cho "Công bố" + "Quản lý" + Sửa + Xoá của một lớp nháp (chia theo
                 phần trăm thì ở 1280–1536px nút bị bóp còn 18px và "Công bố" xuống hai dòng). Lớp và giáo
                 viên chia đều phần còn lại. */}
-            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[880px] xl:min-w-[1040px]">
+            <table ref={tableRef} className="stack-table w-full table-fixed text-sm min-w-[880px] xl:min-w-[1040px]">
               <colgroup>
                 <col />
                 <col className="w-24" />
@@ -338,7 +338,7 @@ export default function AdminGroupListPage() {
               <tbody>
                 {pageItems.map(group => (
                   <tr key={group.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-4">
+                    <td data-card="head" className="px-5 py-4">
                       <div className="flex items-start gap-2.5 max-w-[420px]">
                         <GroupHealthIndicator group={group} />
                         <div className="min-w-0">
@@ -357,20 +357,20 @@ export default function AdminGroupListPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
+                    <td data-label="Sĩ số" className="px-5 py-4">
                       <p className="font-semibold text-slate-800">{group.studentCount}</p>
                       <p className="text-xs text-slate-400 mt-0.5">học sinh</p>
                     </td>
-                    <td className="px-5 py-4">
+                    <td data-label="Giáo viên phụ trách" className="px-5 py-4">
                       <TeacherCell group={group} />
                     </td>
-                    <td className="px-5 py-4">
+                    <td data-label="Trạng thái" className="px-5 py-4">
                       <PublishStateBadge isPublished={group.isPublished} />
                     </td>
-                    <td className="px-5 py-4 text-slate-500 whitespace-nowrap max-xl:hidden">
+                    <td data-label="Ngày tạo" className="px-5 py-4 text-slate-500 whitespace-nowrap max-xl:hidden">
                       {formatDate(group.createdAt)}
                     </td>
-                    <td className="px-5 py-4">
+                    <td data-card="foot" className="px-5 py-4">
                       <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                         {!group.isPublished && (
                           <button

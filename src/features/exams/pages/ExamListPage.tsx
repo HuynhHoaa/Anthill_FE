@@ -254,19 +254,19 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
     // Chiều cao cố định: hàng chưa giao không có ô tiến độ nên thấp hơn hàng đã giao, và thanh trang
     // sẽ nhảy lên xuống tuỳ trang đó nhiều hay ít đề đã giao.
     <tr className="h-[77px] border-b border-slate-50 hover:bg-slate-50 transition-colors">
-      <td className="px-3 xl:px-5 py-3">
+      <td data-card="head" className="px-3 xl:px-5 py-3">
         <p className="font-semibold text-slate-800 line-clamp-2" title={exam.description || undefined}>
           {exam.title}
         </p>
       </td>
 
-      <td className="px-3 xl:px-5 py-3 text-slate-600">
+      <td data-label="Cấu hình" className="px-3 xl:px-5 py-3 text-slate-600">
         <p>{formatDuration(exam.durationMinutes)}</p>
         <p className="text-xs text-slate-400 mt-0.5">{exam.totalQuestions} câu</p>
       </td>
 
       {/* Cột phụ: dưới cỡ xl nhường chỗ cho Tiến độ và Trạng thái, hai cột cần thấy ngay không cuộn. */}
-      <td className="px-3 py-3 max-xl:hidden">
+      <td data-label="Độ khó" className="px-3 py-3 max-xl:hidden">
         {/*
           Nói tỷ lệ chứ không nói số câu: phép làm tròn từ tỷ lệ ra số câu do server giữ, nên một
           con số tự tính lại ở đây có thể lệch với đề thật sự được sinh ra. Cần số câu chính xác
@@ -287,7 +287,7 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         </div>
       </td>
 
-      <td className="px-3 xl:px-5 py-3 whitespace-nowrap">
+      <td data-label="Lịch" className="px-3 xl:px-5 py-3 whitespace-nowrap">
         <p className="text-xs text-slate-500" title={formatDateTime(exam.openAt)}>
           Mở <span className="font-semibold text-slate-600">{formatScheduleMoment(exam.openAt)}</span>
         </p>
@@ -296,11 +296,11 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         </p>
       </td>
 
-      <td className="px-3 py-3">
+      <td data-label="Số lớp" className="px-3 py-3">
         <ClassUsagePopover windows={exam.assignmentWindows} />
       </td>
 
-      <td className="px-3 py-3">
+      <td data-label="Đã nộp" className="px-3 py-3">
         {!hasAssignment && <p className="text-slate-400 whitespace-nowrap">Chưa giao</p>}
         {hasAssignment && !hasSubmission && submissionProgress}
         {hasAssignment && hasSubmission && (
@@ -315,12 +315,12 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         )}
       </td>
 
-      <td className="px-3 py-3">
+      <td data-label="Trạng thái" className="px-3 py-3">
         {/* Một trạng thái duy nhất, theo lịch chung của đề. Giờ mở/đóng riêng của từng lớp nằm ở trang chi tiết. */}
         <LifecycleBadge lifecycle={exam.lifecycle} />
       </td>
 
-      <td className="px-3 xl:px-5 py-3">
+      <td data-card="foot" className="px-3 xl:px-5 py-3">
         <div className="flex items-center justify-end gap-2">
           <NavLink
             to={`/giao-vien/bai-kiem-tra/${exam.id}`}
@@ -506,7 +506,7 @@ export default function ExamListPage() {
                   240px là vừa đủ cho "Chi tiết" + "Giao bài" + nút ba chấm. Tám cột cần 1100px; dưới cỡ xl
                   cột Độ khó ẩn đi và còn sáu cột chia vừa ~900px, hẹp hơn nữa thì cuộn ngang và cột thao
                   tác dính mép phải. */}
-              <table ref={tableRef} className="w-full table-fixed text-sm min-w-[760px] xl:min-w-[1100px]">
+              <table ref={tableRef} className="stack-table w-full table-fixed text-sm min-w-[760px] xl:min-w-[1100px]">
                 <colgroup>
                   <col className="w-[17%] xl:w-[18%]" />
                   <col className="w-[12%]" />
