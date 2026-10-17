@@ -139,11 +139,12 @@ và tuỳ chọn hiện kết quả còn sửa được), và trang có nút "Nh
 bản nháp mới. Lịch mở/đóng có luật khoá riêng theo giờ: đề đã giao mà còn dưới 2 giờ nữa là mở, hoặc đang
 mở, thì hai ô lịch bị tắt kèm một dòng giải thích; hết giờ đóng thì đổi lại được.
 
-**Bộ lọc trang Kết quả nằm trên URL** ([TeacherResultsPage.tsx](src/features/results/pages/TeacherResultsPage.tsx)).
-Bài kiểm tra, học sinh, nhóm lớp, trạng thái và số trang đọc thẳng từ query string (`bai-kiem-tra`,
-`hoc-sinh`, `nhom`, `trang-thai`, `trang`), không có state song song. Riêng ô từ khoá giữ bản đang gõ
-trong state và đẩy lên `q` sau 300ms. Chép link gửi cho đồng nghiệp là mở ra đúng bộ lọc; người nhận
-chưa đăng nhập thì đăng nhập xong vẫn về đúng link đó.
+**Xem bài làm đi theo lớp, không có bảng kết quả chung.** Giáo viên vào bài làm của một học sinh theo hai
+lối: Nhóm lớp → lớp → học sinh → bài làm, hoặc Bài kiểm tra → mở đề → thẻ lớp ([ExamTrackingPanel.tsx](src/features/exams/components/ExamTrackingPanel.tsx))
+→ học sinh → bài làm. Lớp đang xem nằm trên URL (`?lop=<mã lớp>`) nên quay lại từ trang bài làm vẫn đứng đúng lớp
+đó, và chép link gửi đồng nghiệp là mở ra đúng chỗ; người nhận chưa đăng nhập thì đăng nhập xong vẫn về đúng link.
+Trang bài làm ([ResultDetailPage.tsx](src/features/results/pages/ResultDetailPage.tsx)) có nút "Quay lại" theo lịch sử
+của trình duyệt; mở thẳng bằng đường dẫn thì quay về danh sách lớp.
 
 **Xoá mềm tài khoản học sinh** ([useStudentAccountActions.tsx](src/features/students/hooks/useStudentAccountActions.tsx),
 [studentService.ts](src/services/studentService.ts)). Không có lệnh xoá hẳn. Xoá là đưa vào danh sách chờ
