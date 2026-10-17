@@ -59,6 +59,7 @@ EduQuiz.Frontend/
 │   ├── components/
 │   │   ├── common/
 │   │   │   ├── Badge.tsx
+│   │   │   ├── CountUp.tsx            # con số chạy từ 0 / giá trị cũ tới giá trị mới (tổng quan); giảm chuyển động thì hiện thẳng
 │   │   │   ├── ComboboxInput.tsx      # ô nhập có danh sách gợi ý riêng (thay <datalist>); ô Chủ đề của câu hỏi
 │   │   │   ├── DateTimeInput.tsx      # ô ngày giờ dd/mm/yyyy + chọn giờ 00–23, phút 00–59 (thay <input type="datetime-local">, không phụ thuộc ngôn ngữ trình duyệt)
 │   │   │   ├── ConfirmDialog.tsx
@@ -68,9 +69,11 @@ EduQuiz.Frontend/
 │   │   │   ├── EmptyState.tsx
 │   │   │   ├── ErrorState.tsx
 │   │   │   ├── ImageUploader.tsx
+│   │   │   ├── InfoTip.tsx            # dấu chấm than đặt cuối tiêu đề, bấm mở khung giải thích (portal; Esc chỉ đóng khung, không đóng hộp thoại chứa nó)
 │   │   │   ├── Modal.tsx
 │   │   │   ├── Pagination.tsx
 │   │   │   ├── Skeleton.tsx
+│   │   │   ├── SlidingSegments.tsx    # thanh tab / nút chọn có vạch nền trượt sang mục mới (đo offsetLeft/offsetWidth của nút `data-tab-active`)
 │   │   │   ├── SlideSwap.tsx          # nội dung trượt qua lại khi đổi khoá (khung xem câu hỏi)
 │   │   │   └── Toast.tsx
 │   │   │
@@ -144,6 +147,7 @@ EduQuiz.Frontend/
 │   │   │   │   └── ExamDetailPage.tsx        # hai tab Theo dõi / Giao bài, nạp đề và lượt giao một lần
 │   │   │   ├── components/
 │   │   │   │   ├── AssignWindowFields.tsx    # cặp ô giờ mở – đóng dùng ở cả hai chỗ giao bài
+│   │   │   │   ├── ComposeShortfallNotice.tsx # khung vàng nằm lại trên danh sách khi Soạn tự động rút không đủ số câu (toast mờ đi nên dễ bị bỏ sót); ở lại tới khi bấm "Đã hiểu"
 │   │   │   │   ├── ComposeQuestionsDialog.tsx # "Soạn tự động": số câu từng mức → rút từ ngân hàng
 │   │   │   │   ├── DifficultyRatioBar.tsx
 │   │   │   │   ├── DifficultyRatioEditor.tsx
@@ -218,7 +222,7 @@ EduQuiz.Frontend/
 │   │   └── topicTheme.ts
 │   │
 │   ├── styles/
-│   │   └── index.css
+│   │   └── index.css              # kèm các hiệu ứng dùng chung: rowIn (hàng bảng vào lần lượt), stagger-in, bar-grow, animate-tab-in, animate-flash, animate-pop, animate-sheen, animate-float, hover-lift, nút lún khi bấm; tất cả tắt khi chọn giảm chuyển động
 │   │
 │   ├── types/
 │   │   └── index.ts                 # model dùng chung toàn app
