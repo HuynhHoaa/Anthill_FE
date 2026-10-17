@@ -66,6 +66,16 @@ export default function DashboardLayout({
     }
   }, [sidebarOpen])
 
+  // Escape đóng drawer, như mọi lớp phủ khác của app (hộp thoại, menu tài khoản).
+  useEffect(() => {
+    if (!sidebarOpen) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSidebarOpen(false)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [sidebarOpen])
+
   const handleLogout = () => {
     logout()
     navigate('/dang-nhap', { replace: true })

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { Bell, ChevronDown, LogOut, Menu, UserCircle } from 'lucide-react'
 import UserAvatar from '../common/UserAvatar'
+import { useDropdownMenu } from '../../hooks/useDropdownMenu'
 
 interface HeaderProps {
   title: string
@@ -22,30 +23,11 @@ interface HeaderProps {
 export default function Header({
   title, subtitle, userName, initials, avatarUrl, unreadCount, basePath, roleLabel, onOpenSidebar, onLogout, tools,
 }: HeaderProps) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const accountMenu = useDropdownMenu()
 
   const today = new Date().toLocaleDateString('vi-VN', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })
-
-  useEffect(() => {
-    if (!menuOpen) return
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false)
-    }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false)
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [menuOpen])
 
   return (
     <header className="bg-white border-b border-slate-100 px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-3 sticky top-0 z-20">
@@ -88,12 +70,12 @@ export default function Header({
           )}
         </NavLink>
 
-        <div className="relative" ref={menuRef}>
+        <div className="relative" {...accountMenu.containerProps}>
           <button
             type="button"
-            onClick={() => setMenuOpen(current => !current)}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
+            {...accountMenu.triggerProps}
+            // Dưới cỡ sm tên bị ẩn và nút chỉ còn chữ viết tắt: trình đọc màn hình đọc "NA" thì không biết là gì.
+            aria-label={userName ? `Tài khoản của ${userName}` : 'Tài khoản'}
             className="flex items-center gap-2 pl-1.5 pr-2 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
           >
             <UserAvatar
@@ -105,12 +87,15 @@ export default function Header({
             <span className="hidden sm:block text-sm font-semibold text-slate-700 max-w-32 truncate">
               {userName}
             </span>
-            <ChevronDown size={15} className={`text-slate-400 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown
+              size={15}
+              className={`text-slate-400 transition-transform ${accountMenu.open ? 'rotate-180' : ''}`}
+            />
           </button>
 
-          {menuOpen && (
+          {accountMenu.open && (
             <div
-              role="menu"
+              {...accountMenu.menuProps}
               className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-slate-100 shadow-lg overflow-hidden z-30 animate-fade-in"
             >
               <div className="px-4 py-3 border-b border-slate-50">
@@ -120,7 +105,7 @@ export default function Header({
               <Link
                 to={`${basePath}/ho-so`}
                 role="menuitem"
-                onClick={() => setMenuOpen(false)}
+                onClick={() => accountMenu.close(true)}
                 className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
               >
                 <UserCircle size={16} className="text-slate-400" />
@@ -129,7 +114,7 @@ export default function Header({
               <Link
                 to={`${basePath}/thong-bao`}
                 role="menuitem"
-                onClick={() => setMenuOpen(false)}
+                onClick={() => accountMenu.close(true)}
                 className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
               >
                 <Bell size={16} className="text-slate-400" />

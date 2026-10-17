@@ -100,7 +100,7 @@ export default function Sidebar({
         {!collapsed && (
           <div className="min-w-0">
             <p className="text-white text-sm font-semibold truncate">{userName}</p>
-            <p className="text-xs text-indigo-300">{roleLabel}</p>
+            <p className="text-xs text-indigo-300 whitespace-nowrap">{roleLabel}</p>
             {trimmedRoleDetail && (
               <p className="text-[11px] text-indigo-400 truncate">{trimmedRoleDetail}</p>
             )}
@@ -175,8 +175,10 @@ export default function Sidebar({
         <button
           type="button"
           title={collapsed ? 'Đăng xuất' : undefined}
-          className="sidebar-item w-full"
-          style={{ color: '#fca5a5' }}
+          className="sidebar-item"
+          // 100% rộng cộng hai lề 0.5rem của `.sidebar-item` thì tràn 16px và lệch phải 8px so với các mục
+          // khác; các mục kia là liên kết nên tự vừa khung, còn nút thì phải trừ lề.
+          style={{ color: '#fca5a5', width: 'calc(100% - 1rem)' }}
           onClick={onLogout}
         >
           <LogOut size={18} className="flex-shrink-0" />
