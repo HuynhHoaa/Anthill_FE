@@ -1,11 +1,13 @@
 /**
  * Câu chữ của các hộp xác nhận quanh câu hỏi — ngân hàng câu hỏi và trang sửa câu hỏi cùng dùng.
  */
+import ConsequenceList from '../../../components/common/ConsequenceList'
+import { questionDisplayTitle } from '../../../lib/questionTitle'
 import { difficultyLabels, type DifficultyLevel, type QuestionStatus } from '../../../types'
 
-function shorten(content: string, maxLength = 80): string {
-  const trimmed = content.trim()
-  return trimmed.length > maxLength ? `${trimmed.slice(0, maxLength)}…` : trimmed
+/** Tên câu hỏi để nhắc trong hộp xác nhận: tên đã đặt, hoặc phần đầu nội dung. */
+function labelOf(question: { title?: string; content: string }): string {
+  return questionDisplayTitle(question, 80)
 }
 
 /**
@@ -20,27 +22,27 @@ function shorten(content: string, maxLength = 80): string {
  * Quy tắc nằm ở đây để ngân hàng câu hỏi và trang sửa câu hỏi không thể mỗi nơi hỏi một kiểu.
  */
 export function questionStatusConfirmCopy(
-  question: { content: string; difficulty: DifficultyLevel },
+  question: { title?: string; content: string; difficulty: DifficultyLevel },
   nextStatus: QuestionStatus,
 ) {
   if (nextStatus !== 'hidden') return null
 
-  const label = shorten(question.content)
+  const label = labelOf(question)
   const difficulty = difficultyLabels[question.difficulty].toLowerCase()
 
   return {
     title: 'Ẩn câu hỏi',
-    message: `Câu hỏi "${label}" sẽ không được chọn khi hệ thống sinh đề từ giờ. Đề nào đang cần vừa đủ câu mức ${difficulty} có thể không giao thêm được cho tới khi bạn bổ sung câu khác. Đề đã phát và bài đã nộp giữ nguyên; bạn có thể hiện lại câu hỏi bất cứ lúc nào.`,
+    message: `Câu hỏi “${label}” sẽ không được chọn khi hệ thống sinh đề từ giờ.`,
+    details: (
+      <ConsequenceList
+        items={[
+          `Đề nào đang cần vừa đủ câu mức ${difficulty} có thể không giao thêm được cho tới khi bạn bổ sung câu khác.`,
+          'Đề đã phát và bài đã nộp giữ nguyên.',
+          'Bạn có thể hiện lại câu hỏi bất cứ lúc nào.',
+        ]}
+      />
+    ),
     confirmLabel: 'Ẩn câu hỏi',
-    tone: 'danger' as const,
-  }
-}
-
-export function questionDeleteConfirmCopy(question: { content: string; topic: string; difficulty: DifficultyLevel }) {
-  return {
-    title: 'Xoá câu hỏi',
-    message: `Câu hỏi "${shorten(question.content)}" (chủ đề ${question.topic}, mức ${difficultyLabels[question.difficulty].toLowerCase()}) sẽ bị xoá khỏi ngân hàng và không khôi phục được. Đề đã phát và bài đã nộp vẫn giữ nguyên câu này. Nếu chỉ muốn tạm ngừng dùng, hãy ẩn câu hỏi thay vì xoá.`,
-    confirmLabel: 'Xoá câu hỏi',
     tone: 'danger' as const,
   }
 }

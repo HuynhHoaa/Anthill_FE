@@ -63,9 +63,10 @@ interface AttemptSessionDto {
     content: string
     imageUrl?: string
     point: number
+    allowMultiple: boolean
     answers: { id: number; content: string; imageUrl?: string }[]
   }[]
-  savedAnswers: Record<string, number>
+  savedAnswers: Record<string, number[]>
   lastAppliedSeq: number
 }
 
@@ -74,6 +75,17 @@ interface AttemptTimeDto {
   expiresAt: string
   remainingSeconds: number
   status: string
+}
+
+/**
+ * Lựa chọn của học sinh dưới dạng server nhận: một mục cho mỗi câu, kèm tập ô đã chọn. Tập rỗng là bỏ chọn hết
+ * và vẫn phải gửi đi, nếu không lần bỏ chọn cuối của một câu không bao giờ tới server.
+ */
+function toSelections(answers: Record<number, number[]>): { questionId: number; answerIds: number[] }[] {
+  return Object.entries(answers).map(([questionId, answerIds]) => ({
+    questionId: Number(questionId),
+    answerIds,
+  }))
 }
 
 /**
@@ -114,6 +126,7 @@ function toSession(dto: AttemptSessionDto): AttemptSession {
       content: question.content,
       imageUrl: question.imageUrl,
       point: question.point,
+      allowMultiple: question.allowMultiple === true,
       answers: question.answers.map(answer => ({
         id: answer.id,
         content: answer.content,
@@ -123,7 +136,7 @@ function toSession(dto: AttemptSessionDto): AttemptSession {
 
     // JSON biến khoá số thành chuỗi; đổi lại thành số để các trang tra cứu bằng questionId.
     savedAnswers: Object.fromEntries(
-      Object.entries(dto.savedAnswers).map(([questionId, answerId]) => [Number(questionId), answerId]),
+      Object.entries(dto.savedAnswers).map(([questionId, answerIds]) => [Number(questionId), [...answerIds]]),
     ),
 
     lastAppliedSeq: dto.lastAppliedSeq,
@@ -210,15 +223,12 @@ export interface SaveAnswersResult {
  */
 export async function saveAnswers(
   attemptId: number,
-  answers: Record<number, number>,
+  answers: Record<number, number[]>,
   clientSeq: number,
 ): Promise<SaveAnswersResult> {
   return apiClient.put<SaveAnswersResult>(`/api/exam-attempts/${attemptId}/answers`, {
     clientSeq,
-    answers: Object.entries(answers).map(([questionId, answerId]) => ({
-      questionId: Number(questionId),
-      answerId,
-    })),
+    answers: toSelections(answers),
   })
 }
 
@@ -231,7 +241,7 @@ export async function saveAnswers(
  */
 export async function submitAttempt(
   attemptId: number,
-  answers: Record<number, number>,
+  answers: Record<number, number[]>,
   clientSeq: number,
 ): Promise<SubmitAttemptResult> {
   const dto = await apiClient.post<{
@@ -248,10 +258,7 @@ export async function submitAttempt(
     correctCount?: number
   }>(`/api/exam-attempts/${attemptId}/submit`, {
     clientSeq,
-    answers: Object.entries(answers).map(([questionId, answerId]) => ({
-      questionId: Number(questionId),
-      answerId,
-    })),
+    answers: toSelections(answers),
   })
 
   return {

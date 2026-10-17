@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   FileText, CheckSquare, Clock, PlayCircle, ChevronRight, Trophy, AlertCircle,
   Award, BookOpen, CalendarDays, Eye, Hourglass,
@@ -13,7 +13,8 @@ import { useAsync } from '../../../hooks/useAsync'
 import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { getStudentDashboard } from '../../../services/dashboardService'
 import { getCurrentUser } from '../../../services/authService'
-import { formatDateTime, formatScore } from '../../../lib/format'
+import { formatDateTime, formatScore, getScoreTone, STANDARD_SCORE } from '../../../lib/format'
+import { openOnRowClick } from '../../../lib/rowClick'
 import { getTopicLabel } from '../../../lib/topicTheme'
 import type { ResultSummary, StudentExamItem } from '../../../types'
 
@@ -72,24 +73,33 @@ function Countdown({ deadline }: { deadline: Date }) {
   return <span>{timeLeft}</span>
 }
 
-function ScoreRing({ score }: { score: number | null }) {
+function ScoreRing({ score, maxScore }: { score: number | null; maxScore: number | null }) {
   // score null nghĩa là đề đang giấu điểm chứ không phải được 0 — vẽ vòng xám trung tính, vì một
   // vòng đỏ ghi 0.0 sẽ khiến học sinh tưởng mình làm sai hết.
-  const { color, label } =
-    score === null ? { color: '#94A3B8', label: 'Chưa hiện' } :
-    score >= 8   ? { color: '#10B981', label: 'Giỏi' } :
-    score >= 6.5 ? { color: '#F59E0B', label: 'Khá' } :
-    score >= 5   ? { color: '#F97316', label: 'TB' } :
-                   { color: '#EF4444', label: 'Yếu' }
+  if (score === null) {
+    return (
+      <div className="flex flex-col items-center flex-shrink-0">
+        <div className="w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg bg-slate-50 text-slate-400 border-[2.5px] border-slate-300">
+          {formatScore(score)}
+        </div>
+        <span className="text-xs font-medium mt-1 text-slate-400">Chưa hiện</span>
+      </div>
+    )
+  }
+
+  // Xếp loại qua getScoreTone như mọi màn hình khác, quy về thang 10 theo điểm tối đa của chính đề này.
+  // Ngưỡng riêng ở đây từng chạy trên điểm thô: 40/100 hiện "Giỏi" khi ngưỡng cũ là 8.
+  const tone = getScoreTone(score, maxScore)
   return (
     <div className="flex flex-col items-center flex-shrink-0">
       <div
-        className="w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg"
-        style={{ background: `${color}18`, color, border: `2.5px solid ${color}` }}
+        className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg border-[2.5px] ${tone.bg} ${tone.color} ${tone.ring}`}
       >
         {formatScore(score)}
       </div>
-      <span className="text-xs font-medium mt-1" style={{ color }}>{label}</span>
+      <span className={`text-xs font-medium mt-1 ${tone.color}`}>{tone.label}</span>
+      {/* Hai đề khác điểm tối đa nằm cạnh nhau: không có "trên N" thì 50 xanh và 50 cam trông như một lỗi. */}
+      {maxScore !== null && <span className="text-[11px] text-slate-400">trên {formatScore(maxScore)}</span>}
     </div>
   )
 }
@@ -161,6 +171,7 @@ function OpenExamCard({ exam, index, now }: { exam: StudentExamItem; index: numb
 }
 
 function ResultRow({ result }: { result: ResultSummary }) {
+  const navigate = useNavigate()
   const isGraded = result.status === 'graded'
   // Bài đã chấm nhưng bị giấu kết quả thì không có số câu đúng để nói, chỉ còn mốc nộp bài.
   const gradedNote =
@@ -169,8 +180,11 @@ function ResultRow({ result }: { result: ResultSummary }) {
       : `${result.correctCount}/${result.totalQuestions} câu đúng · Nộp ${formatDateTime(result.submittedAt)}`
 
   return (
-    <div className="flex flex-wrap items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
-      {isGraded ? <ScoreRing score={result.score} /> : <PendingRing />}
+    <div
+      onClick={openOnRowClick(() => navigate(`/hoc-sinh/ket-qua/${result.attemptId}`))}
+      className="flex flex-wrap items-center gap-4 px-5 py-4 hover:bg-indigo-100/70 transition-colors cursor-pointer"
+    >
+      {isGraded ? <ScoreRing score={result.score} maxScore={result.maxScore} /> : <PendingRing />}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-slate-800 truncate">{result.examTitle}</p>
         <p className="text-xs text-slate-400 mt-0.5">
@@ -269,11 +283,15 @@ export default function StudentDashboardPage() {
             ? <>Bạn đã hoàn thành hết bài được giao. Cùng xem lại kết quả nhé!</>
             : <>Hiện không có bài kiểm tra nào đang mở dành cho bạn.</>
 
+  // Hai ô tổng hợp đã quy về thang 10 (server chia từng bài cho điểm tối đa của nó): ghi rõ thang.
+  const onStandardScale = (value: number | null | undefined) =>
+    value === null || value === undefined ? formatScore(value) : `${formatScore(value)}/${STANDARD_SCORE}`
+
   const heroPills = [
     { icon: FileText,    value: String(stats?.assignedCount ?? 0),      label: 'Được giao', background: 'rgba(255,255,255,0.15)' },
     { icon: CheckSquare, value: String(stats?.completedCount ?? 0),     label: 'Đã xong',   background: 'rgba(16,185,129,0.3)' },
-    { icon: Trophy,      value: formatScore(stats?.averageScore),     label: 'Điểm TB',   background: 'rgba(245,158,11,0.3)' },
-    { icon: Award,       value: formatScore(stats?.bestScore),        label: 'Cao nhất',  background: 'rgba(59,130,246,0.35)' },
+    { icon: Trophy,      value: onStandardScale(stats?.averageScore),       label: 'Điểm TB',   background: 'rgba(245,158,11,0.3)' },
+    { icon: Award,       value: onStandardScale(stats?.bestScore),          label: 'Cao nhất',  background: 'rgba(59,130,246,0.35)' },
   ]
 
   return (
@@ -389,7 +407,7 @@ export default function StudentDashboardPage() {
                   <Link
                     key={exam.assignmentId}
                     to={`/hoc-sinh/bai-kiem-tra/${exam.assignmentId}`}
-                    className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-slate-50 transition-colors"
+                    className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-indigo-100/70 transition-colors"
                   >
                     <div className="flex items-center gap-4 min-w-0">
                       <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0">

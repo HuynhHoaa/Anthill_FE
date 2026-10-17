@@ -3,12 +3,16 @@
  * Dùng sessionStorage vì bản nháp chỉ có nghĩa trong đúng phiên làm việc đó.
  */
 
+import { isClassAssignmentDraft, type ClassAssignmentDraft } from './classAssignment'
+
 export interface ExamFormState {
   title: string
   description: string
   durationMinutes: number
   totalQuestions: number
-  pointPerQuestion: number
+  pointEasy: number
+  pointMedium: number
+  pointHard: number
   topic: string
   easyPercentage: number
   mediumPercentage: number
@@ -24,6 +28,8 @@ export interface ExamBuilderDraft {
   /** null nghĩa là bản nháp của trang tạo mới, số là mã đề đang sửa. */
   examId: number | null
   form: ExamFormState
+  /** Lớp đã chọn ở tab Giao bài. Vắng ở nháp cũ hơn tab này, hoặc khi chưa chọn gì. */
+  assignment?: ClassAssignmentDraft
   savedAt: number
 }
 
@@ -45,7 +51,7 @@ const stringFields: (keyof ExamFormState)[] = [
   'title', 'description', 'topic', 'openAtLocal', 'closeAtLocal',
 ]
 const numberFields: (keyof ExamFormState)[] = [
-  'durationMinutes', 'totalQuestions', 'pointPerQuestion',
+  'durationMinutes', 'totalQuestions', 'pointEasy', 'pointMedium', 'pointHard',
   'easyPercentage', 'mediumPercentage', 'hardPercentage',
 ]
 const booleanFields: (keyof ExamFormState)[] = [
@@ -84,6 +90,7 @@ export function readExamBuilderDraft(examId: number | null): ExamBuilderDraft | 
     const savedExamId = candidate.examId
     const savedAt = candidate.savedAt
     const savedForm = candidate.form
+    const savedAssignment = candidate.assignment
 
     if (savedExamId !== null && typeof savedExamId !== 'number') return undefined
     if (typeof savedAt !== 'number' || !Number.isFinite(savedAt)) return undefined
@@ -92,7 +99,12 @@ export function readExamBuilderDraft(examId: number | null): ExamBuilderDraft | 
     if (savedExamId !== examId) return undefined
     if (Date.now() - savedAt > DRAFT_MAX_AGE_MS) return undefined
 
-    return { examId: savedExamId, form: savedForm, savedAt }
+    return {
+      examId: savedExamId,
+      form: savedForm,
+      assignment: isClassAssignmentDraft(savedAssignment) ? savedAssignment : undefined,
+      savedAt,
+    }
   } catch {
     return undefined
   }

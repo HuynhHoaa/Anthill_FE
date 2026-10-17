@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { Bell, ChevronDown, LogOut, Menu, UserCircle } from 'lucide-react'
+import UserAvatar from '../common/UserAvatar'
 
 interface HeaderProps {
   title: string
   subtitle?: string
   userName: string
   initials: string
+  avatarUrl?: string
   unreadCount: number
   /** Gốc đường dẫn của vai trò, ví dụ '/giao-vien'. Không có dấu gạch chéo cuối. */
   basePath: string
@@ -18,7 +20,7 @@ interface HeaderProps {
 }
 
 export default function Header({
-  title, subtitle, userName, initials, unreadCount, basePath, roleLabel, onOpenSidebar, onLogout, tools,
+  title, subtitle, userName, initials, avatarUrl, unreadCount, basePath, roleLabel, onOpenSidebar, onLogout, tools,
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -77,9 +79,12 @@ export default function Header({
         >
           <Bell size={18} />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
+            <>
+              <span aria-hidden="true" className="absolute -top-1 -right-1 min-w-4 h-4 rounded-full bg-red-400 opacity-60 animate-ping motion-reduce:animate-none" />
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            </>
           )}
         </NavLink>
 
@@ -91,12 +96,12 @@ export default function Header({
             aria-expanded={menuOpen}
             className="flex items-center gap-2 pl-1.5 pr-2 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
           >
-            <span
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs"
+            <UserAvatar
+              avatarUrl={avatarUrl}
+              initials={initials}
+              className="w-8 h-8 rounded-lg text-xs"
               style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)' }}
-            >
-              {initials}
-            </span>
+            />
             <span className="hidden sm:block text-sm font-semibold text-slate-700 max-w-32 truncate">
               {userName}
             </span>

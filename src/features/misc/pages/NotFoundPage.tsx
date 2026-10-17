@@ -28,7 +28,6 @@ const quickLinks: Record<UserRole, QuickLink[]> = {
   teacher: [
     { to: '/giao-vien/bai-kiem-tra', label: 'Bài kiểm tra', icon: FileText },
     { to: '/giao-vien/cau-hoi', label: 'Ngân hàng câu hỏi', icon: BookOpen },
-    { to: '/giao-vien/ket-qua', label: 'Kết quả', icon: BarChart3 },
   ],
   student: [
     { to: '/hoc-sinh/bai-kiem-tra', label: 'Bài kiểm tra của tôi', icon: FileText },

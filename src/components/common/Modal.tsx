@@ -5,22 +5,35 @@ interface ModalProps {
   open: boolean
   title: string
   description?: string
+  /** Biểu tượng nhỏ đặt trong ô màu cạnh tiêu đề — dùng cho hộp là một "công cụ" (Soạn tự động...), không cần cho hộp xác nhận. */
+  icon?: ReactNode
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
+  /**
+   * Thân hộp không đệm và không tự cuộn: nội dung tự chia vùng cuộn của nó (hộp hai cột, danh sách bên trái
+   * và phần xem bên phải cuộn riêng). Nội dung phải tự giữ một chiều cao xác định.
+   */
+  flush?: boolean
   /**
    * `false` khi hộp đang giữ thứ duy nhất không lấy lại được — ví dụ mật khẩu vừa cấp. Khi đó ESC,
    * bấm ra ngoài và nút X đều không đóng hộp; chỉ nút trong phần chân hộp mới đóng được, để một cú
    * chạm trượt trên điện thoại không làm mất thứ người dùng chưa kịp chép.
    */
   dismissible?: boolean
+  /**
+   * `false` bỏ nút X ở góc hộp (Esc và bấm ra ngoài vẫn đóng được khi `dismissible`). Dùng cho hộp đã có nút Huỷ ở chân:
+   * hai lối đóng cùng một việc là thừa.
+   */
+  showCloseButton?: boolean
 }
 
 const panelWidthClass: Record<NonNullable<ModalProps['size']>, string> = {
   sm: 'max-w-md',
   md: 'max-w-xl',
   lg: 'max-w-3xl',
+  xl: 'max-w-5xl',
 }
 
 const focusableSelector =
@@ -30,11 +43,14 @@ export default function Modal({
   open,
   title,
   description,
+  icon,
   onClose,
   children,
   footer,
   size = 'md',
+  flush = false,
   dismissible = true,
+  showCloseButton = true,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -124,11 +140,22 @@ export default function Modal({
         className={`w-full ${panelWidthClass[size]} max-h-[90vh] flex flex-col bg-white rounded-3xl border border-slate-100 shadow-xl animate-modal-in outline-none`}
       >
         <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 border-b border-slate-100">
-          <div className="min-w-0">
-            <h2 className="text-base font-bold text-slate-800">{title}</h2>
-            {description && <p className="text-sm text-slate-500 mt-1 leading-relaxed">{description}</p>}
+          <div className="min-w-0 flex items-start gap-3">
+            {icon && (
+              <span
+                aria-hidden="true"
+                className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white shadow-sm"
+                style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+              >
+                {icon}
+              </span>
+            )}
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-slate-800">{title}</h2>
+              {description && <p className="text-sm text-slate-500 mt-1 leading-relaxed">{description}</p>}
+            </div>
           </div>
-          {dismissible && (
+          {dismissible && showCloseButton && (
             <button
               type="button"
               onClick={onClose}
@@ -140,7 +167,7 @@ export default function Modal({
           )}
         </div>
 
-        <div className="px-6 py-5 overflow-y-auto">{children}</div>
+        <div className={flush ? 'overflow-hidden' : 'px-6 py-5 overflow-y-auto'}>{children}</div>
 
         {footer && (
           <div className="px-6 py-4 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2.5">

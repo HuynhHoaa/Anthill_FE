@@ -1,6 +1,6 @@
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
-import { formatScore, roundToOneDecimal } from '../../../lib/format'
+import { formatScore, roundScore, STANDARD_SCORE, toStandardScale } from '../../../lib/format'
 import { listMyResults } from '../../../services/resultService'
 
 /** Lấy rộng tay để tính thống kê trên toàn bộ lượt làm bài của học sinh. */
@@ -36,15 +36,16 @@ export default function StudentScoreSummary() {
   const gradedResults = data.items.filter(result => result.status === 'graded')
 
   // Bài đã chấm vẫn có thể bị giấu điểm. Cộng những bài đó vào như điểm 0 sẽ kéo trung bình xuống
-  // và học sinh không có cách nào biết con số mình đang đọc bị pha loãng, nên loại hẳn chúng ra.
+  // và học sinh không có cách nào biết con số mình đang đọc bị pha loãng, nên loại hẳn chúng ra. Mỗi điểm
+  // quy về thang 10 theo điểm tối đa của đề đó trước khi gộp: đề 9 điểm và đề cũ chấm trên 100 không cộng thô.
   const visibleScores = gradedResults
-    .map(result => result.score)
+    .map(result => (result.score === null ? null : toStandardScale(result.score, result.maxScore)))
     .filter((score): score is number => score !== null)
 
   const hasScore = visibleScores.length > 0
   // Mảng rỗng thì không chia và không gọi Math.max để tránh NaN với -Infinity
   const averageScore = hasScore
-    ? roundToOneDecimal(visibleScores.reduce((sum, score) => sum + score, 0) / visibleScores.length)
+    ? roundScore(visibleScores.reduce((sum, score) => sum + score, 0) / visibleScores.length)
     : null
   const bestScore = hasScore ? Math.max(...visibleScores) : null
 
@@ -69,8 +70,8 @@ export default function StudentScoreSummary() {
 
   const summaryItems = [
     { label: 'Bài đã làm', value: `${data.total}` },
-    { label: 'Điểm trung bình', value: formatScore(averageScore) },
-    { label: 'Điểm cao nhất', value: formatScore(bestScore) },
+    { label: 'Điểm trung bình', value: `${formatScore(averageScore)}/${STANDARD_SCORE}` },
+    { label: 'Điểm cao nhất', value: `${formatScore(bestScore)}/${STANDARD_SCORE}` },
   ]
 
   return (

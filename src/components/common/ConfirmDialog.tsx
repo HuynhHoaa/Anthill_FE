@@ -23,6 +23,8 @@ interface ConfirmDialogProps {
   confirmLabel?: string
   cancelLabel?: string
   tone?: 'danger' | 'primary'
+  /** `false`: Enter không xác nhận (xem `ConfirmOptions.enterConfirms`). */
+  enterConfirms?: boolean
   loading?: boolean
   /** Lỗi của lần xác nhận vừa rồi. Hiện ngay trong hộp để người dùng thử lại mà không phải mở lại. */
   error?: string | null
@@ -40,6 +42,7 @@ export default function ConfirmDialog({
   confirmLabel = 'Xác nhận',
   cancelLabel = 'Huỷ',
   tone = 'primary',
+  enterConfirms = true,
   loading = false,
   error = null,
   confirmDisabled = false,
@@ -57,8 +60,8 @@ export default function ConfirmDialog({
 
   // Phím Enter đọc trạng thái qua ref: listener chỉ gắn một lần mỗi lần mở, nên nếu đọc thẳng
   // biến trong closure thì nó mãi thấy nút xác nhận ở trạng thái lúc vừa mở.
-  const latestRef = useRef({ blocked, onConfirm })
-  latestRef.current = { blocked, onConfirm }
+  const latestRef = useRef({ blocked, onConfirm, enterConfirms })
+  latestRef.current = { blocked, onConfirm, enterConfirms }
 
   // Đưa tiêu điểm vào trong hộp ngay khi mở: có ô nhập thì vào ô nhập, không thì vào thân hộp để
   // Tab đi tiếp tới hai nút. Để tiêu điểm nằm lại trên nút đã mở hộp thì Enter lần nữa sẽ bấm lại
@@ -85,6 +88,7 @@ export default function ConfirmDialog({
       if (!dialog || !(target instanceof Node) || !dialog.contains(target)) return
       // Nút và liên kết tự xử lý Enter theo cách của trình duyệt — Enter trên nút Huỷ phải là Huỷ.
       if (target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement) return
+      if (!latestRef.current.enterConfirms) return
       event.preventDefault()
       if (latestRef.current.blocked) return
       latestRef.current.onConfirm()
@@ -104,6 +108,8 @@ export default function ConfirmDialog({
       open={open}
       title={title}
       size="sm"
+      // Hộp xác nhận đã có nút Huỷ ở chân, nên không thêm nút X.
+      showCloseButton={false}
       onClose={() => {
         if (!loading) onCancel()
       }}

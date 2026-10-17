@@ -49,6 +49,7 @@ export default function DashboardLayout({
   const currentUser = getCurrentUser()
   const userName = currentUser?.fullName ?? ''
   const initials = getInitials(userName)
+  const avatarUrl = currentUser?.avatarUrl
 
   // Đổi trang thì đóng drawer
   useEffect(() => {
@@ -78,6 +79,7 @@ export default function DashboardLayout({
         onLogout={handleLogout}
         userName={userName}
         initials={initials}
+        avatarUrl={avatarUrl}
         unreadCount={unreadCount}
         basePath={basePath}
         roleLabel={roleLabel}
@@ -102,6 +104,7 @@ export default function DashboardLayout({
           subtitle={pageSubtitle}
           userName={userName}
           initials={initials}
+          avatarUrl={avatarUrl}
           unreadCount={unreadCount}
           basePath={basePath}
           roleLabel={roleLabel}

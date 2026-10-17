@@ -59,6 +59,9 @@ EduQuiz.Frontend/
 │   ├── components/
 │   │   ├── common/
 │   │   │   ├── Badge.tsx
+│   │   │   ├── CountUp.tsx            # con số chạy từ 0 / giá trị cũ tới giá trị mới (tổng quan); giảm chuyển động thì hiện thẳng
+│   │   │   ├── ComboboxInput.tsx      # ô nhập có danh sách gợi ý riêng (thay <datalist>); ô Chủ đề của câu hỏi
+│   │   │   ├── DateTimeInput.tsx      # ô ngày giờ dd/mm/yyyy + chọn giờ 00–23, phút 00–59 (thay <input type="datetime-local">, không phụ thuộc ngôn ngữ trình duyệt)
 │   │   │   ├── ConfirmDialog.tsx
 │   │   │   ├── ConfirmProvider.tsx
 │   │   │   ├── ConnectionBanner.tsx   # dải "Đang kết nối lại..." khi mất realtime quá 4 giây
@@ -66,9 +69,12 @@ EduQuiz.Frontend/
 │   │   │   ├── EmptyState.tsx
 │   │   │   ├── ErrorState.tsx
 │   │   │   ├── ImageUploader.tsx
+│   │   │   ├── InfoTip.tsx            # dấu chấm than đặt cuối tiêu đề, bấm mở khung giải thích (portal; Esc chỉ đóng khung, không đóng hộp thoại chứa nó)
 │   │   │   ├── Modal.tsx
 │   │   │   ├── Pagination.tsx
 │   │   │   ├── Skeleton.tsx
+│   │   │   ├── SlidingSegments.tsx    # thanh tab / nút chọn có vạch nền trượt sang mục mới (đo offsetLeft/offsetWidth của nút `data-tab-active`)
+│   │   │   ├── SlideSwap.tsx          # nội dung trượt qua lại khi đổi khoá (khung xem câu hỏi)
 │   │   │   └── Toast.tsx
 │   │   │
 │   │   └── layout/
@@ -126,7 +132,7 @@ EduQuiz.Frontend/
 │   │   ├── question-bank/
 │   │   │   ├── pages/
 │   │   │   │   ├── QuestionBankPage.tsx
-│   │   │   │   └── QuestionEditorPage.tsx    # tạo và sửa
+│   │   │   │   └── QuestionEditorPage.tsx    # tạo và sửa; ba tab Nội dung câu hỏi / Đáp án / Xem trước, nút quay lại ở thanh tiêu đề
 │   │   │   ├── components/
 │   │   │   │   ├── AnswerEditorRow.tsx
 │   │   │   │   └── QuestionPreview.tsx
@@ -135,18 +141,38 @@ EduQuiz.Frontend/
 │   │   ├── exams/
 │   │   │   ├── pages/
 │   │   │   │   ├── ExamListPage.tsx
-│   │   │   │   ├── ExamBuilderPage.tsx       # tạo và sửa
-│   │   │   │   ├── ExamDetailPage.tsx
-│   │   │   │   └── ExamAssignPage.tsx
+│   │   │   │   ├── ExamBuilderEntry.tsx      # cửa vào của /tao và /:id/sua: chọn trình soạn đúng kiểu đề
+│   │   │   │   ├── ExamQuestionListBuilderPage.tsx  # soạn đề theo danh sách câu hỏi; ba tab Cấu hình / Nội dung / Giao bài (mỗi tab có icon)
+│   │   │   │   ├── ExamBuilderPage.tsx       # soạn đề theo ma trận (đề cũ)
+│   │   │   │   └── ExamDetailPage.tsx        # hai tab Theo dõi / Giao bài, nạp đề và lượt giao một lần
 │   │   │   ├── components/
+│   │   │   │   ├── AssignWindowFields.tsx    # cặp ô giờ mở – đóng dùng ở cả hai chỗ giao bài
+│   │   │   │   ├── ComposeShortfallNotice.tsx # khung vàng nằm lại trên danh sách khi Soạn tự động rút không đủ số câu (toast mờ đi nên dễ bị bỏ sót); ở lại tới khi bấm "Đã hiểu"
+│   │   │   │   ├── ComposeQuestionsDialog.tsx # "Soạn tự động": số câu từng mức → rút từ ngân hàng
 │   │   │   │   ├── DifficultyRatioBar.tsx
 │   │   │   │   ├── DifficultyRatioEditor.tsx
-│   │   │   │   └── FieldError.tsx
+│   │   │   │   ├── ExamAssignPanel.tsx       # tab Giao bài của trang chi tiết
+│   │   │   │   ├── ExamClassAssignment.tsx   # tab Giao bài của form tạo đề (chỉ giao theo lớp)
+│   │   │   │   ├── ExamPaperSplitPanel.tsx   # mục "Chia đề cho mỗi lớp" ở tab Cấu hình của form soạn: số đề, số câu và tỷ lệ mỗi đề, điểm theo mức (tự tính, mọi đề nhỏ đúng 10 nhờ điểm cộng thêm 0.01 cho vài câu mức cao nhất), xem trước trùng/dư
+│   │   │   │   ├── ExamPaperViewer.tsx       # tab Nội dung của đề chia nhiều đề: xem đề lớn hoặc các câu của từng đề nhỏ theo lớp và mã đề
+│   │   │   │   ├── ExamPapersCard.tsx        # thẻ "Chia đề" của trang chi tiết: kế hoạch chia và số em mỗi đề của từng lớp (chỉ giáo viên)
+│   │   │   │   ├── ExamQuestionCard.tsx      # một câu trong đề dạng thẻ: nội dung, đáp án, ô điểm
+│   │   │   │   ├── ExamQuestionListSummary.tsx # khối "Câu hỏi của đề" ở trang chi tiết
+│   │   │   │   ├── ExamTrackingPanel.tsx     # tab Theo dõi của trang chi tiết
+│   │   │   │   ├── FieldError.tsx
+│   │   │   │   ├── QuestionBody.tsx          # tên (nếu đã đặt) + nội dung + ảnh + đáp án của một câu, dùng chung thẻ và khung xem
+│   │   │   │   └── QuestionPickerDialog.tsx  # chọn câu từ ngân hàng; bấm dòng để xem, bấm ô vuông để chọn; kéo để nạp thêm, không phân trang; lọc "Lớp đã nhận" (ẩn câu lớp đó đã nhận ở đề trước)
 │   │   │   └── utils/
 │   │   │       ├── blueprintRatio.ts
-│   │   │       ├── examConfirmations.ts
-│   │   │       ├── examDraftStorage.ts
-│   │   │       └── examScheduleFormat.ts
+│   │   │       ├── classAssignment.ts
+│   │   │       ├── examConfirmations.tsx     # câu chữ các hộp xác nhận: câu dẫn ngắn + khối nhãn — giá trị + gạch đầu dòng
+│   │   │       ├── examDraftStorage.ts       # nháp form ma trận
+│   │   │       ├── examListDraftStorage.ts   # nháp form theo danh sách (kèm câu đã chọn và lớp đã chọn)
+│   │   │       ├── examScheduleFormat.ts
+│   │   │       ├── examScoring.ts
+│   │   │       ├── paperPlan.ts              # tính trước việc chia đề lớn thành N đề nhỏ (khớp PaperPlanner của server)
+│   │   │       ├── paperSpec.ts              # cấu hình chia đề trong form: mặc định, gợi ý từ đề lớn, điểm theo mức và điểm cộng thêm (`bonusUnits`)
+│   │   │       └── questionListScoring.ts    # tổng điểm, đếm theo mức, chia đều / chia theo mức độ
 │   │   │
 │   │   ├── exam-taking/
 │   │   │   ├── pages/
@@ -159,7 +185,6 @@ EduQuiz.Frontend/
 │   │   │
 │   │   ├── results/
 │   │   │   ├── pages/
-│   │   │   │   ├── TeacherResultsPage.tsx
 │   │   │   │   ├── StudentResultsPage.tsx
 │   │   │   │   └── ResultDetailPage.tsx      # dùng chung, tham số audience
 │   │   │   └── components/ScoreRing.tsx
@@ -193,10 +218,11 @@ EduQuiz.Frontend/
 │   ├── lib/
 │   │   ├── apiClient.ts
 │   │   ├── format.ts
+│   │   ├── questionTitle.ts          # tên hiển thị của câu hỏi: tên đã đặt, hoặc phần đầu nội dung
 │   │   └── topicTheme.ts
 │   │
 │   ├── styles/
-│   │   └── index.css
+│   │   └── index.css              # kèm các hiệu ứng dùng chung: rowIn (hàng bảng vào lần lượt), stagger-in, bar-grow, animate-tab-in, animate-flash, animate-pop, animate-sheen, animate-float, hover-lift, nút lún khi bấm; tất cả tắt khi chọn giảm chuyển động
 │   │
 │   ├── types/
 │   │   └── index.ts                 # model dùng chung toàn app
@@ -240,10 +266,10 @@ URL dùng tiếng Việt không dấu. Mỗi nhóm route được bọc trong `R
 - Edit Question — `/giao-vien/cau-hoi/:id/sua`.
 - Exam List — `/giao-vien/bai-kiem-tra`.
 - Exam Builder — `/giao-vien/bai-kiem-tra/tao`, `/giao-vien/bai-kiem-tra/:id/sua`.
-- Exam Detail — `/giao-vien/bai-kiem-tra/:id`.
-- Assign Exam — `/giao-vien/bai-kiem-tra/:id/giao-bai`.
-- Exam Results — `/giao-vien/ket-qua`.
-- Result Detail — `/giao-vien/ket-qua/:attemptId`.
+- Exam Detail — `/giao-vien/bai-kiem-tra/:id`, hai tab Theo dõi và Giao bài; `?tab=giao-bai` mở thẳng tab Giao bài.
+  Địa chỉ cũ `/giao-vien/bai-kiem-tra/:id/giao-bai` chuyển hướng về đó.
+- Result Detail — `/giao-vien/ket-qua/:attemptId`. Không còn bảng kết quả chung; địa chỉ `/giao-vien/ket-qua` chuyển về
+  danh sách lớp. Vào bài làm từ hồ sơ học sinh (lớp → học sinh) hoặc từ tab Theo dõi của bài kiểm tra (đề → lớp → học sinh).
 
 ### Student Pages (`/hoc-sinh`)
 
@@ -297,7 +323,7 @@ Teacher Dashboard
 → Save
 ```
 
-Ảnh câu hỏi và ảnh đáp án đi qua `ImageUploader`: chọn hoặc kéo thả là upload ngay qua `POST /api/uploads/images` (kiểm tra trước đuôi file, loại ảnh và trần 4 MB giống server), hiện ảnh xem trước kèm trạng thái đang tải, cho huỷ, đổi hoặc xoá ảnh, và hiện nguyên thông điệp lỗi của server. Còn ô ảnh nào đang tải thì nút lưu câu hỏi bị khoá. Form chỉ giữ đường dẫn tương đối server trả về; mọi chỗ vẽ ảnh (ngân hàng câu hỏi, trình soạn, làm bài, xem lại kết quả) ghép đường dẫn với `VITE_API_BASE_URL` qua `resolveMediaUrl`. Ảnh đã tải lên mà không được lưu hoặc bị thay thì không bị xoá từ giao diện, vì bản đề đã sinh vẫn có thể trỏ tới ảnh cũ.
+Ảnh câu hỏi và ảnh đáp án đi qua `ImageUploader`: chọn hoặc kéo thả là upload ngay qua `POST /api/uploads/images` (kiểm tra trước đuôi file, loại ảnh và trần 4 MB giống server), hiện ảnh xem trước kèm trạng thái đang tải, cho huỷ, đổi hoặc xoá ảnh, và hiện nguyên thông điệp lỗi của server. Ảnh của đáp án dùng kiểu thu nhỏ (`compact`), ảnh của câu hỏi giữ khung kéo thả đầy đủ. Còn ô ảnh nào đang tải thì nút lưu câu hỏi bị khoá; ba tab của trình soạn luôn nằm trong DOM (chỉ ẩn) để đổi tab không huỷ lượt tải. Form chỉ giữ đường dẫn tương đối server trả về; mọi chỗ vẽ ảnh (ngân hàng câu hỏi, trình soạn, làm bài, xem lại kết quả) ghép đường dẫn với `VITE_API_BASE_URL` qua `resolveMediaUrl`. Ảnh đã tải lên mà không được lưu hoặc bị thay thì không bị xoá từ giao diện, vì bản đề đã sinh vẫn có thể trỏ tới ảnh cũ.
 
 ### 5.4. Teacher Creates Exam Blueprint
 
@@ -306,8 +332,9 @@ Teacher Dashboard
 → Bài kiểm tra
 → Tạo bài kiểm tra
 → Nhập tên, mô tả, thời gian làm bài, lịch mở/đóng chung
-→ Chọn tổng số câu, chủ đề, điểm mỗi câu
+→ Chọn tổng số câu, chủ đề
 → Nhập tỷ lệ Easy / Medium / Hard (có preset và nút cân bằng về 100%)
+→ Nhập điểm một câu ở từng mức độ (hiện "n / 100", có nút "Gợi ý chia điểm")
 → Preview số câu khả dụng (gọi POST /api/exams/blueprint-preview sau 400ms kể từ lần chỉnh cuối)
 → Lưu nháp / Lưu bài kiểm tra / Lưu và giao bài
 ```
@@ -317,11 +344,12 @@ UI cần validate:
 - Easy + Medium + Hard = 100% (trừ khi lưu nháp).
 - Tổng số câu phải lớn hơn 0.
 - Ngân hàng câu hỏi phải đủ số câu theo từng difficulty (trừ khi lưu nháp).
+- Điểm từng mức độ: không âm, tối đa 2 chữ số thập phân, mức có câu thì lớn hơn 0. Tổng (số câu mỗi mức × điểm mức đó) khác 10 **không** chặn lưu: form hiện "n / 10" và nói thiếu hay thừa bao nhiêu; khi chốt (không phải nháp) mà chưa đủ thì hộp xác nhận hiện thêm đúng con số đó, chọn "Quay lại chỉnh" thì đưa về mục điểm. Không hỏi với bản nháp, và không hỏi với một đề đã xuất bản mà lần lưu không đổi bộ câu. Số câu mỗi mức tính cục bộ bằng cùng công thức với server (`features/exams/utils/examScoring.ts`); cách chia số câu không thể ra đúng 10 thì form điền cách chia sát 10 nhất và gợi ý số câu gần nhất chia được đúng (riêng đề chia nhiều đề luôn đúng 10 nhờ điểm cộng thêm, `paperSpec.ts`).
 - Thời gian làm bài phải hợp lệ và không dài hơn khoảng mở bài.
 
 Form soạn đề được giữ tạm trong sessionStorage khi Teacher rời trang đi bổ sung câu hỏi cho ngân hàng.
 
-Khi đã có Student bắt đầu làm bài, server khoá cấu hình đề (`blueprintFrozen`): số câu, ba tỷ lệ, chủ đề, điểm mỗi câu, thời gian làm bài và tuỳ chọn trộn bị tắt trên form, chỉ tên, mô tả và tuỳ chọn hiện kết quả còn sửa được; lịch có luật khoá riêng theo giờ (`scheduleLocked`): đề đã giao mà còn dưới 2 giờ nữa là mở, hoặc đang mở, thì hai ô lịch bị tắt kèm một dòng giải thích, hết giờ đóng thì mở lại. Trang giao bài và trang chi tiết đề đọc cùng cờ ở từng khung giờ của lớp và từng em. Builder giải thích lý do và có nút "Nhân bản đề" để tạo một bản nháp cùng cấu hình rồi sửa trên bản sao. Nháp khôi phục từ sessionStorage, hay lần lưu bị từ chối (409) vì có em vừa bắt đầu giữa chừng hoặc vì lịch vừa bị khoá giờ, đều giữ phần còn sửa được và lấy lại các trường bị khoá từ server kèm một ghi chú. Bản sao chép nguyên lịch mở/đóng của đề gốc, nên builder cảnh báo khi giờ đóng đã qua.
+Khi đã có Student bắt đầu làm bài, server khoá cấu hình đề (`blueprintFrozen`): số câu, ba tỷ lệ, chủ đề, điểm từng mức độ, thời gian làm bài và tuỳ chọn trộn bị tắt trên form, chỉ tên, mô tả và tuỳ chọn hiện kết quả còn sửa được; lịch có luật khoá riêng theo giờ (`scheduleLocked`): đề đã giao mà còn dưới 2 giờ nữa là mở, hoặc đang mở, thì hai ô lịch bị tắt kèm một dòng giải thích, hết giờ đóng thì mở lại. Trang giao bài và trang chi tiết đề đọc cùng cờ ở từng khung giờ của lớp và từng em. Builder giải thích lý do và có nút "Nhân bản đề" để tạo một bản nháp cùng cấu hình rồi sửa trên bản sao. Nháp khôi phục từ sessionStorage, hay lần lưu bị từ chối (409) vì có em vừa bắt đầu giữa chừng hoặc vì lịch vừa bị khoá giờ, đều giữ phần còn sửa được và lấy lại các trường bị khoá từ server kèm một ghi chú. Bản sao chép nguyên lịch mở/đóng của đề gốc, nên builder cảnh báo khi giờ đóng đã qua.
 
 ### 5.5. Teacher Assigns Exam
 
@@ -336,7 +364,7 @@ Exam Detail
 → Student mới được giao nhận thông báo trong ứng dụng
 ```
 
-Giao lại một lớp kèm khung giờ mới là cách dời giờ cho những Student của lớp đó chưa bắt đầu làm bài. Exam Detail hiện trạng thái và khung giờ thực tế của từng Student, và cho thu hồi bài của Student chưa bắt đầu làm.
+Giao lại một lớp kèm khung giờ mới là cách dời giờ cho những Student của lớp đó chưa bắt đầu làm bài. Exam Detail hiện trạng thái và khung giờ thực tế của từng Student, và cho thu hồi bài **theo lớp**: nút "Thu hồi lớp" gỡ bài khỏi những Student của lớp chưa bắt đầu làm, em đã bắt đầu giữ nguyên bài.
 
 ### 5.6. Student Takes Exam
 

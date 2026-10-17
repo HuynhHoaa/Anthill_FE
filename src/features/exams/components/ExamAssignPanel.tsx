@@ -1,37 +1,29 @@
 import { useEffect, useMemo, useState } from 'react'
-import { NavLink, useParams } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import {
-  AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, Clock, FileText, Layers, Lock,
-  Search, SearchX, Send, Shuffle, UserCheck, Users, X,
+  AlertTriangle, CheckCircle2, Layers, Lock, Send, Shuffle,
 } from 'lucide-react'
-import TeacherLayout from '../../../components/layout/TeacherLayout'
-import { LifecycleBadge, TopicBadge } from '../../../components/common/Badge'
 import ConfirmDialog from '../../../components/common/ConfirmDialog'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
+import { useClassListView } from '../../../hooks/useClassListView'
 import {
-  assignExam, getExam, listExamAssignments, type AssignClassTarget, type AssignExamResult,
+  assignExam, type AssignClassTarget, type AssignExamResult,
 } from '../../../services/examService'
 import { listGroups } from '../../../services/groupService'
-import { listStudents } from '../../../services/studentService'
-import { formatDateTime, getInitials, matchesSearch } from '../../../lib/format'
-import type { AssignmentWindow, Exam, Student, StudentGroup } from '../../../types'
+import { formatDateTime } from '../../../lib/format'
+import type { AssignmentWindow, Exam, ExamAssignment, StudentGroup } from '../../../types'
+import AssignWindowFields from './AssignWindowFields'
+import { ClassPickerEmpty, ClassPickerPagination, ClassPickerToolbar } from './ClassPickerControls'
 import {
-  classLabel, classLockSubject, describeScheduleLock, isCloseAfterOpen, minutesBetween, opensWithinLockWindow,
-  SCHEDULE_LOCK_WARNING, toDateTimeLocalValue, toServiceDateTime,
+  classLabel, classLockSubject, describeScheduleLock, isCloseAfterOpen, minutesBetween,
+  toDateTimeLocalValue, toServiceDateTime,
 } from '../utils/examScheduleFormat'
 
-/** Đủ lớn để lấy trọn danh sách học sinh trong một lần gọi, tránh phải phân trang khi giao bài. */
-const STUDENT_FETCH_SIZE = 500
-
 const cardClass = 'bg-white rounded-2xl border border-slate-100 shadow-sm'
-const inputClass =
-  'w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50'
-const secondaryButtonClass =
-  'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed'
 
 /**
  * Khung giờ giáo viên đang soạn cho một lớp trong lần giao này.
@@ -51,6 +43,9 @@ interface ClassWindowDraft {
    */
   locked: boolean
 }
+
+/** Hai cột × ba hàng: đủ để quét mắt, mà thẻ lớp mở khung giờ riêng ra vẫn không kéo trang quá dài. */
+const CLASS_PAGE_SIZE = 6
 
 function toErrorMessage(caught: unknown, fallback: string): string {
   return caught instanceof Error && caught.message ? caught.message : fallback
@@ -78,163 +73,6 @@ function buildClassDraft(exam: Exam, groupId: number): ClassWindowDraft {
     hadOverride: hasOwnWindow,
     locked: existing?.scheduleLocked ?? false,
   }
-}
-
-function SummaryRow({ label, value, tone = 'default' }: {
-  label: string
-  value: string | number
-  tone?: 'default' | 'primary' | 'muted'
-}) {
-  const valueClass =
-    tone === 'primary' ? 'text-lg font-bold text-indigo-600'
-      : tone === 'muted' ? 'text-sm font-semibold text-slate-400'
-        : 'text-sm font-semibold text-slate-800'
-
-  return (
-    <div className="flex items-center justify-between gap-3 py-2 border-b border-slate-50 last:border-b-0">
-      <span className="text-sm text-slate-500">{label}</span>
-      <span className={`${valueClass} text-right`}>{value}</span>
-    </div>
-  )
-}
-
-interface WindowFieldsProps {
-  idPrefix: string
-  draft: { openAtLocal: string; closeAtLocal: string }
-  durationMinutes: number
-  onChange: (changes: Partial<{ openAtLocal: string; closeAtLocal: string }>) => void
-  /**
-   * `true` xếp hai ô giờ chồng lên nhau thay vì nằm cạnh nhau.
-   *
-   * Chỉ cần cho vị trí đang bị "hẹp kép": lưới thẻ lớp (`xl:grid-cols-2`) lồng trong lưới ô giờ
-   * (`sm:grid-cols-2`) khiến mỗi ô chỉ còn ~150-190px, không đủ chỗ cho `datetime-local` 12 giờ
-   * (bị cắt mất "MM/" ở đầu). Các chỗ dùng component này còn lại (cột "học sinh chọn riêng", hộp
-   * Dời giờ) đã đủ rộng nên giữ nguyên mặc định nằm cạnh nhau.
-   */
-  stackedFields?: boolean
-  /**
-   * Báo trước khi lưu: giờ mở vừa chọn rơi vào vùng khoá nên lưu xong là không đổi được nữa. Chỉ truyền khi
-   * khung này đang đổi một khung đã có người theo — khung mới tinh chưa có ai phụ thuộc.
-   */
-  warnLock?: boolean
-}
-
-/** Cặp ô giờ mở – giờ đóng, kèm lời cảnh báo khi khung ngắn hơn thời lượng làm bài. */
-function WindowFields({
-  idPrefix, draft, durationMinutes, onChange, stackedFields = false, warnLock = false,
-}: WindowFieldsProps) {
-  const filled = draft.openAtLocal !== '' && draft.closeAtLocal !== ''
-  const ordered = isCloseAfterOpen(draft.openAtLocal, draft.closeAtLocal)
-  const span = minutesBetween(draft.openAtLocal, draft.closeAtLocal)
-
-  // Cùng hai phép kiểm của server, hiện ngay tại chỗ đang gõ: đợi tới lúc bấm giao mới báo thì giáo
-  // viên phải dò lại xem lớp nào trong năm lớp vừa chọn đang sai.
-  const problem = !filled
-    ? 'Hãy chọn cả giờ mở và giờ đóng.'
-    : !ordered
-      ? 'Giờ đóng phải sau giờ mở.'
-      : span < durationMinutes
-        ? `Khung này chỉ dài ${span} phút, không chứa trọn ${durationMinutes} phút làm bài.`
-        : null
-
-  return (
-    <div className="mt-3 space-y-3 rounded-xl bg-white border border-slate-100 p-3.5">
-      <div className={`grid grid-cols-1 gap-3 ${stackedFields ? '' : 'sm:grid-cols-2'}`}>
-        <div>
-          <label htmlFor={`${idPrefix}-open`} className="block text-xs font-semibold text-slate-600 mb-1.5">
-            Mở bài lúc
-          </label>
-          <input
-            id={`${idPrefix}-open`}
-            type="datetime-local"
-            value={draft.openAtLocal}
-            onChange={event => onChange({ openAtLocal: event.target.value })}
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <label htmlFor={`${idPrefix}-close`} className="block text-xs font-semibold text-slate-600 mb-1.5">
-            Đóng bài lúc
-          </label>
-          <input
-            id={`${idPrefix}-close`}
-            type="datetime-local"
-            value={draft.closeAtLocal}
-            onChange={event => onChange({ closeAtLocal: event.target.value })}
-            className={inputClass}
-          />
-        </div>
-      </div>
-      {problem ? (
-        <p className="text-xs font-medium text-red-500 flex items-start gap-1.5">
-          <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
-          {problem}
-        </p>
-      ) : (
-        <p className="text-xs text-slate-400">Khung dài {span} phút cho bài {durationMinutes} phút.</p>
-      )}
-      {warnLock && filled && opensWithinLockWindow(draft.openAtLocal, draft.closeAtLocal) && (
-        <p className="text-xs font-medium text-amber-700 flex items-start gap-1.5 leading-relaxed">
-          <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
-          {SCHEDULE_LOCK_WARNING}
-        </p>
-      )}
-    </div>
-  )
-}
-
-interface StudentPickerRowProps {
-  student: Student
-  isChecked: boolean
-  isCoveredByGroup: boolean
-  isAlreadyAssigned: boolean
-  onToggle: (studentId: number) => void
-}
-
-function StudentPickerRow({
-  student, isChecked, isCoveredByGroup, isAlreadyAssigned, onToggle,
-}: StudentPickerRowProps) {
-  return (
-    <label
-      className={`flex items-center gap-4 px-5 py-4 transition-colors ${
-        isCoveredByGroup ? 'bg-indigo-50/40 cursor-default' : 'hover:bg-slate-50 cursor-pointer'
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={isChecked || isCoveredByGroup}
-        disabled={isCoveredByGroup}
-        onChange={() => onToggle(student.id)}
-        className="w-4 h-4 accent-indigo-600 flex-shrink-0 disabled:opacity-60"
-      />
-      <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
-        {getInitials(student.fullName)}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-slate-800 truncate">{student.fullName}</p>
-        <p className="text-xs text-slate-400 mt-0.5 truncate">
-          {student.code} · {student.group}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center justify-end gap-1.5 flex-shrink-0">
-        {student.status === 'locked' && (
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-500">
-            Đã khoá
-          </span>
-        )}
-        {isAlreadyAssigned && (
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700">
-            Đã giao
-          </span>
-        )}
-        {isCoveredByGroup && (
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-700">
-            Theo lớp
-          </span>
-        )}
-      </div>
-    </label>
-  )
 }
 
 function AssignSkeleton() {
@@ -280,10 +118,11 @@ function AssignSkeleton() {
 
 /** Những con số server trả về sau một lần giao, mỗi con số kèm việc cần làm tiếp. */
 function ResultPanel({
-  result, examId, appliedClassWindowCount, lockedScopeGroupIds, groups,
+  result, onViewTracking, appliedClassWindowCount, lockedScopeGroupIds, groups,
 }: {
   result: AssignExamResult
-  examId: number
+  /** Chuyển sang tab Theo dõi, nơi thấy từng em vừa được giao. */
+  onViewTracking: () => void
   /** Số lớp vừa nhận khung giờ riêng trong chính lần giao này — 0 nghĩa là không lớp nào có khung riêng. */
   appliedClassWindowCount: number
   /** Những lớp có mặt trong lần giao vừa rồi, để dẫn tới đúng chỗ xem em nào đang bị khoá. */
@@ -375,32 +214,35 @@ function ResultPanel({
             </div>
           )}
 
-          <NavLink
-            to={`/giao-vien/bai-kiem-tra/${examId}`}
+          <button
+            type="button"
+            onClick={onViewTracking}
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-800 hover:underline"
           >
-            Xem chi tiết bài kiểm tra
-          </NavLink>
+            Xem tiến độ làm bài
+          </button>
         </div>
       </div>
     </div>
   )
 }
 
-export default function ExamAssignPage() {
-  const { id } = useParams()
+interface ExamAssignPanelProps {
+  exam: Exam
+  assignments: ExamAssignment[]
+  /** Giao xong: nạp lại dữ liệu dùng chung để tab Theo dõi thấy các lượt giao mới. */
+  onAssigned: () => void
+  onViewTracking: () => void
+}
+
+export default function ExamAssignPanel({ exam, assignments, onAssigned, onViewTracking }: ExamAssignPanelProps) {
   const toast = useToast()
-  const examId = Number(id)
 
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([])
   const [classWindows, setClassWindows] = useState<Record<number, ClassWindowDraft>>({})
-  const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([])
-  const [studentWindow, setStudentWindow] = useState({ enabled: false, openAtLocal: '', closeAtLocal: '' })
-  const [search, setSearch] = useState('')
   // Khởi tạo false rồi để hiệu ứng bên dưới đồng bộ theo đề: bật sẵn một ô tích không phản ánh
   // cấu hình thật của đề là nói với giáo viên rằng đề đang sinh riêng trong khi có thể nó không.
   const [randomizePerStudent, setRandomizePerStudent] = useState(false)
-  const [notify, setNotify] = useState(true)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<AssignExamResult | null>(null)
@@ -409,101 +251,45 @@ export default function ExamAssignPage() {
   // được state gốc — phải giữ lại đúng những gì đã thật sự gửi lên server.
   const [lastSubmission, setLastSubmission] = useState<{ groupIds: number[]; classWindowCount: number } | null>(null)
 
-  const { data, loading, error, reload } = useAsync(async () => {
-    const exam = await getExam(examId)
-    const [groups, studentPage, assignments] = await Promise.all([
-      listGroups(),
-      listStudents({ page: 1, pageSize: STUDENT_FETCH_SIZE }),
-      listExamAssignments(exam.id),
-    ])
-    return { exam, groups, students: studentPage.items, assignments }
-  }, [examId])
+  // Đề và các lượt giao đã có do trang chung nạp; chỉ danh sách lớp là của riêng tab này. Bài chỉ giao theo
+  // lớp nên không cần nạp danh sách học sinh: sĩ số của lớp đã đủ để biết sẽ giao cho bao nhiêu em.
+  const { data: groupList, loading, error, reload } = useAsync(() => listGroups(), [])
 
-  const exam = data?.exam
-  const groups = useMemo(() => data?.groups ?? [], [data])
-  const students = useMemo(() => data?.students ?? [], [data])
-  const assignments = useMemo(() => data?.assignments ?? [], [data])
+  const groups = useMemo(() => groupList ?? [], [groupList])
+  const classView = useClassListView(groups, CLASS_PAGE_SIZE)
 
+  // Theo giá trị chứ không theo object `exam`: trang chung nạp lại cả đề sau mỗi thao tác bên tab Theo
+  // dõi, và việc đó không được xoá ô tích hay khung giờ giáo viên đang soạn dở ở đây.
   useEffect(() => {
-    if (!exam) return
     setRandomizePerStudent(exam.randomizePerStudent)
-    setStudentWindow(current => ({
-      enabled: current.enabled,
-      openAtLocal: current.openAtLocal || toDateTimeLocalValue(exam.openAt),
-      closeAtLocal: current.closeAtLocal || toDateTimeLocalValue(exam.closeAt),
-    }))
-  }, [exam])
+  }, [exam.randomizePerStudent])
 
-  const assignedStudentIds = useMemo(
-    () => new Set(assignments.map(assignment => assignment.studentId)),
-    [assignments],
-  )
-
-  const groupCoveredStudentIds = useMemo(() => {
-    const selectedGroups = new Set(selectedGroupIds)
-    const covered = new Set<number>()
-    students.forEach(student => {
-      if (selectedGroups.has(student.groupId)) covered.add(student.id)
+  /** Số em đã được giao qua từng lớp. Bài chỉ giao theo lớp nên mọi lượt giao đều gắn với một lớp. */
+  const assignedByGroup = useMemo(() => {
+    const counts = new Map<number, number>()
+    assignments.forEach(assignment => {
+      if (assignment.assignedViaGroupId === undefined) return
+      counts.set(assignment.assignedViaGroupId, (counts.get(assignment.assignedViaGroupId) ?? 0) + 1)
     })
-    return covered
-  }, [selectedGroupIds, students])
+    return counts
+  }, [assignments])
 
-  /** Người nhận thật sự: hợp của học sinh chọn lẻ và học sinh thuộc lớp đã chọn, không đếm trùng. */
-  const recipientIds = useMemo(() => {
-    const existingIds = new Set(students.map(student => student.id))
-    const recipients = new Set(groupCoveredStudentIds)
-    selectedStudentIds.forEach(studentId => {
-      if (existingIds.has(studentId)) recipients.add(studentId)
-    })
-    return recipients
-  }, [groupCoveredStudentIds, selectedStudentIds, students])
-
-  const duplicateCount = useMemo(() => {
-    let count = 0
-    recipientIds.forEach(studentId => {
-      if (assignedStudentIds.has(studentId)) count += 1
-    })
-    return count
-  }, [recipientIds, assignedStudentIds])
-
-  const newRecipientCount = recipientIds.size - duplicateCount
-
-  const filteredStudents = useMemo(
-    () => students.filter(student =>
-      matchesSearch(search, [student.fullName, student.email, student.code, student.group]),
-    ),
-    [search, students],
+  const selectedGroups = useMemo(
+    () => groups.filter(group => selectedGroupIds.includes(group.id)),
+    [groups, selectedGroupIds],
   )
 
-  /** Học sinh đang hiện trên danh sách và còn có thể chọn lẻ (không nằm trong lớp đã chọn). */
-  const selectableFilteredIds = useMemo(
-    () => filteredStudents
-      .filter(student => !groupCoveredStudentIds.has(student.id))
-      .map(student => student.id),
-    [filteredStudents, groupCoveredStudentIds],
+  /** Người nhận theo sĩ số các lớp đã chọn; em đang bị khoá hay chờ xoá sẽ được server bỏ qua và báo lại. */
+  const recipientCount = selectedGroups.reduce((sum, group) => sum + group.studentCount, 0)
+
+  const duplicateCount = selectedGroups.reduce(
+    (sum, group) => sum + Math.min(assignedByGroup.get(group.id) ?? 0, group.studentCount),
+    0,
   )
 
-  // Hai nút chọn nhanh chỉ tác động lên phần đang hiện, nên số đếm cũng phải tính theo phần đang hiện.
-  const addableFilteredIds = useMemo(
-    () => selectableFilteredIds.filter(studentId => !selectedStudentIds.includes(studentId)),
-    [selectableFilteredIds, selectedStudentIds],
-  )
-
-  const selectedFilteredIds = useMemo(
-    () => filteredStudents
-      .filter(student => selectedStudentIds.includes(student.id))
-      .map(student => student.id),
-    [filteredStudents, selectedStudentIds],
-  )
-
-  /** Em chọn đích danh mà không đi kèm lớp nào — chỉ những em này nhận khung giờ ở ô bên dưới. */
-  const individualCount = useMemo(
-    () => selectedStudentIds.filter(studentId => !groupCoveredStudentIds.has(studentId)).length,
-    [selectedStudentIds, groupCoveredStudentIds],
-  )
+  const newRecipientCount = recipientCount - duplicateCount
 
   const toggleGroup = (groupId: number) => {
-    if (!exam) return
     setSelectedGroupIds(current => {
       if (current.includes(groupId)) {
         return current.filter(item => item !== groupId)
@@ -517,36 +303,10 @@ export default function ExamAssignPage() {
     setClassWindows(current => ({ ...current, [groupId]: { ...current[groupId], ...changes } }))
   }
 
-  const toggleStudent = (studentId: number) => {
-    setSelectedStudentIds(current =>
-      current.includes(studentId)
-        ? current.filter(item => item !== studentId)
-        : [...current, studentId],
-    )
-  }
-
-  const selectAllFiltered = () => {
-    setSelectedStudentIds(current => {
-      const next = new Set(current)
-      selectableFilteredIds.forEach(studentId => next.add(studentId))
-      return Array.from(next)
-    })
-  }
-
-  const clearFilteredSelection = () => {
-    const clearedIds = new Set(selectedFilteredIds)
-    setSelectedStudentIds(current => current.filter(studentId => !clearedIds.has(studentId)))
-  }
-
-  const countAssignedInGroup = (groupId: number) => {
-    return students.filter(
-      student => student.groupId === groupId && assignedStudentIds.has(student.id),
-    ).length
-  }
+  const countAssignedInGroup = (groupId: number) => assignedByGroup.get(groupId) ?? 0
 
   /** Khung giờ nào đang sai — dùng để chặn nút giao và nói rõ lớp nào cần sửa. */
   const windowProblems = useMemo(() => {
-    if (!exam) return []
     const problems: string[] = []
 
     const check = (label: string, draft: { openAtLocal: string; closeAtLocal: string }) => {
@@ -566,12 +326,8 @@ export default function ExamAssignPage() {
       check(classLabel(group?.name ?? String(groupId)), draft)
     })
 
-    if (studentWindow.enabled && individualCount > 0) {
-      check('Học sinh chọn riêng', studentWindow)
-    }
-
     return problems
-  }, [exam, selectedGroupIds, classWindows, groups, studentWindow, individualCount])
+  }, [exam, selectedGroupIds, classWindows, groups])
 
   /** Lớp sắp bị gỡ khung giờ riêng — hệ quả nặng nhất của trang này, phải nói trước khi bấm. */
   const classesLosingWindow = useMemo(
@@ -599,13 +355,11 @@ export default function ExamAssignPage() {
   )
 
   const openConfirm = () => {
-    if (recipientIds.size === 0 || windowProblems.length > 0) return
+    if (recipientCount === 0 || windowProblems.length > 0) return
     setConfirmOpen(true)
   }
 
   const handleConfirm = async () => {
-    if (!exam) return
-
     setSubmitting(true)
     try {
       const classes: AssignClassTarget[] = selectedGroupIds.map(groupId => {
@@ -632,25 +386,16 @@ export default function ExamAssignPage() {
           : { groupId }
       })
 
-      const individualWindow = studentWindow.enabled && individualCount > 0
-        ? {
-          openAt: toServiceDateTime(studentWindow.openAtLocal),
-          closeAt: toServiceDateTime(studentWindow.closeAtLocal),
-        }
-        : {}
-
       // "Sinh đề riêng cho từng học sinh" đi trong payload GIAO BÀI: đây là endpoint duy nhất ghi được
       // cờ này, vì nó chỉ có nghĩa tại thời điểm sinh đề. Chỉ gửi khi khác giá trị hiện tại, để lần
       // giao bổ sung không vô cớ đụng vào đề.
       const outcome = await assignExam(exam.id, {
-        studentIds: selectedStudentIds,
         groupIds: [],
         classes,
-        notify,
+        notify: true,
         randomizePerStudent: randomizePerStudent === exam.randomizePerStudent
           ? undefined
           : randomizePerStudent,
-        ...individualWindow,
       })
 
       setConfirmOpen(false)
@@ -695,8 +440,7 @@ export default function ExamAssignPage() {
       // qua và vì sao, còn giáo viên thường giao tiếp lớp thứ hai ngay sau đó.
       setSelectedGroupIds([])
       setClassWindows({})
-      setSelectedStudentIds([])
-      reload()
+      onAssigned()
     } catch (caught) {
       // Đóng hộp xác nhận thay vì để nó treo: lỗi giao bài (ví dụ đề còn là bản nháp) không sửa được
       // gì bên trong hộp, nên giữ hộp mở chỉ khiến giáo viên tưởng bấm lại là thử lại được. Toast báo
@@ -708,70 +452,32 @@ export default function ExamAssignPage() {
     }
   }
 
-  const confirmMessage = exam
-    ? [
-      `Giao bài “${exam.title}” cho ${recipientIds.size} học sinh.`,
-      duplicateCount > 0
-        ? `${duplicateCount} em đã có bài này từ trước sẽ được bỏ qua, hệ thống chỉ tạo mới ${newRecipientCount} lượt giao.`
-        : '',
-      classesLosingWindow.length > 0
-        ? `Khung giờ riêng của ${classesLosingWindow.join(', ')} sẽ bị gỡ: những em chưa bắt đầu chuyển về lịch chung của đề.`
-        : '',
-      notify ? 'Học sinh nhận bài mới sẽ được thông báo.' : 'Học sinh nhận bài mới sẽ không được thông báo.',
-      'Em nào bị dời giờ đều được báo, kể cả khi bạn tắt thông báo giao bài.',
-    ].filter(Boolean).join(' ')
-    : ''
+  const confirmMessage = [
+    `Giao bài “${exam.title}” cho ${selectedGroups.length} lớp (khoảng ${recipientCount} học sinh).`,
+    duplicateCount > 0
+      ? `${duplicateCount} em đã có bài này từ trước sẽ được bỏ qua, hệ thống chỉ tạo mới ${newRecipientCount} lượt giao.`
+      : '',
+    classesLosingWindow.length > 0
+      ? `Khung giờ riêng của ${classesLosingWindow.join(', ')} sẽ bị gỡ: những em chưa bắt đầu chuyển về lịch chung của đề.`
+      : '',
+    'Học sinh nhận bài mới hoặc bị dời giờ đều được thông báo.',
+  ].filter(Boolean).join(' ')
 
-  const pageSubtitle = exam ? exam.title : 'Chọn lớp hoặc học sinh sẽ nhận bài kiểm tra'
   const hasNoClass = groups.length === 0
 
   return (
-    <TeacherLayout pageTitle="Giao bài kiểm tra" pageSubtitle={pageSubtitle}>
-      <div className="mb-5">
-        <NavLink
-          to={Number.isFinite(examId) ? `/giao-vien/bai-kiem-tra/${examId}` : '/giao-vien/bai-kiem-tra'}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
-        >
-          <ArrowLeft size={16} /> Quay lại chi tiết bài kiểm tra
-        </NavLink>
-      </div>
-
+    <>
       {error && <ErrorState message={error} onRetry={reload} />}
 
-      {!error && (loading && !data) && <AssignSkeleton />}
+      {!error && loading && !groupList && <AssignSkeleton />}
 
-      {!error && data && exam && (
+      {!error && groupList && (
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start animate-fade-in-up">
           <div className="space-y-6 min-w-0">
-            <section className={`${cardClass} p-6`}>
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <TopicBadge topic={exam.topic} />
-                <LifecycleBadge lifecycle={exam.lifecycle} />
-              </div>
-              <h2 className="text-xl font-bold text-slate-800">{exam.title}</h2>
-              {exam.description && (
-                <p className="text-sm text-slate-500 mt-2 leading-relaxed">{exam.description}</p>
-              )}
-              <div className="flex flex-wrap gap-2 mt-4">
-                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1.5 rounded-lg">
-                  <FileText size={13} /> {exam.totalQuestions} câu hỏi
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1.5 rounded-lg">
-                  <Clock size={13} /> {exam.durationMinutes} phút
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1.5 rounded-lg">
-                  <CalendarClock size={13} /> Lịch chung {formatDateTime(exam.openAt)} – {formatDateTime(exam.closeAt)}
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1.5 rounded-lg">
-                  <UserCheck size={13} /> Đã giao {exam.assignedCount}
-                </span>
-              </div>
-            </section>
-
             {result && (
               <ResultPanel
                 result={result}
-                examId={exam.id}
+                onViewTracking={onViewTracking}
                 appliedClassWindowCount={lastSubmission?.classWindowCount ?? 0}
                 lockedScopeGroupIds={lastSubmission?.groupIds ?? []}
                 groups={groups}
@@ -843,8 +549,12 @@ export default function ExamAssignPage() {
                     </div>
                   </div>
 
+                  <ClassPickerToolbar view={classView} selectedCount={selectedGroupIds.length} />
+
+                  <ClassPickerEmpty view={classView} />
+
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    {groups.map(group => {
+                    {classView.pageItems.map(group => {
                       const isSelected = selectedGroupIds.includes(group.id)
                       const draft = classWindows[group.id]
                       const assignedInGroup = countAssignedInGroup(group.id)
@@ -915,7 +625,7 @@ export default function ExamAssignPage() {
                               </label>
 
                               {draft.enabled ? (
-                                <WindowFields
+                                <AssignWindowFields
                                   idPrefix={`class-${group.id}`}
                                   draft={draft}
                                   durationMinutes={exam.durationMinutes}
@@ -936,125 +646,8 @@ export default function ExamAssignPage() {
                       )
                     })}
                   </div>
-                </section>
 
-                <section className="space-y-4">
-                  <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-11 h-11 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center flex-shrink-0">
-                        <Users size={20} />
-                      </div>
-                      <div className="min-w-0">
-                        <h2 className="text-base font-bold text-slate-800">Chọn thêm học sinh</h2>
-                        <p className="text-sm text-slate-400">
-                          Đang chọn riêng {selectedStudentIds.length} học sinh
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={selectAllFiltered}
-                        disabled={addableFilteredIds.length === 0}
-                        className={secondaryButtonClass}
-                      >
-                        <CheckCircle2 size={14} /> Chọn tất cả ({addableFilteredIds.length})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={clearFilteredSelection}
-                        disabled={selectedFilteredIds.length === 0}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <X size={14} /> Bỏ chọn ({selectedFilteredIds.length})
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="relative">
-                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      value={search}
-                      onChange={event => setSearch(event.target.value)}
-                      className={`${inputClass} pl-10`}
-                      placeholder="Tìm theo tên, mã học sinh, email hoặc lớp"
-                    />
-                  </div>
-
-                  {students.length === 0 ? (
-                    <EmptyState
-                      icon={Users}
-                      title="Lớp của bạn chưa có học sinh nào"
-                      description="Tài khoản học sinh do quản trị viên tạo và xếp vào lớp. Hãy đề nghị quản trị viên xếp học sinh vào lớp bạn phụ trách."
-                    />
-                  ) : filteredStudents.length === 0 ? (
-                    <EmptyState
-                      icon={SearchX}
-                      title="Không tìm thấy học sinh phù hợp"
-                      description={`Không có học sinh nào khớp với từ khoá “${search}”. Thử tìm bằng mã học sinh hoặc tên lớp.`}
-                      action={
-                        <button
-                          type="button"
-                          onClick={() => setSearch('')}
-                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
-                        >
-                          <X size={15} /> Xoá tìm kiếm
-                        </button>
-                      }
-                    />
-                  ) : (
-                    <div className={`${cardClass} overflow-hidden`}>
-                      <div className="max-h-[520px] overflow-y-auto divide-y divide-slate-50">
-                        {filteredStudents.map(student => (
-                          <StudentPickerRow
-                            key={student.id}
-                            student={student}
-                            isChecked={selectedStudentIds.includes(student.id)}
-                            isCoveredByGroup={groupCoveredStudentIds.has(student.id)}
-                            isAlreadyAssigned={assignedStudentIds.has(student.id)}
-                            onToggle={toggleStudent}
-                          />
-                        ))}
-                      </div>
-                      <div className="px-5 py-3 bg-slate-50/60 border-t border-slate-100">
-                        <p className="text-xs text-slate-500">
-                          Hiển thị {filteredStudents.length} trong {students.length} học sinh
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {individualCount > 0 && (
-                    <div className={`${cardClass} p-5`}>
-                      <label className="flex items-start gap-2.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={studentWindow.enabled}
-                          onChange={event =>
-                            setStudentWindow(current => ({ ...current, enabled: event.target.checked }))}
-                          className="w-4 h-4 accent-indigo-600 mt-0.5 flex-shrink-0"
-                        />
-                        <span className="min-w-0">
-                          <span className="text-sm font-medium text-slate-700">
-                            Khung giờ riêng cho {individualCount} em chọn riêng
-                          </span>
-                          <span className="block text-xs text-slate-500 mt-0.5 leading-relaxed">
-                            Dành cho em thi bù hay thi muộn. Bỏ trống thì các em theo lịch chung của đề. Sau
-                            khi giao, mỗi em dời giờ riêng được ở trang chi tiết, trừ lúc còn dưới 2 giờ nữa là
-                            mở hoặc đang mở.
-                          </span>
-                        </span>
-                      </label>
-                      {studentWindow.enabled && (
-                        <WindowFields
-                          idPrefix="individual"
-                          draft={studentWindow}
-                          durationMinutes={exam.durationMinutes}
-                          onChange={changes => setStudentWindow(current => ({ ...current, ...changes }))}
-                        />
-                      )}
-                    </div>
-                  )}
+                  <ClassPickerPagination view={classView} />
                 </section>
               </>
             )}
@@ -1062,36 +655,10 @@ export default function ExamAssignPage() {
 
           <aside className="space-y-4 xl:sticky xl:top-6 min-w-0">
             <div className={`${cardClass} p-5`}>
-              <h2 className="text-base font-bold text-slate-800 mb-3">Tóm tắt giao bài</h2>
-              <div
-                className="rounded-xl px-4 py-3 mb-3"
-                style={{ background: 'linear-gradient(135deg, #EEF2FF, #F5F3FF)' }}
-              >
-                <p className="text-xs text-indigo-500 font-semibold uppercase tracking-wider">
-                  Tổng người nhận
-                </p>
-                <p className="text-3xl font-bold text-indigo-700 mt-0.5">{recipientIds.size}</p>
-                <p className="text-xs text-indigo-500 mt-1">Đã loại bỏ trùng lặp giữa lớp và cá nhân</p>
-              </div>
-
-              <SummaryRow label="Lớp đã chọn" value={selectedGroupIds.length} />
-              <SummaryRow
-                label="Lớp có khung giờ riêng"
-                value={selectedGroupIds.filter(groupId => classWindows[groupId]?.enabled && !classWindows[groupId]?.locked).length}
-              />
-              <SummaryRow label="Học sinh chọn riêng" value={selectedStudentIds.length} />
-              <SummaryRow label="Sẽ giao mới" value={newRecipientCount} tone="primary" />
-              <SummaryRow
-                label="Bỏ qua vì đã giao"
-                value={duplicateCount}
-                tone={duplicateCount > 0 ? 'default' : 'muted'}
-              />
-            </div>
-
-            <div className={`${cardClass} p-5`}>
               <h2 className="text-base font-bold text-slate-800 mb-2">Tuỳ chọn giao bài</h2>
 
-              <label className="flex items-start justify-between gap-3 py-2.5 cursor-pointer">
+              {!exam.usesQuestionList && (
+                <label className="flex items-start justify-between gap-3 py-2.5 cursor-pointer">
                 <span className="min-w-0">
                   <span className="text-sm text-slate-700 font-medium flex items-center gap-1.5">
                     <Shuffle size={14} className="text-slate-400" /> Sinh đề riêng cho từng học sinh
@@ -1108,21 +675,7 @@ export default function ExamAssignPage() {
                   className="w-4 h-4 accent-indigo-600 mt-1 flex-shrink-0"
                 />
               </label>
-
-              <label className="flex items-start justify-between gap-3 py-2.5 cursor-pointer border-t border-slate-50">
-                <span className="min-w-0">
-                  <span className="text-sm text-slate-700 font-medium">Báo cho học sinh nhận bài mới</span>
-                  <span className="block text-xs text-slate-400 mt-0.5 leading-relaxed">
-                    Em nào bị dời giờ vẫn luôn được báo — đó là giờ thi của em đã đổi.
-                  </span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={notify}
-                  onChange={event => setNotify(event.target.checked)}
-                  className="w-4 h-4 accent-indigo-600 mt-1 flex-shrink-0"
-                />
-              </label>
+              )}
 
               {/* Lịch chung của đề không sửa ở đây nữa: sửa nó là dời giờ của MỌI lớp đang theo lịch
                   chung, trong khi việc người dùng định làm gần như luôn là đổi giờ của một lớp. */}
@@ -1142,15 +695,15 @@ export default function ExamAssignPage() {
               <button
                 type="button"
                 onClick={openConfirm}
-                disabled={recipientIds.size === 0 || windowProblems.length > 0 || submitting}
+                disabled={recipientCount === 0 || windowProblems.length > 0 || submitting}
                 className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-white font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
               >
                 <Send size={17} /> Xác nhận giao bài
               </button>
-              {recipientIds.size === 0 && (
+              {recipientCount === 0 && (
                 <p className="text-xs text-slate-400 leading-relaxed mt-3 text-center">
-                  Chọn ít nhất một lớp hoặc một học sinh để bật nút giao bài.
+                  Chọn ít nhất một lớp để bật nút giao bài.
                 </p>
               )}
               {windowProblems.length > 0 && (
@@ -1188,6 +741,6 @@ export default function ExamAssignPage() {
         onConfirm={() => void handleConfirm()}
         onCancel={() => setConfirmOpen(false)}
       />
-    </TeacherLayout>
+    </>
   )
 }

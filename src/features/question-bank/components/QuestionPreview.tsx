@@ -9,6 +9,8 @@ interface QuestionPreviewProps {
   imageUrl?: string
   topic: string
   difficulty: DifficultyLevel
+  /** Câu nhiều đáp án: bấm là bật/tắt từng ô, và hiện ô tích vuông như học sinh sẽ thấy. */
+  allowMultiple: boolean
   point: number
   answers: AnswerOption[]
 }
@@ -19,18 +21,29 @@ export default function QuestionPreview({
   imageUrl,
   topic,
   difficulty,
+  allowMultiple,
   point,
   answers,
 }: QuestionPreviewProps) {
-  const [selectedAnswerId, setSelectedAnswerId] = useState<number | null>(null)
+  const [selectedAnswerIds, setSelectedAnswerIds] = useState<number[]>([])
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false)
 
-  // Đáp án đã chọn có thể vừa bị xoá khỏi form nên phải đối chiếu lại danh sách hiện tại.
-  const activeAnswerId = answers.some(answer => answer.id === selectedAnswerId) ? selectedAnswerId : null
+  // Đáp án đã chọn có thể vừa bị xoá khỏi form nên phải đối chiếu lại danh sách hiện tại. Đổi từ nhiều đáp án
+  // về một đáp án thì chỉ giữ ô đầu tiên đã bấm.
+  const activeAnswerIds = selectedAnswerIds
+    .filter(id => answers.some(answer => answer.id === id))
+    .slice(0, allowMultiple ? undefined : 1)
+
+  const handlePick = (answerId: number) => {
+    setSelectedAnswerIds(current => {
+      if (!allowMultiple) return [answerId]
+      return current.includes(answerId) ? current.filter(id => id !== answerId) : [...current, answerId]
+    })
+  }
 
   return (
     <section className="bg-white rounded-2xl border border-slate-100 shadow-sm">
-      <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+      <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-slate-800">Xem trước như học sinh</h2>
           <p className="text-xs text-slate-400 mt-0.5">Bấm thử một đáp án để xem giao diện khi làm bài</p>
@@ -45,9 +58,9 @@ export default function QuestionPreview({
         </button>
       </div>
 
-      <div className="p-5">
-        <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5">
-          <div className="flex flex-wrap items-center gap-2 mb-4">
+      <div className="p-4">
+        <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
               Câu 1
             </span>
@@ -60,6 +73,11 @@ export default function QuestionPreview({
             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">
               {point > 0 ? `${point} điểm` : 'Chưa đặt điểm'}
             </span>
+            {allowMultiple && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-600">
+                Chọn tất cả đáp án đúng
+              </span>
+            )}
           </div>
 
           {content.trim() ? (
@@ -78,16 +96,16 @@ export default function QuestionPreview({
             />
           )}
 
-          <div className="space-y-2.5 mt-5">
+          <div className="space-y-2 mt-4">
             {answers.map((answer, index) => {
-              const isSelected = activeAnswerId === answer.id
+              const isSelected = activeAnswerIds.includes(answer.id)
               const isRevealed = showCorrectAnswer && answer.isCorrect
               return (
                 <button
                   key={answer.id}
                   type="button"
-                  onClick={() => setSelectedAnswerId(answer.id)}
-                  className={`w-full text-left rounded-2xl border p-4 transition-all ${
+                  onClick={() => handlePick(answer.id)}
+                  className={`w-full text-left rounded-xl border p-3 transition-all ${
                     isRevealed
                       ? 'border-emerald-300 bg-emerald-50'
                       : isSelected

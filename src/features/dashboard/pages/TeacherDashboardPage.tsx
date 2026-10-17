@@ -4,6 +4,7 @@ import {
   BarChart3, Activity, ClipboardList, TrendingUp, type LucideIcon,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
+import CountUp from '../../../components/common/CountUp'
 import { LifecycleBadge } from '../../../components/common/Badge'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
@@ -12,7 +13,7 @@ import { useAsync } from '../../../hooks/useAsync'
 import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { getTeacherDashboard } from '../../../services/dashboardService'
 import { getQuestionBankSummary } from '../../../services/questionService'
-import { formatDateTime, formatDuration, formatRelativeTime, formatScore } from '../../../lib/format'
+import { formatDateTime, formatDuration, formatExamSize, formatRelativeTime, formatScore } from '../../../lib/format'
 import { getTopicLabel } from '../../../lib/topicTheme'
 import { difficultyLabels } from '../../../types'
 import type { ActivityTone, DifficultyLevel, TeacherDashboardData } from '../../../types'
@@ -66,9 +67,9 @@ const quickActions: { label: string; description: string; to: string; icon: Luci
     gradient: 'linear-gradient(135deg,#8B5CF6,#6366F1)',
   },
   {
-    label: 'Xem kết quả',
-    description: 'Theo dõi điểm số',
-    to: '/giao-vien/ket-qua',
+    label: 'Bài kiểm tra',
+    description: 'Theo dõi bài đã giao',
+    to: '/giao-vien/bai-kiem-tra',
     icon: TrendingUp,
     gradient: 'linear-gradient(135deg,#10B981,#0D9488)',
   },
@@ -188,7 +189,7 @@ export default function TeacherDashboardPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="stack-table w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50/60">
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 rounded-l-xl">Tên bài kiểm tra</th>
@@ -204,9 +205,9 @@ export default function TeacherDashboardPage() {
                     <tr
                       key={exam.id}
                       onClick={() => navigate(`/giao-vien/bai-kiem-tra/${exam.id}`)}
-                      className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer"
+                      className="border-b border-slate-50 hover:bg-indigo-100/70 transition-colors cursor-pointer"
                     >
-                      <td className="px-4 py-3.5">
+                      <td data-card="head" className="px-4 py-3.5">
                         <Link
                           to={`/giao-vien/bai-kiem-tra/${exam.id}`}
                           onClick={event => event.stopPropagation()}
@@ -216,19 +217,19 @@ export default function TeacherDashboardPage() {
                         </Link>
                         <p className="text-xs text-slate-400 mt-0.5">{getTopicLabel(exam.topic)}</p>
                       </td>
-                      <td className="px-4 py-3.5 whitespace-nowrap">
+                      <td data-label="Thời lượng" className="px-4 py-3.5 whitespace-nowrap">
                         <span className="flex items-center gap-1 text-slate-500">
                           <Clock size={13} />{formatDuration(exam.durationMinutes)}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-slate-700 whitespace-nowrap">{exam.totalQuestions} câu</td>
-                      <td className="px-4 py-3.5 whitespace-nowrap">
+                      <td data-label="Số câu" className="px-4 py-3.5 text-slate-700 whitespace-nowrap">{formatExamSize(exam)}</td>
+                      <td data-label="Đã nộp" className="px-4 py-3.5 whitespace-nowrap">
                         <span className="flex items-center gap-1 text-slate-500">
                           <Users size={13} />{exam.submittedCount}/{exam.assignedCount} HS
                         </span>
                       </td>
-                      <td className="px-4 py-3.5"><LifecycleBadge lifecycle={exam.lifecycle} /></td>
-                      <td className="px-4 py-3.5 text-slate-400 text-xs whitespace-nowrap">{formatDateTime(exam.closeAt)}</td>
+                      <td data-label="Trạng thái" className="px-4 py-3.5"><LifecycleBadge lifecycle={exam.lifecycle} /></td>
+                      <td data-label="Hạn nộp" className="px-4 py-3.5 text-slate-400 text-xs whitespace-nowrap">{formatDateTime(exam.closeAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -285,12 +286,12 @@ export default function TeacherDashboardPage() {
                           {difficultyLabels[level]}
                         </span>
                         <span className="text-xs text-slate-500">
-                          <strong className="text-slate-700">{count}</strong> câu · {percentage}%
+                          <strong className="text-slate-700"><CountUp value={count} /></strong> câu · <CountUp value={percentage} />%
                         </span>
                       </div>
                       <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
                         <div
-                          className="h-full rounded-full transition-all duration-500"
+                          className="h-full rounded-full transition-all duration-500 bar-grow"
                           style={{ width: `${percentage}%`, background: color }}
                         />
                       </div>

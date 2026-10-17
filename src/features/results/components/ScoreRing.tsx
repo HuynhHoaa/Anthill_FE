@@ -25,7 +25,7 @@ export default function ScoreRing({ score, maxScore, size = 'md' }: ScoreRingPro
     )
   }
 
-  // Quy về thang 10 theo chính điểm tối đa của đề này trước khi xếp loại — xem chú thích ở
+  // Quy về tỷ lệ theo chính điểm tối đa của đề này trước khi xếp loại — xem chú thích ở
   // getScoreTone (H7). Không làm vậy thì vòng điểm ở đây có thể xếp khác màu với cùng một điểm số
   // hiện ở nơi khác.
   const tone = getScoreTone(score, maxScore)

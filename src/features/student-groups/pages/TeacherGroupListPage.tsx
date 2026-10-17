@@ -6,7 +6,7 @@
  * bố; màn hình không lọc lại lần nữa.
  */
 import { useMemo } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { Eye, Search, UsersRound, X } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import EmptyState from '../../../components/common/EmptyState'
@@ -20,6 +20,7 @@ import { usePagination } from '../../../hooks/usePagination'
 import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
 import { useUrlListState } from '../../../hooks/useUrlListState'
 import { formatDate } from '../../../lib/format'
+import { openOnRowClick } from '../../../lib/rowClick'
 import { listGroups } from '../../../services/groupService'
 
 const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500'
@@ -29,6 +30,7 @@ const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wide
 const PAGE_SIZE = 12
 
 export default function TeacherGroupListPage() {
+  const navigate = useNavigate()
   // Từ khoá và số trang nằm trên URL: Back từ trang chi tiết một lớp về đúng chỗ đang xem.
   const { searchInput, setSearchInput, search, page, setPage, clearAll } = useUrlListState({})
   const trimmedSearch = search.trim()
@@ -109,7 +111,7 @@ export default function TeacherGroupListPage() {
           <TableScroller style={wrapperStyle}>
             {/* Bố cục cố định: độ rộng cột chia theo tỉ lệ cố định, không còn phụ thuộc chữ dài nhất của trang đang xem, nên đổi
                 trang không làm các cột xê dịch. */}
-            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[600px]">
+            <table ref={tableRef} className="stack-table w-full table-fixed text-sm min-w-[600px]">
               <colgroup>
                 <col className="w-[40%]" />
                 <col className="w-[20%]" />
@@ -126,8 +128,12 @@ export default function TeacherGroupListPage() {
               </thead>
               <tbody>
                 {pageItems.map(group => (
-                  <tr key={group.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-2">
+                  <tr
+                    key={group.id}
+                    onClick={openOnRowClick(() => navigate(`/giao-vien/nhom-lop/${group.id}`))}
+                    className="border-b border-slate-50 hover:bg-indigo-100/70 transition-colors cursor-pointer"
+                  >
+                    <td data-card="head" className="px-5 py-2">
                       <div className="max-w-[420px] min-w-0">
                         <NavLink
                           to={`/giao-vien/nhom-lop/${group.id}`}
@@ -143,7 +149,7 @@ export default function TeacherGroupListPage() {
                         </p>
                       </div>
                     </td>
-                    <td className="px-5 py-2">
+                    <td data-label="Sĩ số" className="px-5 py-2">
                       {group.studentCount > 0 ? (
                         <p className="text-slate-800">
                           <span className="font-semibold">{group.studentCount}</span>{' '}
@@ -157,10 +163,10 @@ export default function TeacherGroupListPage() {
                         </p>
                       )}
                     </td>
-                    <td className="px-5 py-2 text-slate-500 whitespace-nowrap">
+                    <td data-label="Ngày tạo" className="px-5 py-2 text-slate-500 whitespace-nowrap">
                       {formatDate(group.createdAt)}
                     </td>
-                    <td className="px-5 py-2">
+                    <td data-card="foot" className="px-5 py-2">
                       <div className="flex items-center justify-end">
                         <NavLink
                           to={`/giao-vien/nhom-lop/${group.id}`}

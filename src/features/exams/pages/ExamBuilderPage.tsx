@@ -2,23 +2,31 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertCircle, ArrowLeft, CalendarClock, CheckCircle2, Clock, Copy, FileText,
-  Info, Layers, Loader2, Lock, Plus, Save, Send, Target,
+  Info, Layers, Loader2, Lock, Plus, Save, Send, Shuffle, Sparkles, Target,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
+import DateTimeInput from '../../../components/common/DateTimeInput'
 import ErrorState from '../../../components/common/ErrorState'
+import SlidingSegments from '../../../components/common/SlidingSegments'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import {
-  createExam, duplicateExam, getExam, previewBlueprint, publishExam, updateExam,
-  type BlueprintPreview, type ExamPayload,
+  assignExam, createExam, duplicateExam, getExam, previewBlueprint, publishExam, updateExam,
+  type AssignExamResult, type BlueprintPreview, type ExamPayload,
 } from '../../../services/examService'
+import { listGroups } from '../../../services/groupService'
 import { listTopics } from '../../../services/questionService'
 import { difficultyLabels, type DifficultyLevel, type Exam } from '../../../types'
 import DifficultyRatioEditor from '../components/DifficultyRatioEditor'
+import ExamClassAssignment from '../components/ExamClassAssignment'
 import FieldError from '../components/FieldError'
+import {
+  classAssignmentProblems, createEmptyClassAssignment, effectiveGroupIds, toAssignClassTargets,
+  type ClassAssignmentDraft,
+} from '../utils/classAssignment'
 import {
   clampPercentage, difficultyBarColors, orderedDifficultyLevels, sumRatios,
   type DifficultyRatios,
@@ -28,7 +36,13 @@ import {
   type ExamFormState,
 } from '../utils/examDraftStorage'
 import {
-  examDuplicateConfirmCopy, examPublishConfirmCopy, publishedExamEditConfirmCopy,
+  calculateRequiredCounts, describeScoreDelta, describeScoreGap, EXAM_TOTAL_SCORE, hasTooManyDecimals, MAX_QUESTION_POINT,
+  nearestSolvableCounts,
+  ratiosForCounts, suggestPoints, totalScoreOf, type LevelCounts, type LevelPoints,
+} from '../utils/examScoring'
+import {
+  examAssignTargetsDetails, examDuplicateConfirmCopy, examPublishAndAssignConfirmCopy, examPublishConfirmCopy,
+  publishedExamEditConfirmCopy,
 } from '../utils/examConfirmations'
 import {
   buildDefaultSchedule, describeScheduleLock, isCloseAfterOpen, minutesBetween, opensWithinLockWindow,
@@ -42,7 +56,7 @@ type SaveMode = 'draft' | 'publish' | 'assign'
 type FormErrorKey = keyof ExamFormState | 'ratio'
 type FormErrors = Partial<Record<FormErrorKey, string>>
 
-type BuilderTab = 'general' | 'blueprint'
+type BuilderTab = 'general' | 'blueprint' | 'assign'
 
 /**
  * Ô nhập nào thuộc tab nào.
@@ -60,22 +74,25 @@ const errorKeyToTab: Record<FormErrorKey, BuilderTab> = {
 
   durationMinutes: 'blueprint',
   totalQuestions: 'blueprint',
-  pointPerQuestion: 'blueprint',
+  pointEasy: 'blueprint',
+  pointMedium: 'blueprint',
+  pointHard: 'blueprint',
   easyPercentage: 'blueprint',
   mediumPercentage: 'blueprint',
   hardPercentage: 'blueprint',
   ratio: 'blueprint',
 
-  // Ba tuỳ chọn này nằm ở thanh bên, luôn nhìn thấy được ở cả hai tab. Xếp vào tab đầu chỉ để
-  // Record không thiếu khoá — chúng không sinh lỗi validate nào.
-  shuffleQuestions: 'general',
-  shuffleAnswers: 'general',
-  showResultAfterSubmit: 'general',
+  // Ba tuỳ chọn nằm ở cuối tab Cấu hình. Chúng không sinh lỗi validate nào, khoá ở đây chỉ để
+  // Record không thiếu.
+  shuffleQuestions: 'blueprint',
+  shuffleAnswers: 'blueprint',
+  showResultAfterSubmit: 'blueprint',
 }
 
 const builderTabs: { id: BuilderTab; label: string }[] = [
   { id: 'general', label: 'Thông tin chung' },
-  { id: 'blueprint', label: 'Cấu hình đề' },
+  { id: 'blueprint', label: 'Cấu hình' },
+  { id: 'assign', label: 'Giao bài' },
 ]
 
 /** Tab đầu tiên đang có lỗi, theo đúng thứ tự hiển thị. */
@@ -101,18 +118,29 @@ function fieldClass(message: string | undefined): string {
   return message ? inputInvalidClass : inputNormalClass
 }
 
+const DEFAULT_TOTAL_QUESTIONS = 20
+const DEFAULT_RATIOS: DifficultyRatios = { easy: 30, medium: 50, hard: 20 }
+
 function createInitialForm(): ExamFormState {
   const schedule = buildDefaultSchedule()
+  // Đề mới bắt đầu từ một cách chia điểm sẵn (đủ 10 nếu số câu chia được), để giáo viên không phải tự
+  // chia từ con số 0.
+  const points = suggestPoints(
+    calculateRequiredCounts(DEFAULT_TOTAL_QUESTIONS, DEFAULT_RATIOS.easy, DEFAULT_RATIOS.medium),
+  )?.points ?? { easy: 0, medium: 0, hard: 0 }
+
   return {
     title: '',
     description: '',
     durationMinutes: 45,
-    totalQuestions: 20,
-    pointPerQuestion: 0.5,
+    totalQuestions: DEFAULT_TOTAL_QUESTIONS,
+    pointEasy: points.easy,
+    pointMedium: points.medium,
+    pointHard: points.hard,
     topic: '',
-    easyPercentage: 30,
-    mediumPercentage: 50,
-    hardPercentage: 20,
+    easyPercentage: DEFAULT_RATIOS.easy,
+    mediumPercentage: DEFAULT_RATIOS.medium,
+    hardPercentage: DEFAULT_RATIOS.hard,
     shuffleQuestions: true,
     shuffleAnswers: true,
     showResultAfterSubmit: true,
@@ -144,6 +172,12 @@ function formatScheduleWindow(totalMinutes: number): string {
   return parts.length > 0 ? parts.join(' ') : 'Dưới 1 phút'
 }
 
+const pointFieldByLevel = {
+  easy: 'pointEasy',
+  medium: 'pointMedium',
+  hard: 'pointHard',
+} as const satisfies Record<DifficultyLevel, keyof ExamFormState>
+
 function validateForm(state: ExamFormState, mode: SaveMode): FormErrors {
   const nextErrors: FormErrors = {}
   const isDraft = mode === 'draft'
@@ -167,10 +201,26 @@ function validateForm(state: ExamFormState, mode: SaveMode): FormErrors {
     nextErrors.totalQuestions = 'Một đề chỉ nên có tối đa 100 câu hỏi.'
   }
 
-  if (state.pointPerQuestion <= 0) {
-    nextErrors.pointPerQuestion = 'Điểm mỗi câu phải lớn hơn 0.'
-  } else if (state.pointPerQuestion > 10) {
-    nextErrors.pointPerQuestion = 'Điểm mỗi câu tối đa là 10.'
+  // Điểm gắn theo mức độ: từng ô được kiểm riêng. Tổng khác 10 KHÔNG phải lỗi — giáo viên chọn số câu
+  // bất kỳ và nhiều cấu hình không chia ra đúng 10 — nên tổng chỉ được hỏi xác nhận lúc chốt, xem
+  // `handleSave`.
+  const counts = calculateRequiredCounts(state.totalQuestions, state.easyPercentage, state.mediumPercentage)
+  // "Mức có câu thì điểm > 0" chỉ có nghĩa khi ba tỷ lệ cộng đúng 100 (như validator ở server): nháp nhập dở
+  // 30/30/0 cho mức Khó cả phần dư 4 câu dù giáo viên nhập 0%, và không nên bị đòi điểm cho mức đó.
+  const ratiosAddUp = state.easyPercentage + state.mediumPercentage + state.hardPercentage === 100
+  for (const level of orderedDifficultyLevels) {
+    const field = pointFieldByLevel[level]
+    const value = state[field]
+
+    if (value < 0) {
+      nextErrors[field] = 'Điểm không được âm.'
+    } else if (value > MAX_QUESTION_POINT) {
+      nextErrors[field] = `Điểm của một câu tối đa là ${MAX_QUESTION_POINT}.`
+    } else if (hasTooManyDecimals(value)) {
+      nextErrors[field] = 'Điểm chỉ được tối đa 2 chữ số thập phân.'
+    } else if (ratiosAddUp && counts[level] > 0 && value <= 0) {
+      nextErrors[field] = 'Mức này có câu hỏi nên điểm phải lớn hơn 0.'
+    }
   }
 
   if (!isDraft && !state.openAtLocal) {
@@ -208,7 +258,9 @@ function blueprintDiffers(state: ExamFormState, exam: Exam): boolean {
     state.easyPercentage !== exam.easyPercentage ||
     state.mediumPercentage !== exam.mediumPercentage ||
     state.hardPercentage !== exam.hardPercentage ||
-    state.pointPerQuestion !== exam.pointPerQuestion ||
+    state.pointEasy !== exam.pointEasy ||
+    state.pointMedium !== exam.pointMedium ||
+    state.pointHard !== exam.pointHard ||
     state.topic.trim() !== exam.topic.trim() ||
     state.shuffleQuestions !== exam.shuffleQuestions ||
     state.shuffleAnswers !== exam.shuffleAnswers
@@ -237,7 +289,9 @@ function withFrozenFieldsFrom(state: ExamFormState, exam: Exam): ExamFormState {
     ...state,
     totalQuestions: exam.totalQuestions,
     durationMinutes: exam.durationMinutes,
-    pointPerQuestion: exam.pointPerQuestion,
+    pointEasy: exam.pointEasy,
+    pointMedium: exam.pointMedium,
+    pointHard: exam.pointHard,
     topic: exam.topic,
     easyPercentage: exam.easyPercentage,
     mediumPercentage: exam.mediumPercentage,
@@ -270,8 +324,9 @@ interface BlueprintPreviewCardProps {
   preview: BlueprintPreview | undefined
   loading: boolean
   error: string | undefined
-  totalQuestions: number
-  pointPerQuestion: number
+  /** Số câu mỗi mức của cấu hình đang soạn, tính cục bộ cùng công thức với server. */
+  counts: LevelCounts
+  points: LevelPoints
   /** Cấu hình đề đã khoá vì có em bắt đầu làm — thiếu câu lúc này không phải lỗi cần sửa. */
   frozen: boolean
   onRetry: () => void
@@ -281,7 +336,7 @@ interface BlueprintPreviewCardProps {
 
 /** Kết quả sinh đề luôn lấy từ examService.previewBlueprint để logic nằm đúng tầng nghiệp vụ. */
 function BlueprintPreviewCard({
-  preview, loading, error, totalQuestions, pointPerQuestion, frozen, onRetry, onAddQuestion, onOpenQuestionBank,
+  preview, loading, error, counts, points, frozen, onRetry, onAddQuestion, onOpenQuestionBank,
 }: BlueprintPreviewCardProps) {
   if (error) {
     return <ErrorState message={error} onRetry={onRetry} />
@@ -299,7 +354,8 @@ function BlueprintPreviewCard({
     )
   }
 
-  const totalPoints = Math.round(totalQuestions * pointPerQuestion * 10) / 10
+  const totalPoints = totalScoreOf(counts, points)
+  const scoreGap = describeScoreGap(totalPoints)
 
   return (
     <div className={`${cardClass} p-5`}>
@@ -321,16 +377,19 @@ function BlueprintPreviewCard({
       >
         <div>
           <p className="text-xs text-indigo-500 font-semibold uppercase tracking-wider">Tổng điểm của đề</p>
-          <p className="text-xl font-bold text-indigo-700 mt-0.5">{totalPoints} điểm</p>
+          <p className="text-xl font-bold text-indigo-700 mt-0.5">{totalPoints} / {EXAM_TOTAL_SCORE} điểm</p>
         </div>
-        <p className="text-xs text-indigo-500 text-right leading-relaxed">
-          {totalQuestions} câu × {pointPerQuestion} điểm
+        {/* Đề đã khoá không tô màu cảnh báo, cùng lý do với số câu thiếu bên dưới: giáo viên không chỉnh được nữa. */}
+        <p className={`text-xs text-right leading-relaxed ${scoreGap && !frozen ? 'text-amber-600 font-semibold' : 'text-indigo-500'}`}>
+          {describeScoreDelta(totalPoints) ?? 'Đã đủ điểm'}
         </p>
       </div>
 
       <div className="space-y-3">
         {orderedDifficultyLevels.map(level => {
-          const requiredCount = preview.required[level]
+          // Số câu cần lấy tính cục bộ (cùng công thức server): tổng điểm ở trên đổi ngay theo từng phím, nên
+          // con số này không thể chờ lời gọi xem trước có debounce. Từ server chỉ lấy số câu ngân hàng đang có.
+          const requiredCount = counts[level]
           const availableCount = preview.available[level]
           // Đề đã khoá thì không tô đỏ: giáo viên không đổi được cấu hình, và bộ câu các em đang cầm
           // đã sinh xong từ trước nên ngân hàng vơi đi không làm hỏng gì.
@@ -384,7 +443,7 @@ function BlueprintPreviewCard({
           <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm font-semibold text-emerald-700 leading-relaxed">
             Ngân hàng đủ câu hỏi để sinh đề. Mặc định cả lớp dùng chung một đề; bật "Sinh đề riêng cho
-            từng học sinh" ở trang giao bài nếu muốn mỗi em nhận một đề khác nhau.
+            từng học sinh" ở tab Giao bài nếu muốn mỗi em nhận một đề khác nhau.
           </p>
         </div>
       ) : frozen ? (
@@ -455,7 +514,8 @@ export default function ExamBuilderPage() {
 
   // Nháp chỉ được đọc đúng một lần lúc gắn trang: hàm xoá chạy ngay sau đó nên các
   // render sau không còn đọc lại được nữa.
-  const [restoredForm] = useState(() => readExamBuilderDraft(examId ?? null)?.form)
+  const [restoredDraft] = useState(() => readExamBuilderDraft(examId ?? null))
+  const restoredForm = restoredDraft?.form
   // Bật khi form đang giữ những gì giáo viên soạn mà chưa lưu — nháp vừa khôi phục, hoặc lần lưu vừa bị
   // từ chối vì đề bị khoá giữa chừng. Khi đó dữ liệu nạp từ server không được đè cả form.
   const keepFormEditsRef = useRef(restoredForm !== undefined)
@@ -468,6 +528,9 @@ export default function ExamBuilderPage() {
   const formRef = useRef(form)
   formRef.current = form
   const [errors, setErrors] = useState<FormErrors>({})
+  const [assignment, setAssignment] = useState<ClassAssignmentDraft>(
+    () => restoredDraft?.assignment ?? createEmptyClassAssignment(),
+  )
   const [activeTab, setActiveTab] = useState<BuilderTab>('general')
   const [anchorLevel, setAnchorLevel] = useState<DifficultyLevel>('easy')
   const [savingMode, setSavingMode] = useState<SaveMode | null>(null)
@@ -477,6 +540,7 @@ export default function ExamBuilderPage() {
     [examId ?? 0],
   )
   const topicsQuery = useAsync(() => listTopics(), [])
+  const groupsQuery = useAsync(() => listGroups(), [])
   const loadedExam = examQuery.data
 
   // Xoá ở effect riêng chứ không xoá trong initializer, vì StrictMode chạy initializer hai lần.
@@ -546,7 +610,9 @@ export default function ExamBuilderPage() {
       description: loadedExam.description,
       durationMinutes: loadedExam.durationMinutes,
       totalQuestions: loadedExam.totalQuestions,
-      pointPerQuestion: loadedExam.pointPerQuestion,
+      pointEasy: loadedExam.pointEasy,
+      pointMedium: loadedExam.pointMedium,
+      pointHard: loadedExam.pointHard,
       topic: loadedExam.topic,
       easyPercentage: loadedExam.easyPercentage,
       mediumPercentage: loadedExam.mediumPercentage,
@@ -568,6 +634,46 @@ export default function ExamBuilderPage() {
     [form.easyPercentage, form.mediumPercentage, form.hardPercentage],
   )
   const ratioTotal = sumRatios(ratios)
+
+  // Số câu mỗi mức tính cục bộ để tổng điểm đổi ngay theo từng phím, không chờ lời gọi xem trước (có
+  // debounce). Công thức khớp server từng đơn vị; server vẫn là nơi kiểm lại khi lưu.
+  const counts = useMemo<LevelCounts>(
+    () => calculateRequiredCounts(form.totalQuestions, form.easyPercentage, form.mediumPercentage),
+    [form.totalQuestions, form.easyPercentage, form.mediumPercentage],
+  )
+  const points = useMemo<LevelPoints>(
+    () => ({ easy: form.pointEasy, medium: form.pointMedium, hard: form.pointHard }),
+    [form.pointEasy, form.pointMedium, form.pointHard],
+  )
+  const totalScore = totalScoreOf(counts, points)
+  const scoreGap = describeScoreGap(totalScore)
+  const scoreDelta = describeScoreDelta(totalScore)
+
+  // Đề mới: chừng nào giáo viên chưa tự sửa điểm thì đổi số câu hay tỷ lệ sẽ tự chia lại cho sát 10. Sửa
+  // tay một ô là tắt chế độ này (đề đang sửa và nháp khôi phục thì tắt từ đầu): từ đó giáo viên tự lo,
+  // giao diện chỉ nói còn thiếu hay thừa bao nhiêu.
+  const [pointsTouched, setPointsTouched] = useState(() => restoredForm !== undefined || isEditing)
+  const totalCount = counts.easy + counts.medium + counts.hard
+  const suggestion = useMemo(() => suggestPoints(counts), [counts])
+  // `exact: false` là số câu không thể ra đúng 10: gợi ý vẫn điền cách chia sát nhất, và form chỉ nói rõ.
+  const canSplitExactly = suggestion === null || suggestion.exact
+  const alternativeSplits = useMemo(
+    () => canSplitExactly
+      ? []
+      : nearestSolvableCounts(counts).filter(split => ratiosForCounts(split) !== null),
+    [canSplitExactly, counts],
+  )
+
+  useEffect(() => {
+    if (pointsTouched || !suggestion) return
+    const { easy, medium, hard } = suggestion.points
+
+    setForm(current =>
+      current.pointEasy === easy && current.pointMedium === medium && current.pointHard === hard
+        ? current
+        : { ...current, pointEasy: easy, pointMedium: medium, pointHard: hard },
+    )
+  }, [suggestion, pointsTouched])
 
   // Chỉ gọi lại preview khi cấu hình đã ngưng thay đổi, tránh bắn request ở mỗi lần kéo thanh trượt.
   const blueprintKey = [
@@ -601,6 +707,27 @@ export default function ExamBuilderPage() {
   // Server khoá cấu hình đề khi đã có em bắt đầu làm. Đọc thẳng cờ của server thay vì tự suy từ số
   // liệu, để luật khoá chỉ nằm ở một nơi.
   const isFrozen = isEditing && loadedExam?.blueprintFrozen === true
+  // Tổng khác 10 không bị chặn, chỉ được hỏi xác nhận lúc chốt. Không hỏi khi lần lưu không đụng tới bộ
+  // câu của một đề đã xuất bản (chỉ đổi tên, mô tả, lịch): với đề đã khoá giáo viên không còn cách chỉnh
+  // điểm, hỏi ở đó chỉ là ồn.
+  const scoreNeedsConfirmation = !(
+    loadedExam && loadedExam.lifecycle !== 'draft' && !blueprintDiffers(form, loadedExam)
+  )
+
+  // Bấm "Quay lại chỉnh" ở hộp xác nhận thì đưa giáo viên về đúng mục điểm.
+  const pointsSectionRef = useRef<HTMLElement>(null)
+  const [pointsFocusTick, setPointsFocusTick] = useState(0)
+  useEffect(() => {
+    if (pointsFocusTick === 0) return
+    pointsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+    // Chờ một nhịp: hộp xác nhận vừa đóng trả tiêu điểm về nút đã mở nó bằng một nhịp như vậy (xem
+    // `Modal`), và nếu focus ngay thì bị giành lại.
+    const timer = window.setTimeout(() => {
+      document.getElementById('exam-point-easy')?.focus({ preventScroll: true })
+    }, 60)
+    return () => window.clearTimeout(timer)
+  }, [pointsFocusTick])
   // Lịch khoá riêng, theo giờ: đề đã giao và còn dưới 2 giờ nữa là mở, hoặc đang mở. Tên và mô tả vẫn sửa được.
   const isScheduleLocked = isEditing && loadedExam?.scheduleLocked === true
   // Cấu hình đã khoá thì không đổi được, nên cũng không có gì để chặn: ngân hàng có vơi đi sau lúc sinh
@@ -612,6 +739,24 @@ export default function ExamBuilderPage() {
   // Đề đã xuất bản mà lưu nháp lại thì học sinh đang được giao sẽ mất quyền vào làm,
   // nên chỉ cho lưu nháp khi tạo mới hoặc khi đề vẫn còn là bản nháp.
   const canSaveDraft = !isEditing || loadedExam?.lifecycle === 'draft'
+  // Giao ngay lúc lưu chỉ có khi đề đang được tạo hoặc còn là nháp: đề đã xuất bản có tab Giao bài riêng ở
+  // trang chi tiết, nơi còn thấy được lớp nào đã nhận bài và đổi giờ của lớp đó.
+  const canAssignHere = canSaveDraft
+  const visibleTabs = builderTabs.filter(tab => tab.id !== 'assign' || canAssignHere)
+  const availableGroups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data])
+  const chosenGroupIds = useMemo(
+    () => (canAssignHere ? effectiveGroupIds(assignment, availableGroups.map(group => group.id)) : []),
+    [canAssignHere, assignment, availableGroups],
+  )
+  const assignmentProblems = useMemo(
+    () => classAssignmentProblems(
+      assignment,
+      chosenGroupIds,
+      groupId => availableGroups.find(group => group.id === groupId)?.name ?? `Lớp ${groupId}`,
+      form.durationMinutes,
+    ),
+    [assignment, chosenGroupIds, availableGroups, form.durationMinutes],
+  )
 
   const clearError = (key: FormErrorKey) => {
     setErrors(current => {
@@ -631,6 +776,40 @@ export default function ExamBuilderPage() {
     clearError(key)
   }
 
+  const updatePoint = (field: (typeof pointFieldByLevel)[DifficultyLevel], rawValue: string) => {
+    setPointsTouched(true)
+    updateField(field, toSafeNumber(rawValue))
+  }
+
+  /** Điền cách chia gợi ý và bật lại chế độ tự chia theo số câu. */
+  const handleSuggestPoints = () => {
+    if (!suggestion) return
+
+    setPointsTouched(false)
+    setForm(current => ({
+      ...current,
+      pointEasy: suggestion.points.easy,
+      pointMedium: suggestion.points.medium,
+      pointHard: suggestion.points.hard,
+    }))
+    setErrors(current => {
+      const next = { ...current }
+      delete next.pointEasy
+      delete next.pointMedium
+      delete next.pointHard
+      return next
+    })
+  }
+
+  /** Đổi sang một cách chia số câu chia được đúng 10; điểm tự chia lại theo số câu mới. */
+  const handleUseSplit = (split: LevelCounts) => {
+    const nextRatios = ratiosForCounts(split)
+    if (!nextRatios) return
+
+    setPointsTouched(false)
+    applyRatios(nextRatios)
+  }
+
   const applyRatios = (nextRatios: DifficultyRatios) => {
     setForm(current => ({
       ...current,
@@ -648,7 +827,7 @@ export default function ExamBuilderPage() {
 
   // Rời trang để bổ sung ngân hàng thì phải giữ nháp lại, nếu không toàn bộ cấu hình đang nhập sẽ mất.
   const saveDraftAndNavigate = (targetPath: string) => {
-    saveExamBuilderDraft({ examId: examId ?? null, form, savedAt: Date.now() })
+    saveExamBuilderDraft({ examId: examId ?? null, form, assignment, savedAt: Date.now() })
     navigate(targetPath)
   }
 
@@ -703,6 +882,25 @@ export default function ExamBuilderPage() {
       return
     }
 
+    // Danh sách lớp chưa về thì không biết lớp đã chọn còn hợp lệ không; lẳng lặng bỏ qua là lưu đề mà không giao.
+    if (canAssignHere && mode === 'publish' && assignment.groupIds.length > 0 && groupsQuery.data === undefined) {
+      toast.error(
+        groupsQuery.error
+          ? 'Không tải được danh sách lớp nên chưa giao được. Hãy tải lại danh sách ở tab Giao bài.'
+          : 'Đang tải danh sách lớp, hãy bấm lưu lại sau giây lát.',
+      )
+      return
+    }
+
+    // Khung giờ riêng của lớp sai thì chặn ở đây, trước khi đề được lưu: nếu để server từ chối ở bước giao thì
+    // đề đã nằm trong hệ thống mà lớp vẫn chưa nhận bài.
+    const assignsNow = mode === 'publish' && chosenGroupIds.length > 0
+    if (assignsNow && assignmentProblems.length > 0) {
+      setActiveTab('assign')
+      toast.error('Khung giờ riêng của lớp chưa hợp lệ. Hãy xem lại tab Giao bài.')
+      return
+    }
+
     // Lịch không đổi thì gửi lại nguyên giá trị đã lưu, không qua ô nhập giờ (chỉ tới phút). Một đề đã khoá lịch
     // mà bị coi là "đổi giờ" chỉ vì mất vài giây là bị từ chối khi giáo viên chỉ muốn sửa tên.
     const keepSavedSchedule = loadedExam !== null && loadedExam !== undefined && !scheduleDiffers(form, loadedExam)
@@ -715,7 +913,9 @@ export default function ExamBuilderPage() {
       easyPercentage: form.easyPercentage,
       mediumPercentage: form.mediumPercentage,
       hardPercentage: form.hardPercentage,
-      pointPerQuestion: form.pointPerQuestion,
+      pointEasy: form.pointEasy,
+      pointMedium: form.pointMedium,
+      pointHard: form.pointHard,
       topic: form.topic,
       shuffleQuestions: form.shuffleQuestions,
       shuffleAnswers: form.shuffleAnswers,
@@ -730,7 +930,7 @@ export default function ExamBuilderPage() {
       lifecycle: mode === 'draft' ? 'draft' : undefined,
     }
 
-    const outcome: { saved?: Exam; final?: Exam; conflict?: string } = {}
+    const outcome: { saved?: Exam; final?: Exam; conflict?: string; assigned?: AssignExamResult } = {}
     const persist = async () => {
       // Lần thử lại trong hộp xác nhận sau khi tạo đề xong mà bước xuất bản hỏng thì không được
       // tạo thêm một đề nữa — dùng lại bản vừa lưu và chỉ thử lại bước còn thiếu.
@@ -760,32 +960,101 @@ export default function ExamBuilderPage() {
       outcome.final = mode !== 'draft' && saved.lifecycle === 'draft'
         ? await publishExam(saved.id)
         : saved
+
+      // Bước giao đi sau cùng và có thể hỏng riêng (lớp vừa đổi phân công, khung giờ bị server từ chối). Đề đã
+      // xuất bản rồi nên lần thử lại trong hộp chỉ chạy lại đúng bước này, không tạo thêm đề.
+      if (assignsNow && outcome.final && !outcome.assigned) {
+        const published = outcome.final
+        outcome.assigned = await assignExam(published.id, {
+          groupIds: [],
+          classes: toAssignClassTargets(assignment, chosenGroupIds),
+          notify: true,
+          randomizePerStudent: assignment.randomizePerStudent === published.randomizePerStudent
+            ? undefined
+            : assignment.randomizePerStudent,
+        })
+      }
     }
 
     // Lưu nháp không đụng tới ai nên không hỏi. Hai trường hợp còn lại thì có: xuất bản là bước
     // không quay lại được, còn sửa một đề đã xuất bản là sửa thứ học sinh đang cầm trên tay.
     const goingToAssign = mode === 'assign'
+    const publishSummary = {
+      title: form.title,
+      totalQuestions: form.totalQuestions,
+      durationMinutes: form.durationMinutes,
+      // Hộp xác nhận là chỗ để người dùng đọc, nên in giờ địa phương. Chuỗi ISO theo giờ
+      // UTC chỉ dành cho server — in ra đây là lệch bảy tiếng với giờ Việt Nam.
+      openAt: formatDateTime(form.openAtLocal),
+      closeAt: formatDateTime(form.closeAtLocal),
+    }
+    const assignTargets = chosenGroupIds.map(groupId => {
+      const group = availableGroups.find(item => item.id === groupId)
+      const window = assignment.windows[groupId]
+      return {
+        name: group?.name ?? `Lớp ${groupId}`,
+        studentCount: group?.studentCount ?? 0,
+        windowText: window?.enabled
+          ? `${formatDateTime(window.openAtLocal)} – ${formatDateTime(window.closeAtLocal)}`
+          : undefined,
+      }
+    })
     const confirmCopy =
       mode === 'draft'
         ? undefined
         : loadedExam && loadedExam.lifecycle !== 'draft'
           ? publishedExamEditConfirmCopy(loadedExam, goingToAssign, blueprintDiffers(form, loadedExam))
-          : examPublishConfirmCopy(
-              {
-                title: form.title,
-                totalQuestions: form.totalQuestions,
-                durationMinutes: form.durationMinutes,
-                // Hộp xác nhận là chỗ để người dùng đọc, nên in giờ địa phương. Chuỗi ISO theo giờ
-                // UTC chỉ dành cho server — in ra đây là lệch bảy tiếng với giờ Việt Nam.
-                openAt: formatDateTime(form.openAtLocal),
-                closeAt: formatDateTime(form.closeAtLocal),
-              },
-              goingToAssign,
-            )
+          : assignsNow
+            ? examPublishAndAssignConfirmCopy(publishSummary, assignTargets)
+            : examPublishConfirmCopy(publishSummary, goingToAssign)
+
+    // Chốt một đề có tổng khác 10 điểm: nói thẳng con số và hỏi lại, cùng hộp với bước xuất bản hay lưu để
+    // giáo viên không phải qua hai hộp liên tiếp. Không xác nhận thì quay về mục điểm để chỉnh.
+    const scoreWarning = mode !== 'draft' && scoreNeedsConfirmation && scoreGap !== null
 
     if (confirmCopy) {
-      const confirmed = await confirm({ ...confirmCopy, onConfirm: persist })
-      if (!confirmed) return
+      // Hộp "xuất bản và giao bài" đã tự liệt kê các lớp; ở hộp khác (lưu đề đã xuất bản kèm giao thêm) thì thêm khối "Giao cho".
+      const copyListsTargets = assignsNow && !(loadedExam && loadedExam.lifecycle !== 'draft')
+      const classDetails = assignsNow && !copyListsTargets ? examAssignTargetsDetails(assignTargets) : undefined
+
+      const confirmed = await confirm({
+        ...confirmCopy,
+        details: (
+          <div className="space-y-3">
+            {confirmCopy.details}
+            {classDetails}
+            {scoreWarning && (
+              <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-[13px] leading-relaxed text-amber-800">
+                {scoreGap} Học sinh sẽ làm bài tối đa {totalScore} điểm. Muốn đủ {EXAM_TOTAL_SCORE}, quay lại chỉnh số
+                câu hoặc điểm.
+              </p>
+            )}
+          </div>
+        ),
+        ...(scoreWarning
+          ? {
+              confirmLabel: `Vẫn ${confirmCopy.confirmLabel.charAt(0).toLowerCase()}${confirmCopy.confirmLabel.slice(1)}`,
+              cancelLabel: 'Quay lại chỉnh',
+              // Hộp nói về một điều cần cân nhắc: Enter gõ thêm ngay sau khi hộp mở không được là lời "vâng".
+              enterConfirms: false,
+            }
+          : {}),
+        onConfirm: persist,
+      })
+      if (!confirmed) {
+        // Đề đã được lưu và xuất bản nhưng bước giao hỏng, rồi giáo viên đóng hộp: không để họ ở lại form tạo
+        // mới (bấm Lưu lần nữa sẽ tạo đề thứ hai). Đưa tới đề vừa lưu, ngay tab Giao bài để giao lại.
+        if (assignsNow && outcome.final && !outcome.assigned) {
+          toast.info('Đã lưu bài kiểm tra nhưng chưa giao được cho lớp. Chọn lớp và giao lại ở tab Giao bài.')
+          navigate(`/giao-vien/bai-kiem-tra/${outcome.final.id}?tab=giao-bai`)
+          return
+        }
+        if (scoreWarning) {
+          setActiveTab('blueprint')
+          setPointsFocusTick(tick => tick + 1)
+        }
+        return
+      }
     } else {
       setSavingMode(mode)
       try {
@@ -810,13 +1079,21 @@ export default function ExamBuilderPage() {
 
     if (mode === 'draft') {
       toast.success('Đã lưu bản nháp. Đề chưa phát cho học sinh.')
+    } else if (outcome.assigned) {
+      const given = outcome.assigned
+      const skipped = given.skippedAlreadyAssigned + given.skippedLocked + given.skippedRetired
+        + given.skippedOutOfScope
+      toast.success(
+        `Đã tạo bài kiểm tra và giao cho ${given.assignedCount} học sinh.`
+        + (skipped > 0 ? ` Bỏ qua ${skipped} em (tài khoản bị khoá, chờ xoá hoặc ngoài phạm vi của bạn).` : ''),
+      )
     } else {
       toast.success(isEditing ? 'Đã cập nhật bài kiểm tra.' : 'Đã tạo bài kiểm tra thành công.')
     }
 
     navigate(
       mode === 'assign'
-        ? `/giao-vien/bai-kiem-tra/${published.id}/giao-bai`
+        ? `/giao-vien/bai-kiem-tra/${published.id}?tab=giao-bai`
         : `/giao-vien/bai-kiem-tra/${published.id}`,
     )
   }
@@ -824,15 +1101,16 @@ export default function ExamBuilderPage() {
   const pageTitle = isEditing ? 'Sửa bài kiểm tra' : 'Tạo bài kiểm tra'
   const pageSubtitle = isEditing
     ? loadedExam?.title ?? 'Đang tải cấu hình bài kiểm tra'
-    : 'Cấu hình ma trận đề. Mặc định cả lớp dùng chung một đề (câu hỏi và đáp án vẫn xáo trộn theo tuỳ chọn bên dưới); bật "Sinh đề riêng cho từng học sinh" ở bước giao bài nếu muốn mỗi em một đề khác nhau.'
+    : 'Cấu hình ma trận đề, rồi chọn lớp nhận bài ở tab Giao bài nếu muốn giao ngay.'
 
   // Chỉ quay về trang chi tiết khi id thật sự là số, tránh dẫn tới '/bai-kiem-tra/NaN'.
   const hasValidExamId = examId !== undefined && Number.isFinite(examId)
+  // Nút quay lại nằm trên thanh tiêu đề (từ cỡ lg) để khỏi chiếm một hàng riêng phía trên form.
   const backLink = (
-    <div className="mb-5">
+    <div className="flex w-full justify-start lg:justify-end">
       <NavLink
         to={hasValidExamId ? `/giao-vien/bai-kiem-tra/${examId}` : '/giao-vien/bai-kiem-tra'}
-        className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
+        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap"
       >
         <ArrowLeft size={16} />
         {hasValidExamId ? 'Quay lại chi tiết bài kiểm tra' : 'Quay lại danh sách bài kiểm tra'}
@@ -842,8 +1120,12 @@ export default function ExamBuilderPage() {
 
   if (isEditing && examQuery.error) {
     return (
-      <TeacherLayout pageTitle={pageTitle} pageSubtitle="Không tải được bài kiểm tra">
-        {backLink}
+      <TeacherLayout
+        pageTitle={pageTitle}
+        pageSubtitle="Không tải được bài kiểm tra"
+        compactContent
+        headerTools={backLink}
+      >
         <ErrorState message={examQuery.error} onRetry={examQuery.reload} />
       </TeacherLayout>
     )
@@ -851,8 +1133,7 @@ export default function ExamBuilderPage() {
 
   if (isEditing && !loadedExam) {
     return (
-      <TeacherLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle}>
-        {backLink}
+      <TeacherLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle} compactContent headerTools={backLink}>
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start">
           <div className="space-y-6">
             {[0, 1, 2].map(blockIndex => (
@@ -885,9 +1166,7 @@ export default function ExamBuilderPage() {
   }
 
   return (
-    <TeacherLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle}>
-      {backLink}
-
+    <TeacherLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle} compactContent headerTools={backLink}>
       <form
         onSubmit={event => {
           event.preventDefault()
@@ -912,7 +1191,7 @@ export default function ExamBuilderPage() {
             </div>
           )}
 
-          {/* Đặt trên dải tab để nhìn thấy ở cả hai tab: giáo viên mở tab "Cấu hình đề" thấy mọi ô bị
+          {/* Đặt trên dải tab để nhìn thấy ở cả hai tab: giáo viên mở tab "Cấu hình" thấy mọi ô bị
               mờ thì phải biết ngay vì sao, và lối ra nằm ngay cạnh lời giải thích. */}
           {isFrozen && loadedExam && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-3">
@@ -940,11 +1219,13 @@ export default function ExamBuilderPage() {
           {/* Chia form dài thành hai tab thay vì một trang cuộn: mỗi tab vừa một màn hình nên
               không phải kéo lên kéo xuống để đối chiếu hai ô liên quan nhau. Dấu chấm đỏ trên
               nhãn tab là thứ khiến việc ẩn bớt nội dung không giấu mất lỗi. */}
-          <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 w-fit">
-            {builderTabs.map(tab => {
+          <SlidingSegments activeKey={activeTab} className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 w-fit">
+            {visibleTabs.map(tab => {
               const isActive = activeTab === tab.id
-              const hasError = (Object.keys(errors) as FormErrorKey[])
-                .some(key => errors[key] && errorKeyToTab[key] === tab.id)
+              const hasError = tab.id === 'assign'
+                ? chosenGroupIds.length > 0 && assignmentProblems.length > 0
+                : (Object.keys(errors) as FormErrorKey[])
+                  .some(key => errors[key] && errorKeyToTab[key] === tab.id)
 
               return (
                 <button
@@ -952,8 +1233,9 @@ export default function ExamBuilderPage() {
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                    isActive ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  data-tab-active={isActive}
+                  className={`relative z-10 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                    isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   {tab.label}
@@ -967,7 +1249,7 @@ export default function ExamBuilderPage() {
                 </button>
               )
             })}
-          </div>
+          </SlidingSegments>
 
 
           {activeTab === 'general' && (
@@ -1050,11 +1332,10 @@ export default function ExamBuilderPage() {
                   <label htmlFor="exam-open-at" className={labelClass}>
                     Thời gian mở bài <span className="text-red-500">*</span>
                   </label>
-                  <input
+                  <DateTimeInput
                     id="exam-open-at"
-                    type="datetime-local"
                     value={form.openAtLocal}
-                    onChange={event => updateField('openAtLocal', event.target.value)}
+                    onChange={value => updateField('openAtLocal', value)}
                     disabled={isScheduleLocked}
                     className={`${fieldClass(errors.openAtLocal)} ${lockedFieldClass}`}
                   />
@@ -1065,11 +1346,10 @@ export default function ExamBuilderPage() {
                   <label htmlFor="exam-close-at" className={labelClass}>
                     Thời gian đóng bài <span className="text-red-500">*</span>
                   </label>
-                  <input
+                  <DateTimeInput
                     id="exam-close-at"
-                    type="datetime-local"
                     value={form.closeAtLocal}
-                    onChange={event => updateField('closeAtLocal', event.target.value)}
+                    onChange={value => updateField('closeAtLocal', value)}
                     disabled={isScheduleLocked}
                     className={`${fieldClass(errors.closeAtLocal)} ${lockedFieldClass}`}
                   />
@@ -1131,6 +1411,7 @@ export default function ExamBuilderPage() {
           {/* Một fieldset tắt được mọi ô bên trong, kể cả thanh trượt và nút mẫu nhanh của khối tỷ lệ,
               mà không phải luồn cờ khoá xuống từng component. */}
           {activeTab === 'blueprint' && (
+            <>
             <fieldset
               disabled={isFrozen}
               title={isFrozen ? 'Đã khoá vì có học sinh bắt đầu làm bài' : undefined}
@@ -1139,10 +1420,10 @@ export default function ExamBuilderPage() {
             <section className={`${cardClass} p-6`}>
               <div className="flex items-center gap-2 mb-5">
                 <Target size={18} className="text-indigo-600" />
-                <h2 className="text-base font-bold text-slate-800">Cấu hình đề</h2>
+                <h2 className="text-base font-bold text-slate-800">Cấu hình</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="exam-total-questions" className={labelClass}>
                     Tổng số câu <span className="text-red-500">*</span>
@@ -1178,22 +1459,6 @@ export default function ExamBuilderPage() {
                   <FieldError message={errors.durationMinutes} />
                 </div>
 
-                <div>
-                  <label htmlFor="exam-point" className={labelClass}>
-                    Điểm mỗi câu <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="exam-point"
-                    type="number"
-                    min={0.1}
-                    max={10}
-                    step={0.1}
-                    value={form.pointPerQuestion}
-                    onChange={event => updateField('pointPerQuestion', toSafeNumber(event.target.value))}
-                    className={fieldClass(errors.pointPerQuestion)}
-                  />
-                  <FieldError message={errors.pointPerQuestion} />
-                </div>
               </div>
             </section>
             <DifficultyRatioEditor
@@ -1202,7 +1467,175 @@ export default function ExamBuilderPage() {
               errorMessage={errors.ratio}
               onChange={changeRatios}
             />
+
+            <section ref={pointsSectionRef} className={`${cardClass} p-6`}>
+              <div className="flex items-center justify-between gap-3 mb-1">
+                <div className="flex items-center gap-2">
+                  <Target size={18} className="text-indigo-600" />
+                  <h2 className="text-base font-bold text-slate-800">Điểm từng mức độ</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSuggestPoints}
+                  disabled={!suggestion}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Sparkles size={14} /> Gợi ý chia điểm
+                </button>
+              </div>
+              <p className="text-sm text-slate-500 mb-5 leading-relaxed">
+                Mỗi câu hỏi lấy điểm theo mức độ khó của nó. Tổng điểm chuẩn của một bài kiểm tra là {EXAM_TOTAL_SCORE}.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {orderedDifficultyLevels.map(level => {
+                  const field = pointFieldByLevel[level]
+                  const subtotal = Math.round(counts[level] * form[field] * 100) / 100
+
+                  return (
+                    <div key={level}>
+                      <label htmlFor={`exam-point-${level}`} className={labelClass}>
+                        Câu {difficultyLabels[level]}
+                        <span className="font-normal text-slate-400"> · {counts[level]} câu</span>
+                      </label>
+                      <input
+                        id={`exam-point-${level}`}
+                        type="number"
+                        min={0}
+                        max={MAX_QUESTION_POINT}
+                        // Điểm có tối đa hai chữ số thập phân (gợi ý có thể ra 1,26). Một bước cố định thì trình
+                        // duyệt chặn nút lưu bằng "hai giá trị hợp lệ gần nhất" ngay khi giá trị không là bội của nó.
+                        step="any"
+                        value={form[field]}
+                        onChange={event => updatePoint(field, event.target.value)}
+                        className={fieldClass(errors[field])}
+                      />
+                      <p className="text-xs text-slate-400 mt-1.5">
+                        {counts[level]} câu × {form[field]} = {subtotal} điểm
+                      </p>
+                      <FieldError message={errors[field]} />
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Đề đã khoá không đổi được điểm nên thanh tổng chỉ cho biết, không nhắc việc bằng màu cảnh báo. */}
+              <div
+                className={`mt-5 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-2 ${
+                  scoreGap === null ? 'bg-emerald-50' : isFrozen ? 'bg-slate-50' : 'bg-amber-50'
+                }`}
+              >
+                <p
+                  className={`text-sm font-bold ${
+                    scoreGap === null ? 'text-emerald-700' : isFrozen ? 'text-slate-600' : 'text-amber-700'
+                  }`}
+                >
+                  Tổng điểm: {totalScore} / {EXAM_TOTAL_SCORE}
+                </p>
+                <p
+                  className={`text-sm ${
+                    scoreGap === null ? 'text-emerald-700' : isFrozen ? 'text-slate-600' : 'text-amber-700'
+                  }`}
+                >
+                  {scoreDelta ?? 'Đã đủ điểm.'}
+                </p>
+              </div>
+              {scoreGap !== null && !isFrozen && (
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                  {scoreNeedsConfirmation
+                    ? `Tổng khác ${EXAM_TOTAL_SCORE} vẫn lưu được. Lưu bài sẽ hỏi xác nhận, lưu nháp thì không.`
+                    : `Đề đã chốt với tổng khác ${EXAM_TOTAL_SCORE}. Đổi tên hay lịch thì lưu không hỏi; đổi số câu hay điểm thì sẽ hỏi xác nhận.`}
+                  {/* Sửa tay một ô là tắt chế độ tự chia lại: nói ra, kẻo đổi số câu mà điểm đứng yên thì khó hiểu. */}
+                  {pointsTouched && scoreNeedsConfirmation
+                    ? ' Điểm đang giữ nguyên; bấm "Gợi ý chia điểm" để chia lại.'
+                    : ''}
+                </p>
+              )}
+
+              {suggestion && !suggestion.exact && totalCount > 0 && !isFrozen && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-amber-700 flex items-center gap-2">
+                    <Info size={15} className="flex-shrink-0" />
+                    {counts.easy} Dễ · {counts.medium} Trung bình · {counts.hard} Khó không chia ra đúng {EXAM_TOTAL_SCORE} điểm
+                  </p>
+                  <p className="text-sm text-amber-700 mt-1 leading-relaxed">
+                    Điểm mỗi câu chỉ lẻ tối đa 2 chữ số thập phân nên số câu này không ra đúng {EXAM_TOTAL_SCORE}{' '}
+                    (gần nhất {suggestion.total}).
+                    {alternativeSplits.length > 0
+                      ? ` Muốn đủ ${EXAM_TOTAL_SCORE}, chọn một cách chia (điểm sẽ tự chia lại):`
+                      : ''}
+                  </p>
+                  {alternativeSplits.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {alternativeSplits.map(split => (
+                        <button
+                          key={`${split.easy}-${split.medium}-${split.hard}`}
+                          type="button"
+                          onClick={() => handleUseSplit(split)}
+                          className="px-3 py-2 rounded-xl text-xs font-semibold text-amber-800 bg-white border border-amber-200 hover:bg-amber-100 transition-colors"
+                        >
+                          {split.easy} Dễ · {split.medium} Trung bình · {split.hard} Khó
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
             </fieldset>
+            <section className={`${cardClass} p-6`}>
+              <div className="flex items-center gap-2 mb-3">
+                <Shuffle size={18} className="text-indigo-600" />
+                <h2 className="text-base font-bold text-slate-800">Tuỳ chọn</h2>
+              </div>
+              <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
+                <span className="text-sm text-slate-600">Trộn thứ tự câu hỏi</span>
+                <input
+                  type="checkbox"
+                  checked={form.shuffleQuestions}
+                  onChange={event => updateField('shuffleQuestions', event.target.checked)}
+                  disabled={isFrozen}
+                  className="w-4 h-4 accent-indigo-600"
+                />
+              </label>
+              <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
+                <span className="text-sm text-slate-600">Trộn thứ tự đáp án</span>
+                <input
+                  type="checkbox"
+                  checked={form.shuffleAnswers}
+                  onChange={event => updateField('shuffleAnswers', event.target.checked)}
+                  disabled={isFrozen}
+                  className="w-4 h-4 accent-indigo-600"
+                />
+              </label>
+              <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
+                <span className="text-sm text-slate-600">Hiện kết quả sau khi nộp</span>
+                <input
+                  type="checkbox"
+                  checked={form.showResultAfterSubmit}
+                  onChange={event => updateField('showResultAfterSubmit', event.target.checked)}
+                  className="w-4 h-4 accent-indigo-600"
+                />
+              </label>
+            </section>
+            </>
+          )}
+
+          {activeTab === 'assign' && canAssignHere && (
+            <ExamClassAssignment
+              groups={availableGroups}
+              loading={groupsQuery.loading}
+              error={groupsQuery.error}
+              onRetry={groupsQuery.reload}
+              value={assignment}
+              onChange={setAssignment}
+              durationMinutes={form.durationMinutes}
+              defaultOpenAtLocal={form.openAtLocal}
+              defaultCloseAtLocal={form.closeAtLocal}
+              problems={chosenGroupIds.length > 0 ? assignmentProblems : []}
+              showLockWarning={opensWithinLockWindow(form.openAtLocal, form.closeAtLocal)}
+              canSaveDraft={canSaveDraft}
+            />
           )}
         </div>
 
@@ -1211,46 +1644,13 @@ export default function ExamBuilderPage() {
             preview={blueprintQuery.data}
             loading={blueprintQuery.loading}
             error={blueprintQuery.error}
-            totalQuestions={form.totalQuestions}
-            pointPerQuestion={form.pointPerQuestion}
+            counts={counts}
+            points={points}
             frozen={isFrozen}
             onRetry={blueprintQuery.reload}
             onAddQuestion={goToQuestionEditor}
             onOpenQuestionBank={goToQuestionBank}
           />
-
-          <div className={`${cardClass} p-5`}>
-            <h2 className="text-base font-bold text-slate-800 mb-2">Tuỳ chọn</h2>
-            <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
-              <span className="text-sm text-slate-600">Trộn thứ tự câu hỏi</span>
-              <input
-                type="checkbox"
-                checked={form.shuffleQuestions}
-                onChange={event => updateField('shuffleQuestions', event.target.checked)}
-                disabled={isFrozen}
-                className="w-4 h-4 accent-indigo-600"
-              />
-            </label>
-            <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
-              <span className="text-sm text-slate-600">Trộn thứ tự đáp án</span>
-              <input
-                type="checkbox"
-                checked={form.shuffleAnswers}
-                onChange={event => updateField('shuffleAnswers', event.target.checked)}
-                disabled={isFrozen}
-                className="w-4 h-4 accent-indigo-600"
-              />
-            </label>
-            <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
-              <span className="text-sm text-slate-600">Hiện kết quả sau khi nộp</span>
-              <input
-                type="checkbox"
-                checked={form.showResultAfterSubmit}
-                onChange={event => updateField('showResultAfterSubmit', event.target.checked)}
-                className="w-4 h-4 accent-indigo-600"
-              />
-            </label>
-          </div>
 
           <div className={`${cardClass} p-5 space-y-2.5`}>
             <button
@@ -1262,20 +1662,26 @@ export default function ExamBuilderPage() {
               {savingMode === 'publish'
                 ? <Loader2 size={17} className="animate-spin" />
                 : <Save size={17} />}
-              {isEditing ? 'Lưu thay đổi' : 'Lưu bài kiểm tra'}
+              {chosenGroupIds.length > 0
+                ? `Lưu và giao cho ${chosenGroupIds.length} lớp`
+                : canSaveDraft ? 'Lưu bài kiểm tra' : 'Lưu thay đổi'}
             </button>
 
-            <button
-              type="button"
-              onClick={() => void handleSave('assign')}
-              disabled={isSaving || isBlueprintBlocked}
-              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {savingMode === 'assign'
-                ? <Loader2 size={16} className="animate-spin" />
-                : <Send size={16} />}
-              Lưu và giao bài
-            </button>
+            {/* Đề mới hay còn nháp đã giao được ngay ở tab Giao bài, nên nút này chỉ còn chỗ cho đề đã
+                xuất bản: lưu xong thì sang tab Giao bài của trang chi tiết. */}
+            {!canAssignHere && (
+              <button
+                type="button"
+                onClick={() => void handleSave('assign')}
+                disabled={isSaving || isBlueprintBlocked}
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingMode === 'assign'
+                  ? <Loader2 size={16} className="animate-spin" />
+                  : <Send size={16} />}
+                Lưu và giao bài
+              </button>
+            )}
 
             {canSaveDraft && (
               <button

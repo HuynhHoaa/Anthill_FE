@@ -8,9 +8,10 @@ import AdminLayout from '../../../components/layout/AdminLayout'
 import StudentLayout from '../../../components/layout/StudentLayout'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import { useAsync } from '../../../hooks/useAsync'
-import { formatDate, getInitials } from '../../../lib/format'
+import { formatDate } from '../../../lib/format'
 import { fetchProfile } from '../../../services/authService'
 import type { UserProfile, UserRole } from '../../../types'
+import AvatarEditor from '../components/AvatarEditor'
 import ChangePasswordForm from '../components/ChangePasswordForm'
 import ProfileInfoForm from '../components/ProfileInfoForm'
 import StudentScoreSummary from '../components/StudentScoreSummary'
@@ -64,16 +65,11 @@ function InfoLine({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
   )
 }
 
-function ProfileHeroCard({ profile }: { profile: UserProfile }) {
+function ProfileHeroCard({ profile, onSaved }: { profile: UserProfile; onSaved: (profile: UserProfile) => void }) {
   return (
     <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6 animate-fade-in-up">
       <div className="flex flex-col sm:flex-row sm:items-start gap-5">
-        <div
-          className="w-20 h-20 rounded-3xl flex items-center justify-center text-white font-bold text-2xl flex-shrink-0 shadow-sm"
-          style={{ background: `linear-gradient(135deg, ${profile.avatarColor}, #8B5CF6)` }}
-        >
-          {getInitials(profile.fullName)}
-        </div>
+        <AvatarEditor profile={profile} onSaved={onSaved} />
 
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -164,7 +160,7 @@ export default function ProfilePage({ audience }: ProfilePageProps) {
       )}
       {!loading && !error && profile && (
         <div className="space-y-5">
-          <ProfileHeroCard profile={profile} />
+          <ProfileHeroCard profile={profile} onSaved={setSavedProfile} />
 
           {profile.role === 'student' && <StudentScoreSummary />}
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom'
 import { setUnauthorizedHandler } from '../lib/apiClient'
 import { logout } from '../services/authService'
 import RequireRole from './RequireRole'
@@ -20,18 +20,25 @@ import TeacherGroupDetailPage from '../features/student-groups/pages/TeacherGrou
 import QuestionBankPage from '../features/question-bank/pages/QuestionBankPage'
 import QuestionEditorPage from '../features/question-bank/pages/QuestionEditorPage'
 import ExamListPage from '../features/exams/pages/ExamListPage'
-import ExamBuilderPage from '../features/exams/pages/ExamBuilderPage'
+import ExamBuilderEntry from '../features/exams/pages/ExamBuilderEntry'
 import ExamDetailPage from '../features/exams/pages/ExamDetailPage'
-import ExamAssignPage from '../features/exams/pages/ExamAssignPage'
 import StudentExamListPage from '../features/exam-taking/pages/StudentExamListPage'
 import ExamIntroPage from '../features/exam-taking/pages/ExamIntroPage'
 import TakeExamPage from '../features/exam-taking/pages/TakeExamPage'
 import ExamSubmittedPage from '../features/exam-taking/pages/ExamSubmittedPage'
-import TeacherResultsPage from '../features/results/pages/TeacherResultsPage'
 import StudentResultsPage from '../features/results/pages/StudentResultsPage'
 import ResultDetailPage from '../features/results/pages/ResultDetailPage'
 import NotificationsPage from '../features/notifications/pages/NotificationsPage'
 import NotFoundPage from '../features/misc/pages/NotFoundPage'
+
+/**
+ * Trang giao bài đã thành một tab của trang chi tiết đề. Địa chỉ cũ vẫn mở được (thông báo, lịch sử
+ * trình duyệt, đường dẫn đã chép) và đưa thẳng tới tab đó.
+ */
+function ExamAssignRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/giao-vien/bai-kiem-tra/${id}?tab=giao-bai`} replace />
+}
 
 export default function App() {
   const navigate = useNavigate()
@@ -97,11 +104,12 @@ export default function App() {
         <Route path="/giao-vien/cau-hoi/tao" element={<QuestionEditorPage />} />
         <Route path="/giao-vien/cau-hoi/:id/sua" element={<QuestionEditorPage />} />
         <Route path="/giao-vien/bai-kiem-tra" element={<ExamListPage />} />
-        <Route path="/giao-vien/bai-kiem-tra/tao" element={<ExamBuilderPage />} />
-        <Route path="/giao-vien/bai-kiem-tra/:id/sua" element={<ExamBuilderPage />} />
+        <Route path="/giao-vien/bai-kiem-tra/tao" element={<ExamBuilderEntry />} />
+        <Route path="/giao-vien/bai-kiem-tra/:id/sua" element={<ExamBuilderEntry />} />
         <Route path="/giao-vien/bai-kiem-tra/:id" element={<ExamDetailPage />} />
-        <Route path="/giao-vien/bai-kiem-tra/:id/giao-bai" element={<ExamAssignPage />} />
-        <Route path="/giao-vien/ket-qua" element={<TeacherResultsPage />} />
+        <Route path="/giao-vien/bai-kiem-tra/:id/giao-bai" element={<ExamAssignRedirect />} />
+        {/* Không còn bảng kết quả chung: xem bài làm đi từ lớp → học sinh → bài làm. Địa chỉ cũ chuyển về danh sách lớp. */}
+        <Route path="/giao-vien/ket-qua" element={<Navigate to="/giao-vien/nhom-lop" replace />} />
         <Route path="/giao-vien/ket-qua/:attemptId" element={<ResultDetailPage audience="teacher" />} />
         <Route path="/giao-vien/thong-bao" element={<NotificationsPage audience="teacher" />} />
         <Route path="/giao-vien/ho-so" element={<ProfilePage audience="teacher" />} />

@@ -9,7 +9,7 @@ interface StudentTextFieldProps {
   error?: string
   hint?: string
   placeholder?: string
-  type?: 'text' | 'email' | 'password'
+  type?: 'text' | 'email' | 'password' | 'tel'
   icon?: LucideIcon
   autoComplete?: string
 }

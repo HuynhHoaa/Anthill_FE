@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
   CalendarDays, CheckCircle2, Clock, Eye, FileText, Hourglass, Search,
 } from 'lucide-react'
@@ -14,7 +14,10 @@ import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { listMyResults } from '../../../services/resultService'
 import { listMyExams } from '../../../services/attemptService'
-import { formatDateTime, formatDuration, formatScore } from '../../../lib/format'
+import {
+  formatDateTime, formatDuration, formatScore, roundScore, STANDARD_SCORE, toStandardScale,
+} from '../../../lib/format'
+import { openOnRowClick } from '../../../lib/rowClick'
 import ScoreRing from '../components/ScoreRing'
 
 const PAGE_SIZE = 6
@@ -26,6 +29,7 @@ const chipClass =
   'inline-flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-lg'
 
 export default function StudentResultsPage() {
+  const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
 
@@ -84,8 +88,9 @@ export default function StudentResultsPage() {
     // Bài đã chấm vẫn có thể bị giấu kết quả. Những bài đó không có con số nào để cộng, và coi
     // chúng như 0 sẽ kéo cả điểm trung bình lẫn tỷ lệ câu đúng xuống mà không để lại dấu vết gì
     // trên màn hình — nên lọc hẳn ra trước khi tính.
+    // Mỗi điểm quy về thang 10 theo điểm tối đa của đề đó trước khi gộp.
     const visibleScores = gradedResults
-      .map(result => result.score)
+      .map(result => (result.score === null ? null : toStandardScale(result.score, result.maxScore)))
       .filter((score): score is number => score !== null)
 
     if (visibleScores.length === 0) {
@@ -105,8 +110,8 @@ export default function StudentResultsPage() {
     const totalQuestions = visibleCounts.reduce((total, entry) => total + entry.total, 0)
     const totalCorrect = visibleCounts.reduce((total, entry) => total + entry.correct, 0)
 
-    parts.push(`điểm trung bình ${formatScore(totalScore / visibleScores.length)}`)
-    parts.push(`cao nhất ${formatScore(Math.max(...visibleScores))}`)
+    parts.push(`điểm trung bình ${formatScore(roundScore(totalScore / visibleScores.length))}/${STANDARD_SCORE}`)
+    parts.push(`cao nhất ${formatScore(Math.max(...visibleScores))}/${STANDARD_SCORE}`)
     if (totalQuestions > 0) {
       parts.push(`${Math.round((totalCorrect / totalQuestions) * 100)}% câu đúng`)
     }
@@ -169,7 +174,8 @@ export default function StudentResultsPage() {
             return (
               <div
                 key={result.attemptId}
-                className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 p-5 animate-fade-in-up"
+                onClick={openOnRowClick(() => navigate(`/hoc-sinh/ket-qua/${result.attemptId}`))}
+                className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 p-5 animate-fade-in-up cursor-pointer"
               >
                 <div className="flex flex-col md:flex-row md:items-center gap-5">
                   <div className="flex-1 min-w-0">

@@ -25,7 +25,7 @@ interface ScoreRingProps {
 
 /** Vòng tròn điểm, chạy từ 0 tới tỷ lệ thật khi vào trang để tạo cảm giác chúc mừng. */
 function ScoreRing({ score, maxScore }: ScoreRingProps) {
-  // Quy về thang 10 theo điểm tối đa của chính đề này trước khi xếp loại (H7) — nếu không, cùng một
+  // Quy về tỷ lệ theo điểm tối đa của chính đề này trước khi xếp loại (H7) — nếu không, cùng một
   // bài làm có thể xếp "Giỏi" ở đây mà "Yếu" ở trang danh sách bài kiểm tra, hay ngược lại.
   const tone = getScoreTone(score, maxScore)
   const ratio = maxScore > 0 ? Math.min(1, Math.max(0, score / maxScore)) : 0

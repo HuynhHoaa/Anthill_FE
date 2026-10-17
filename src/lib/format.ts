@@ -13,16 +13,29 @@ function padNumber(value: number): string {
 export const NO_VALUE = '—'
 
 /**
- * Điểm số luôn hiển thị một chữ số thập phân: 8 -> '8.0', 7.25 -> '7.3'.
+ * Điểm số hiển thị đúng giá trị, tối đa hai chữ số thập phân và bỏ số 0 thừa: 100 -> '100',
+ * 85.5 -> '85.5', 77.75 -> '77.75'.
  *
- * `null` trả về dấu gạch ngang, **không** phải '0.0'. Server bỏ hẳn trường điểm khỏi JSON khi
- * người xem chưa được phép thấy (§3 quy tắc ⑥), và một bài bị giấu điểm hiện ra "0.0" trông y hệt
+ * Hai chữ số là độ chính xác của điểm trong hệ thống (điểm mỗi câu do giáo viên nhập tối đa hai chữ số).
+ * Làm tròn một chữ số thì điểm gõ vào là 3.25 hiện ra 3.3, và 99.95 hiện thành '100.0' — trông như điểm
+ * tuyệt đối trong khi chưa phải.
+ *
+ * `null` trả về dấu gạch ngang, **không** phải '0'. Server bỏ hẳn trường điểm khỏi JSON khi
+ * người xem chưa được phép thấy (§3 quy tắc ⑥), và một bài bị giấu điểm hiện ra "0" trông y hệt
  * một bài làm sai hết — học sinh đọc con số đó sẽ tưởng mình trượt.
  */
 export function formatScore(score: number | null | undefined): string {
   if (score === null || score === undefined) return NO_VALUE
   if (!Number.isFinite(score)) return NO_VALUE
-  return score.toFixed(1)
+  return String(Math.round(score * 100) / 100)
+}
+
+/**
+ * "Cỡ" của một bài kiểm tra cho giáo viên: số đề × số câu mỗi đề. Đề thường là "1 đề × 30 câu", đề chia nhiều đề là
+ * "4 đề × 30 câu" — luôn cùng một khuôn để cột nào cũng đọc được trong một lần liếc.
+ */
+export function formatExamSize(exam: { paperCount: number; totalQuestions: number }): string {
+  return `${exam.paperCount} đề × ${exam.totalQuestions} câu`
 }
 
 /**
@@ -105,27 +118,46 @@ export interface ScoreTone {
 }
 
 /**
- * Xếp loại điểm theo thang 10 — nguồn duy nhất cho mọi màn hình.
+ * Tổng điểm chuẩn của một bài kiểm tra, và cũng là thang của mọi điểm trung bình, điểm cao nhất gộp nhiều đề.
+ * Khớp `ExamScoring.TotalScore` ở server. Từng là 100; đổi sang 10 ngày 15/10/2026.
+ */
+export const STANDARD_SCORE = 10
+
+/**
+ * Xếp loại điểm theo tỷ lệ so với điểm tối đa — nguồn duy nhất cho mọi màn hình. Giỏi từ 80%, Khá từ 65%,
+ * Trung bình từ 50% (trên thang 10: 8 / 6,5 / 5).
  *
- * Truyền `maxScore` (điểm tối đa của chính đề đó) để điểm được quy về thang 10 trước khi so ngưỡng:
- * hai đề khác điểm tối đa nhau thì không được xếp loại theo cùng một mốc điểm thô, nếu không cùng
- * một bài làm sẽ hiện "Giỏi" ở màn hình này và "Yếu" ở màn hình khác (từng xảy ra thật giữa đây và
- * `ScoreRing` cũ của trang danh sách bài kiểm tra học sinh). Bỏ trống `maxScore` khi điểm truyền vào
- * đã sẵn ở thang 10 — ví dụ điểm trung bình nhiều đề mà server đã quy đổi trước khi gộp.
+ * Truyền `maxScore` (điểm tối đa của chính đề đó) để điểm được so theo tỷ lệ của chính đề đó: hai đề khác điểm
+ * tối đa nhau thì không được xếp loại theo cùng một mốc điểm thô, nếu không cùng một bài làm sẽ hiện "Giỏi" ở
+ * màn hình này và "Yếu" ở màn hình khác (từng xảy ra thật giữa đây và `ScoreRing` cũ của trang danh sách bài
+ * kiểm tra học sinh). Bỏ trống `maxScore` khi điểm truyền vào đã sẵn ở thang chuẩn (`STANDARD_SCORE`) — ví dụ
+ * điểm trung bình nhiều đề mà server đã quy đổi trước khi gộp.
  */
 export function getScoreTone(score: number, maxScore?: number | null): ScoreTone {
   const safeScore = Number.isFinite(score) ? score : 0
-  const scoreOnTenScale = maxScore && maxScore > 0 ? (safeScore / maxScore) * 10 : safeScore
-  if (scoreOnTenScale >= 8) {
+  const ratio = safeScore / (maxScore && maxScore > 0 ? maxScore : STANDARD_SCORE)
+  if (ratio >= 0.8) {
     return { color: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'border-emerald-200', label: 'Giỏi' }
   }
-  if (scoreOnTenScale >= 6.5) {
+  if (ratio >= 0.65) {
     return { color: 'text-amber-600', bg: 'bg-amber-50', ring: 'border-amber-200', label: 'Khá' }
   }
-  if (scoreOnTenScale >= 5) {
+  if (ratio >= 0.5) {
     return { color: 'text-orange-600', bg: 'bg-orange-50', ring: 'border-orange-200', label: 'Trung bình' }
   }
   return { color: 'text-red-500', bg: 'bg-red-50', ring: 'border-red-200', label: 'Yếu' }
+}
+
+/**
+ * Điểm quy về thang chuẩn (`STANDARD_SCORE` = 10) theo điểm tối đa của chính đề đó; `null` khi không biết điểm
+ * tối đa.
+ *
+ * Dùng trước mọi phép trung bình hay lấy điểm cao nhất gộp nhiều đề, cùng quy tắc server áp cho các số
+ * liệu tổng hợp. Một em có đề được 9/10 và đề cũ chấm trên 100 được 60/100 thì trung bình thô là 34,5, còn quy
+ * về thang 10 là 7,5.
+ */
+export function toStandardScale(score: number, maxScore: number | null | undefined): number | null {
+  return maxScore !== null && maxScore !== undefined && maxScore > 0 ? (score / maxScore) * STANDARD_SCORE : null
 }
 
 /** Khoảng thời gian tương đối, dùng cho danh sách thông báo. */
@@ -168,8 +200,11 @@ export function matchesSearch(search: string | undefined, fields: Array<string |
   return fields.some(field => (field ? normalizeText(field).includes(normalizedSearch) : false))
 }
 
-/** Làm tròn một chữ số thập phân, dùng cho điểm số. */
-export function roundToOneDecimal(value: number): number {
+/**
+ * Làm tròn điểm trung bình tới hai chữ số thập phân. Trên thang 10 thì 0,01 mới ngang độ mịn 0,1 của thang 100 cũ;
+ * làm tròn một chữ số sẽ gom 8,34 và 8,26 về cùng một con số.
+ */
+export function roundScore(value: number): number {
   if (!Number.isFinite(value)) return 0
-  return Math.round(value * 10) / 10
+  return Math.round(value * 100) / 100
 }

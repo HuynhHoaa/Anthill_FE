@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import {
   Bell, UserCircle, LogOut, GraduationCap, ChevronRight, X, type LucideIcon,
 } from 'lucide-react'
+import UserAvatar from '../common/UserAvatar'
 
 export interface SidebarMenuItem {
   icon: LucideIcon
@@ -16,6 +17,8 @@ interface SidebarProps {
   onLogout: () => void
   userName: string
   initials: string
+  /** Ảnh đại diện của người dùng; bỏ trống thì vẽ chữ cái đầu. */
+  avatarUrl?: string
   unreadCount: number
   /** Gốc đường dẫn của vai trò, ví dụ '/giao-vien'. Không có dấu gạch chéo cuối. */
   basePath: string
@@ -31,7 +34,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({
-  open, onClose, onLogout, userName, initials, unreadCount,
+  open, onClose, onLogout, userName, initials, avatarUrl, unreadCount,
   basePath, roleLabel, roleDetail, menuItems, collapsed, peeking, onPeekChange,
 }: SidebarProps) {
   const trimmedRoleDetail = roleDetail?.trim()
@@ -88,12 +91,12 @@ export default function Sidebar({
           collapsed ? 'justify-center px-2' : 'gap-3 px-4'
         }`}
       >
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+        <UserAvatar
+          avatarUrl={avatarUrl}
+          initials={initials}
+          className="w-10 h-10 rounded-full text-sm flex-shrink-0"
           style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)' }}
-        >
-          {initials}
-        </div>
+        />
         {!collapsed && (
           <div className="min-w-0">
             <p className="text-white text-sm font-semibold truncate">{userName}</p>
@@ -136,20 +139,26 @@ export default function Sidebar({
           <Bell size={18} className="flex-shrink-0" />
           {collapsed ? (
             unreadCount > 0 && (
-              <span
-                className="absolute top-1.5 right-2.5 w-2.5 h-2.5 rounded-full border-2"
-                style={{ background: '#ef4444', borderColor: '#3730A3' }}
-              />
+              <>
+                <span aria-hidden="true" className="absolute top-1.5 right-2.5 w-2.5 h-2.5 rounded-full bg-red-400 opacity-60 animate-ping motion-reduce:animate-none" />
+                <span
+                  className="absolute top-1.5 right-2.5 w-2.5 h-2.5 rounded-full border-2"
+                  style={{ background: '#ef4444', borderColor: '#3730A3' }}
+                />
+              </>
             )
           ) : (
             <>
               <span className="flex-1">Thông báo</span>
               {unreadCount > 0 && (
-                <span
-                  className="text-white text-xs rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center font-bold"
-                  style={{ background: '#ef4444' }}
-                >
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                <span className="relative flex">
+                  <span aria-hidden="true" className="absolute inset-0 rounded-full bg-red-400 opacity-60 animate-ping motion-reduce:animate-none" />
+                  <span
+                    className="relative text-white text-xs rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center font-bold"
+                    style={{ background: '#ef4444' }}
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
                 </span>
               )}
             </>
