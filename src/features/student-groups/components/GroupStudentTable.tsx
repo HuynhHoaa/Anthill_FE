@@ -1,6 +1,7 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { UserMinus, type LucideIcon } from 'lucide-react'
 import { formatScore, getInitials, getScoreTone } from '../../../lib/format'
+import { openOnRowClick } from '../../../lib/rowClick'
 import { isRetiredStudent } from '../../../services/studentService'
 import type { Student } from '../../../types'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
@@ -39,6 +40,8 @@ export default function GroupStudentTable({
   onRemove,
   dimmed = false,
 }: GroupStudentTableProps) {
+  const navigate = useNavigate()
+
   return (
     <div
       className={`bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-opacity ${
@@ -72,7 +75,8 @@ export default function GroupStudentTable({
               return (
                 <tr
                   key={student.id}
-                  className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-b-0"
+                  onClick={openOnRowClick(() => navigate(studentLink))}
+                  className="border-b border-slate-50 hover:bg-indigo-100/70 transition-colors last:border-b-0 cursor-pointer"
                 >
                   <td data-card="head" className="px-5 py-4">
                     <div className="flex items-center gap-3">

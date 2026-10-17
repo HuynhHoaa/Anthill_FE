@@ -12,9 +12,9 @@ import { memberCountLabel } from '../components/groupTheme'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
-import { SkeletonBlock, SkeletonTable } from '../../../components/common/Skeleton'
+import { SkeletonTable } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
-import { formatDate, formatScore, roundToOneDecimal } from '../../../lib/format'
+import { formatDate, formatScore, roundScore } from '../../../lib/format'
 import { getGroup, listGroupStudents } from '../../../services/groupService'
 import type { Student, StudentGroup } from '../../../types'
 import GroupStudentTable from '../components/GroupStudentTable'
@@ -55,7 +55,7 @@ export default function TeacherGroupDetailPage() {
     const parts = [group.name, `${group.studentCount} học sinh`]
     const scoredMembers = (students ?? []).filter(member => member.completedExams > 0)
     if (scoredMembers.length > 0) {
-      const averageScore = roundToOneDecimal(
+      const averageScore = roundScore(
         scoredMembers.reduce((sum, member) => sum + member.averageScore, 0) / scoredMembers.length,
       )
       parts.push(`điểm trung bình ${formatScore(averageScore)}`)
@@ -65,31 +65,47 @@ export default function TeacherGroupDetailPage() {
 
   const showHeaderSkeleton = groupLoading && group === undefined
 
+  // Thông tin lớp và nút quay lại nằm ở góc phải thanh tiêu đề (hẹp hơn thì đứng đầu nội dung): khung thông tin lớp
+  // không còn chiếm cả một hàng rộng phía trên danh sách học sinh.
+  const headerTools = (
+    <div className="flex flex-wrap items-center justify-end gap-3 w-full min-w-0">
+      {group && (
+        <div className="flex items-center gap-3 min-w-0 max-w-full rounded-xl border border-slate-100 bg-white px-3 py-1.5 shadow-sm">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-indigo-50 text-indigo-600">
+            <Users size={18} />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold text-slate-800 truncate">{group.name}</h1>
+            <p className="text-xs text-slate-500 truncate max-w-[18rem]" title={group.description || undefined}>
+              {group.description || 'Chưa có mô tả cho lớp này.'}
+            </p>
+          </div>
+          <div className="hidden xl:flex items-center gap-2 flex-shrink-0">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
+              <UsersRound size={13} /> {group.studentCount} học sinh
+            </span>
+            <span className={chipClass}>
+              <CalendarDays size={13} /> Tạo ngày {formatDate(group.createdAt)}
+            </span>
+          </div>
+        </div>
+      )}
+      <NavLink
+        to={groupListLink}
+        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap"
+      >
+        <ArrowLeft size={16} /> Quay lại danh sách lớp
+      </NavLink>
+    </div>
+  )
+
   return (
     <TeacherLayout
       pageTitle="Chi tiết lớp"
       pageSubtitle={summaryText ?? 'Xem học sinh trong lớp bạn phụ trách'}
+      compactContent
+      headerTools={headerTools}
     >
-      <NavLink
-        to={groupListLink}
-        className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors mb-4"
-      >
-        <ArrowLeft size={15} /> Quay lại danh sách lớp
-      </NavLink>
-
-      {showHeaderSkeleton && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-          <div className="flex items-start gap-4">
-            <SkeletonBlock className="h-14 w-14 rounded-2xl" />
-            <div className="flex-1 space-y-3">
-              <SkeletonBlock className="h-5 w-48" />
-              <SkeletonBlock className="h-3.5 w-3/4" />
-              <SkeletonBlock className="h-3 w-40" />
-            </div>
-          </div>
-        </div>
-      )}
-
       {!showHeaderSkeleton && groupError && (
         <div>
           <ErrorState message={groupError} onRetry={reloadGroup} />
@@ -106,29 +122,7 @@ export default function TeacherGroupDetailPage() {
 
       {group && (
         <>
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 animate-fade-in-up">
-            <div className="flex items-start gap-4 min-w-0">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 bg-indigo-50 text-indigo-600">
-                <Users size={26} />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-xl font-bold text-slate-800">{group.name}</h1>
-                <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
-                  {group.description || 'Chưa có mô tả cho lớp này.'}
-                </p>
-                <div className="flex flex-wrap items-center gap-2 mt-4">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
-                    <UsersRound size={13} /> {group.studentCount} học sinh
-                  </span>
-                  <span className={chipClass}>
-                    <CalendarDays size={13} /> Tạo ngày {formatDate(group.createdAt)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8 mb-4">
+          <div className="mb-3">
             <h2 className="text-base font-bold text-slate-800">
               Học sinh trong lớp
               {students && <span className="text-slate-400 font-semibold"> ({memberCountLabel(students)})</span>}

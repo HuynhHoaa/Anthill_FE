@@ -10,10 +10,14 @@ import { apiClient } from '../lib/apiClient'
 import type { AnswerOption, DifficultyLevel, Paged, Question, QuestionStatus } from '../types'
 
 export interface QuestionPayload {
+  /** Bỏ trống là chưa đặt tên; khi sửa, bỏ trống là xoá tên đã đặt (server thay cả câu). */
+  title?: string
   content: string
   imageUrl?: string
   topic: string
   difficulty: DifficultyLevel
+  /** Câu cho chọn nhiều đáp án. Tắt thì phải có đúng một đáp án đúng. */
+  allowMultiple: boolean
   defaultPoint: number
   answers: AnswerOption[]
 }
@@ -25,6 +29,11 @@ export interface ListQuestionsParams {
   status?: 'all' | QuestionStatus
   page?: number
   pageSize?: number
+  /**
+   * Bỏ khỏi kết quả những câu mà học sinh của các lớp này đã nhận ở đề trước. Chỉ giáo viên dùng được, và chỉ với lớp mình dạy
+   * đã công bố (server trả 400 nếu có lớp lạ).
+   */
+  excludeAssignedToGroupIds?: number[]
 }
 
 export function listQuestions(params: ListQuestionsParams = {}): Promise<Paged<Question>> {
@@ -35,6 +44,9 @@ export function listQuestions(params: ListQuestionsParams = {}): Promise<Paged<Q
     status: params.status,
     page: params.page,
     pageSize: params.pageSize,
+    excludeAssignedToGroupIds: params.excludeAssignedToGroupIds?.length
+      ? params.excludeAssignedToGroupIds.join(',')
+      : undefined,
   })
 }
 
@@ -78,16 +90,6 @@ export function createQuestion(payload: QuestionPayload): Promise<Question> {
  */
 export function updateQuestion(id: number, payload: QuestionPayload): Promise<Question> {
   return apiClient.put<Question>(`/api/questions/${id}`, payload)
-}
-
-/**
- * Xoá câu hỏi.
- *
- * Server trả **409** khi câu đã nằm trong một đề đã sinh, kèm gợi ý ẩn thay vì xoá — để những bài
- * học sinh đã làm vẫn đọc lại được nguyên vẹn.
- */
-export async function deleteQuestion(id: number): Promise<void> {
-  await apiClient.remove(`/api/questions/${id}`)
 }
 
 export function setQuestionStatus(id: number, status: QuestionStatus): Promise<Question> {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
-  AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
+  AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
   Clock, FileText, Flag, LayoutGrid, Loader2, Save, Send,
 } from 'lucide-react'
 import StudentLayout from '../../../components/layout/StudentLayout'
@@ -97,7 +97,7 @@ const legendItems: { state: QuestionMarkState; label: string }[] = [
 interface QuestionNavigatorProps {
   questions: AttemptQuestion[]
   currentIndex: number
-  answers: Record<number, number>
+  answers: Record<number, number[]>
   flaggedQuestionIds: number[]
   onSelect: (index: number) => void
 }
@@ -111,7 +111,7 @@ function QuestionNavigator({
       <div className="grid grid-cols-8 sm:grid-cols-10 lg:grid-cols-5 gap-2 max-h-72 overflow-y-auto pr-1">
         {questions.map((question, index) => {
           const isCurrent = index === currentIndex
-          const isAnswered = answers[question.id] !== undefined
+          const isAnswered = (answers[question.id]?.length ?? 0) > 0
           const isFlagged = flaggedQuestionIds.includes(question.id)
           const state: QuestionMarkState = isCurrent
             ? 'current'
@@ -235,7 +235,7 @@ export default function TakeExamPage() {
   )
 
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [answers, setAnswers] = useState<Record<number, number>>({})
+  const [answers, setAnswers] = useState<Record<number, number[]>>({})
   const [flaggedQuestionIds, setFlaggedQuestionIds] = useState<number[]>([])
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null)
   const [saveState, setSaveState] = useState<SaveState>('idle')
@@ -275,7 +275,7 @@ export default function TakeExamPage() {
   const questions = useMemo(() => session?.questions ?? [], [session])
   const totalQuestions = questions.length
   const answeredCount = useMemo(
-    () => questions.filter(question => answers[question.id] !== undefined).length,
+    () => questions.filter(question => (answers[question.id]?.length ?? 0) > 0).length,
     [questions, answers],
   )
   const unansweredCount = totalQuestions - answeredCount
@@ -298,7 +298,9 @@ export default function TakeExamPage() {
     clientSeqRef.current = session.lastAppliedSeq
     autoSubmitRetryAtRef.current = 0
     setAutoSubmitFailures(0)
-    setAnswers({ ...session.savedAnswers })
+    setAnswers(Object.fromEntries(
+      Object.entries(session.savedAnswers).map(([questionId, answerIds]) => [Number(questionId), [...answerIds]]),
+    ))
 
     // Khôi phục vị trí đang đọc và các câu đã đánh dấu. Đặt lại về câu 1 với danh sách cờ rỗng
     // nghĩa là mỗi lần F5 giữa giờ thi, học sinh phải tự nhớ mình đang làm tới đâu và định quay
@@ -613,10 +615,21 @@ export default function TakeExamPage() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [session])
 
-  const handleSelectAnswer = (questionId: number, answerId: number) => {
+  // Câu một đáp án: bấm ô nào là chọn ô đó. Câu nhiều đáp án: bấm là bật hoặc tắt ô, các ô khác giữ nguyên.
+  const handleSelectAnswer = (question: AttemptQuestion, answerId: number) => {
     if (submitting) return
     answersDirtyRef.current = true
-    setAnswers(current => ({ ...current, [questionId]: answerId }))
+
+    setAnswers(current => {
+      if (!question.allowMultiple) return { ...current, [question.id]: [answerId] }
+
+      const picked = current[question.id] ?? []
+      const next = picked.includes(answerId)
+        ? picked.filter(id => id !== answerId)
+        : [...picked, answerId]
+
+      return { ...current, [question.id]: next }
+    })
   }
 
   const openLightbox = (url: string, alt: string) => setLightboxImage({ url, alt })
@@ -921,6 +934,11 @@ export default function TakeExamPage() {
                 <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-semibold">
                   {currentQuestion.point} điểm
                 </span>
+                {currentQuestion.allowMultiple && (
+                  <span className="px-2.5 py-1 rounded-full bg-violet-50 text-violet-600 text-xs font-semibold">
+                    Chọn tất cả đáp án đúng
+                  </span>
+                )}
               </div>
             </div>
 
@@ -956,9 +974,13 @@ export default function TakeExamPage() {
             </button>
           )}
 
-          <div className="space-y-3">
+          <div
+            className="space-y-3"
+            role={currentQuestion.allowMultiple ? 'group' : undefined}
+            aria-label={currentQuestion.allowMultiple ? 'Các phương án, chọn tất cả đáp án đúng' : undefined}
+          >
             {currentQuestion.answers.map((answer, index) => {
-              const isSelected = answers[currentQuestion.id] === answer.id
+              const isSelected = (answers[currentQuestion.id] ?? []).includes(answer.id)
               const answerImageUrl = resolveMediaUrl(answer.imageUrl)
               const answerLetter = String.fromCharCode(65 + index)
               return (
@@ -967,7 +989,7 @@ export default function TakeExamPage() {
                   type="button"
                   disabled={submitting}
                   aria-pressed={isSelected}
-                  onClick={() => handleSelectAnswer(currentQuestion.id, answer.id)}
+                  onClick={() => handleSelectAnswer(currentQuestion, answer.id)}
                   className={`w-full text-left rounded-2xl border p-4 transition-all disabled:opacity-60 ${
                     isSelected
                       ? 'border-indigo-300 bg-indigo-50 ring-4 ring-indigo-50'
@@ -1014,7 +1036,19 @@ export default function TakeExamPage() {
                         </span>
                       )}
                     </span>
-                    {isSelected && <CheckCircle2 size={18} className="text-indigo-600 flex-shrink-0 mt-1" />}
+                    {currentQuestion.allowMultiple ? (
+                      // Ô tích vuông cho câu nhiều đáp án: nhìn là biết có thể bật nhiều ô cùng lúc.
+                      <span
+                        aria-hidden="true"
+                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 mt-1 transition-colors ${
+                          isSelected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white'
+                        }`}
+                      >
+                        {isSelected && <Check size={13} strokeWidth={3} />}
+                      </span>
+                    ) : (
+                      isSelected && <CheckCircle2 size={18} className="text-indigo-600 flex-shrink-0 mt-1" />
+                    )}
                   </div>
                 </button>
               )

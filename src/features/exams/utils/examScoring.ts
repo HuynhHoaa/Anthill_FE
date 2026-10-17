@@ -1,20 +1,29 @@
 /**
- * Tổng điểm của một đề: chuẩn là 100, điểm gắn theo mức độ khó.
+ * Tổng điểm của một đề: chuẩn là 10, điểm gắn theo mức độ khó.
  *
  * Đề là một ma trận (tổng số câu và tỷ lệ ba mức), nên giáo viên đặt ba con số: điểm của MỘT câu Dễ,
  * Trung bình, Khó. Số câu mỗi mức do `calculateRequiredCounts` quyết định, khớp từng đơn vị với
  * `BlueprintCalculator` ở server; tổng điểm là số câu mỗi mức nhân điểm mức đó.
  *
- * 100 là tổng chuẩn chứ không phải điều kiện bắt buộc: giáo viên chọn số câu bất kỳ (56 câu chẳng hạn)
- * và nhiều cấu hình không chia ra đúng 100,00. Giao diện luôn hiện "n / 100", gợi ý cách chia sát 100
- * nhất và hỏi xác nhận lúc chốt một đề chưa đủ; server nhận mọi tổng hợp lệ.
+ * 10 là tổng chuẩn chứ không phải điều kiện bắt buộc: giáo viên chọn số câu bất kỳ (56 câu chẳng hạn)
+ * và nhiều cấu hình không chia ra đúng 10,00. Giao diện luôn hiện "n / 10", gợi ý cách chia sát 10
+ * nhất và hỏi xác nhận lúc chốt một đề chưa đủ; server nhận mọi tổng hợp lệ. (Chuẩn từng là 100, đổi sang 10
+ * ngày 15/10/2026: các hằng số "đẹp" bên dưới đã co theo.)
  *
  * Mọi phép tính điểm ở đây đi qua đơn vị 0,01 (số nguyên) để không dính sai số dấu phẩy động:
- * 33,33 × 3 phải ra đúng 99,99 chứ không phải 99,99000000000001.
+ * 3,33 × 3 phải ra đúng 9,99 chứ không phải 9,990000000000002.
  */
+import { STANDARD_SCORE } from '../../../lib/format'
 import type { DifficultyLevel } from '../../../types'
 
-export const EXAM_TOTAL_SCORE = 100
+export const EXAM_TOTAL_SCORE = STANDARD_SCORE
+
+/**
+ * Trần cứng của điểm MỘT câu mà server chấp nhận (`SaveExamRequestValidator.MaxPointPerQuestion`). Cố ý khác tổng
+ * chuẩn: đề cũ chấm trên 100 có câu hơn 10 điểm, và chặn ở 10 thì không sửa nổi cả tên hay mô tả của đề đó.
+ * Đề mới lệch khỏi chuẩn thì giao diện nhắc ở dòng "thừa/thiếu … điểm" và hỏi xác nhận lúc chốt.
+ */
+export const MAX_QUESTION_POINT = 100
 
 /** Số đơn vị 0,01 trong tổng điểm. */
 const TOTAL_UNITS = EXAM_TOTAL_SCORE * 100
@@ -61,7 +70,7 @@ export function totalScoreOf(counts: LevelCounts, points: LevelPoints): number {
   return units / 100
 }
 
-/** Nói thẳng đang thiếu hay thừa bao nhiêu; `null` khi đã đúng 100. */
+/** Nói thẳng đang thiếu hay thừa bao nhiêu; `null` khi đã đúng tổng chuẩn. */
 export function describeScoreGap(total: number): string | null {
   const units = Math.round(total * 100)
   if (units === TOTAL_UNITS) return null
@@ -71,7 +80,7 @@ export function describeScoreGap(total: number): string | null {
   return `Tổng điểm đang là ${trimNumber(total)} / ${EXAM_TOTAL_SCORE}, ${direction} ${trimNumber(gap)} điểm.`
 }
 
-/** Chỉ phần chênh, để đặt cạnh một con số tổng đã hiện sẵn: "thiếu 4.5 điểm". `null` khi đã đúng 100. */
+/** Chỉ phần chênh, để đặt cạnh một con số tổng đã hiện sẵn: "thiếu 0.45 điểm". `null` khi đã đúng tổng chuẩn. */
 export function describeScoreDelta(total: number): string | null {
   const units = Math.round(total * 100)
   if (units === TOTAL_UNITS) return null
@@ -91,17 +100,17 @@ export function hasTooManyDecimals(points: number): boolean {
 
 // ── Gợi ý chia điểm ─────────────────────────────────────────────────────────────────────────────────
 
-/** Giá trị nhỏ nhất của điểm một câu: nửa điểm, để đề 100 câu vẫn chia được mà không có câu 0 điểm. */
+/** Giá trị nhỏ nhất của điểm một câu: 0,5% tổng điểm (0,05 trên thang 10), để đề 100 câu vẫn chia được mà không có câu 0 điểm. */
 const MIN_POINT_UNITS = TOTAL_UNITS / 200
 
 /** Một cách chia điểm được gợi ý. */
 export interface PointSuggestion {
   points: LevelPoints
-  /** Tổng điểm của cách chia này, chính xác tới 0,01. Đúng 100 khi `exact`. */
+  /** Tổng điểm của cách chia này, chính xác tới 0,01. Đúng tổng chuẩn khi `exact`. */
   total: number
   /**
-   * `false` khi số câu này không thể ra đúng 100 (tổng luôn là bội của ước chung lớn nhất của các số
-   * câu) và đây là cách chia sát 100 nhất. Giáo viên vẫn lưu được, sau một bước xác nhận.
+   * `false` khi số câu này không thể ra đúng tổng chuẩn (tổng luôn là bội của ước chung lớn nhất của các số
+   * câu) và đây là cách chia sát chuẩn nhất. Giáo viên vẫn lưu được, sau một bước xác nhận.
    */
   exact: boolean
 }
@@ -109,10 +118,10 @@ export interface PointSuggestion {
 /**
  * Gợi ý ba điểm (Dễ ≤ Trung bình ≤ Khó) cho một cách chia số câu.
  *
- * Ưu tiên tổng đúng 100; trong số đó chọn bộ có tỷ trọng điểm của từng mức sát nhất với `weights` và số
- * đẹp nhất (nguyên điểm, rồi nửa điểm, rồi phần mười). Thử bước 0,1 trước, không có nghiệm đúng mới
- * xuống bước 0,01. Không có nghiệm đúng nào (ví dụ 30 câu chia 12/12/6) thì trả cách chia có tổng sát
- * 100 nhất, `exact: false`, để nút gợi ý luôn điền được một con số hợp lý thay vì bỏ trống.
+ * Ưu tiên tổng đúng chuẩn; trong số đó chọn bộ có tỷ trọng điểm của từng mức sát nhất với `weights` và số
+ * đẹp nhất (bội của 0,5, rồi 0,25 hay 0,1, rồi 0,05). Thử bước 0,05 trước, không có nghiệm đúng mới
+ * xuống bước 0,01. Không có nghiệm đúng nào thì trả cách chia có tổng sát chuẩn nhất, `exact: false`, để nút
+ * gợi ý luôn điền được một con số hợp lý thay vì bỏ trống.
  *
  * `null` chỉ khi đề chưa có câu nào.
  */
@@ -128,12 +137,12 @@ export function suggestPoints(
     return { points: exact, total: EXAM_TOTAL_SCORE, exact: true }
   }
 
-  // Bước 0,1 cho số đẹp. Nó lệch tối đa nửa ước chung lớn nhất của các số câu nhân 0,1, nên với số câu
-  // rất không chia được (88 câu toàn Khó lệch 3,2 điểm) thì xuống bước 0,01 cho sát hơn.
-  const coarse = solveNearest(counts, weights, active, 10)
+  // Bước thô cho số đẹp. Nó lệch tối đa nửa ước chung lớn nhất của các số câu nhân bước, nên với số câu
+  // rất không chia được thì xuống bước 0,01 cho sát hơn.
+  const coarse = solveNearest(counts, weights, active, COARSE_STEP_UNITS, TOTAL_UNITS)
   let near = coarse
   if (!coarse || gapUnits(counts, coarse) > COARSE_GAP_LIMIT_UNITS) {
-    const fine = solveNearest(counts, weights, active, 1)
+    const fine = solveNearest(counts, weights, active, 1, TOTAL_UNITS)
     if (fine && (!coarse || gapUnits(counts, fine) < gapUnits(counts, coarse))) near = fine
   }
   if (!near) return null
@@ -142,8 +151,54 @@ export function suggestPoints(
   return { points, total: totalScoreOf(counts, points), exact: false }
 }
 
-/** Lệch tối đa (đơn vị 0,01) chấp nhận ở bước 0,1 để giữ số đẹp: nửa điểm. */
-const COARSE_GAP_LIMIT_UNITS = 50
+/** Một cách chia điểm cho đề nhỏ: như `PointSuggestion` nhưng có thêm điểm cộng để đề cộng đúng 10. */
+export interface PointPlanWithBonus extends PointSuggestion {
+  /**
+   * Số đơn vị 0,01 điểm cộng thêm cho các câu mức cao nhất của MỖI đề nhỏ (0 khi điểm theo mức đã ra đúng 10). Luôn nhỏ hơn
+   * ước chung lớn nhất của các số câu, nên không bao giờ nhiều hơn số câu mức cao nhất. `total` đã tính phần này.
+   */
+  bonusUnits: number
+}
+
+function greatestCommonDivisor(left: number, right: number): number {
+  return right === 0 ? left : greatestCommonDivisor(right, left % right)
+}
+
+/**
+ * Chia điểm cho một đề nhỏ sao cho đề cộng ĐÚNG 10 với mọi số câu.
+ *
+ * Các câu cùng mức cùng điểm và điểm có hai chữ số thập phân, nên tổng điểm theo mức luôn là bội của `g × 0,01` với `g` là
+ * ước chung lớn nhất của các số câu (3 / 3 / 3 → bội của 0,03; 10,00 không phải bội). Phần lẻ `r = 1000 mod g` đơn vị 0,01
+ * được cộng cho `r` câu mức cao nhất của mỗi đề nhỏ (server chọn các câu đó): `r < g ≤ số câu mức cao nhất` nên luôn đủ chỗ.
+ * Điểm theo mức còn lại giải cho tổng `1000 − r`, đúng bội của `g`, nên gần như luôn có nghiệm; không có thì rơi về
+ * `suggestPoints` (sát 10 nhất, `exact: false`, không điểm cộng).
+ *
+ * `null` chỉ khi đề chưa có câu nào.
+ */
+export function suggestPointsWithBonus(
+  counts: LevelCounts,
+  weights: LevelPoints = DEFAULT_LEVEL_WEIGHTS,
+): PointPlanWithBonus | null {
+  const active = levels.filter(level => counts[level] > 0)
+  if (active.length === 0) return null
+
+  const divisor = active.reduce((gcd, level) => greatestCommonDivisor(gcd, counts[level]), 0)
+  const bonusUnits = TOTAL_UNITS % divisor
+
+  const points = findExactPoints(counts, weights, active, TOTAL_UNITS - bonusUnits)
+  if (points) {
+    return { points, total: EXAM_TOTAL_SCORE, exact: true, bonusUnits }
+  }
+
+  const fallback = suggestPoints(counts, weights)
+  return fallback ? { ...fallback, bonusUnits: 0 } : null
+}
+
+/** Bước thô khi tìm điểm "đẹp": 0,05 (5 đơn vị 0,01). Trên thang 10 thì bước 0,1 của thang 100 cũ là quá thô. */
+const COARSE_STEP_UNITS = 5
+
+/** Lệch tối đa (đơn vị 0,01) chấp nhận ở bước thô để giữ số đẹp: 0,5% tổng điểm (0,05 trên thang 10). */
+const COARSE_GAP_LIMIT_UNITS = TOTAL_UNITS / 200
 
 function gapUnits(counts: LevelCounts, units: LevelUnits): number {
   const total = levels.reduce((sum, level) => sum + counts[level] * units[level], 0)
@@ -154,14 +209,15 @@ function unitsToPoints(units: Record<DifficultyLevel, number>): LevelPoints {
   return { easy: units.easy / 100, medium: units.medium / 100, hard: units.hard / 100 }
 }
 
-/** Cách chia ra đúng 100, hoặc `null` khi số câu này không chia được. */
+/** Cách chia ra đúng tổng chuẩn, hoặc `null` khi số câu này không chia được. */
 function findExactPoints(
   counts: LevelCounts,
   weights: LevelPoints,
   active: DifficultyLevel[],
+  target: number = TOTAL_UNITS,
 ): LevelPoints | null {
-  for (const step of [10, 1]) {
-    const found = solve(counts, weights, active, step)
+  for (const step of [COARSE_STEP_UNITS, 1]) {
+    const found = solve(counts, weights, active, step, target)
     if (found) return unitsToPoints(found)
   }
   return null
@@ -171,11 +227,14 @@ function firstMultiple(minimum: number, step: number): number {
   return Math.ceil(minimum / step) * step
 }
 
-/** Số "đẹp": nguyên điểm không bị phạt, nửa điểm phạt 1, phần mười phạt 2, còn lại phạt 3. */
+/**
+ * Số "đẹp" trên thang 10: bội của 0,5 không bị phạt (0,5 · 1 · 1,5), bội của 0,25 hay 0,1 phạt 1 (0,25 · 0,2),
+ * bội của 0,05 phạt 2, còn lại phạt 3. Đơn vị là 0,01.
+ */
 function ugliness(units: number): number {
-  if (units % 100 === 0) return 0
-  if (units % 50 === 0) return 1
-  if (units % 10 === 0) return 2
+  if (units % 50 === 0) return 0
+  if (units % 25 === 0 || units % 10 === 0) return 1
+  if (units % 5 === 0) return 2
   return 3
 }
 
@@ -191,6 +250,7 @@ function scorePick(
   weights: LevelPoints,
   active: DifficultyLevel[],
   picked: Partial<Record<DifficultyLevel, number>>,
+  target: number,
 ): { cost: number; totalUnits: number } | null {
   const values = active.map(level => picked[level] as number)
   for (let index = 0; index < values.length; index += 1) {
@@ -207,7 +267,7 @@ function scorePick(
     const units = picked[level] as number
     totalUnits += counts[level] * units
     const idealShare = (counts[level] * weights[level]) / denominator
-    deviation += ((counts[level] * units) / TOTAL_UNITS - idealShare) ** 2
+    deviation += ((counts[level] * units) / target - idealShare) ** 2
     ugly += ugliness(units)
   }
 
@@ -218,18 +278,19 @@ function toLevelUnits(picked: Partial<Record<DifficultyLevel, number>>): LevelUn
   return { easy: picked.easy ?? 0, medium: picked.medium ?? 0, hard: picked.hard ?? 0 }
 }
 
-/** Nghiệm ra đúng 100 sát tỷ trọng mong muốn nhất. */
+/** Nghiệm ra đúng tổng chuẩn sát tỷ trọng mong muốn nhất. */
 function solve(
   counts: LevelCounts,
   weights: LevelPoints,
   active: DifficultyLevel[],
   step: number,
+  target: number,
 ): LevelUnits | null {
   // Giữ trong một đối tượng: TypeScript không thấy phép gán trong hàm lồng nên sẽ thu hẹp biến rời về `null`.
   const result: { best: LevelUnits | null; cost: number } = { best: null, cost: Infinity }
 
   const consider = (picked: Partial<Record<DifficultyLevel, number>>) => {
-    const scored = scorePick(counts, weights, active, picked)
+    const scored = scorePick(counts, weights, active, picked, target)
     if (scored && scored.cost < result.cost) {
       result.cost = scored.cost
       result.best = toLevelUnits(picked)
@@ -240,14 +301,14 @@ function solve(
 
   if (active.length === 1) {
     const [only] = active
-    if (TOTAL_UNITS % counts[only] === 0 && (TOTAL_UNITS / counts[only]) % step === 0) {
-      consider({ [only]: TOTAL_UNITS / counts[only] })
+    if (target % counts[only] === 0 && (target / counts[only]) % step === 0) {
+      consider({ [only]: target / counts[only] })
     }
   } else if (active.length === 2) {
     const [first, second] = active
     const countSum = counts[first] + counts[second]
-    for (let a = start; a <= TOTAL_UNITS / countSum; a += step) {
-      const rest = TOTAL_UNITS - counts[first] * a
+    for (let a = start; a <= target / countSum; a += step) {
+      const rest = target - counts[first] * a
       if (rest > 0 && rest % counts[second] === 0 && (rest / counts[second]) % step === 0) {
         consider({ [first]: a, [second]: rest / counts[second] })
       }
@@ -255,10 +316,10 @@ function solve(
   } else {
     const [first, second, third] = active
     const countSum = counts[first] + counts[second] + counts[third]
-    for (let a = start; a <= TOTAL_UNITS / countSum; a += step) {
-      const upperB = (TOTAL_UNITS - counts[first] * a) / (counts[second] + counts[third])
+    for (let a = start; a <= target / countSum; a += step) {
+      const upperB = (target - counts[first] * a) / (counts[second] + counts[third])
       for (let b = a; b <= upperB; b += step) {
-        const rest = TOTAL_UNITS - counts[first] * a - counts[second] * b
+        const rest = target - counts[first] * a - counts[second] * b
         if (rest > 0 && rest % counts[third] === 0 && (rest / counts[third]) % step === 0) {
           consider({ [first]: a, [second]: b, [third]: rest / counts[third] })
         }
@@ -270,14 +331,15 @@ function solve(
 }
 
 /**
- * Khi không có cách chia nào ra đúng 100: bộ điểm có tổng sát 100 nhất, rồi sát tỷ trọng nhất, rồi đẹp nhất.
- * Mỗi mức chỉ nhận bội của `step`; mức cuối lấy hai giá trị kẹp quanh con số làm tổng đúng 100.
+ * Khi không có cách chia nào ra đúng tổng chuẩn: bộ điểm có tổng sát chuẩn nhất, rồi sát tỷ trọng nhất, rồi đẹp
+ * nhất. Mỗi mức chỉ nhận bội của `step`; mức cuối lấy hai giá trị kẹp quanh con số làm tổng đúng chuẩn.
  */
 function solveNearest(
   counts: LevelCounts,
   weights: LevelPoints,
   active: DifficultyLevel[],
   step: number,
+  target: number,
 ): LevelUnits | null {
   const result: { best: LevelUnits | null; gap: number; cost: number } = {
     best: null,
@@ -286,10 +348,10 @@ function solveNearest(
   }
 
   const consider = (picked: Partial<Record<DifficultyLevel, number>>) => {
-    const scored = scorePick(counts, weights, active, picked)
+    const scored = scorePick(counts, weights, active, picked, target)
     if (!scored) return
 
-    const gap = Math.abs(scored.totalUnits - TOTAL_UNITS)
+    const gap = Math.abs(scored.totalUnits - target)
     if (gap < result.gap || (gap === result.gap && scored.cost < result.cost)) {
       result.gap = gap
       result.cost = scored.cost
@@ -297,7 +359,7 @@ function solveNearest(
     }
   }
 
-  /** Hai bội của `step` kẹp quanh `exact`, để thử cả hai phía của 100. */
+  /** Hai bội của `step` kẹp quanh `exact`, để thử cả hai phía của tổng chuẩn. */
   const around = (exact: number): number[] => {
     const lower = Math.floor(exact / step) * step
     return [lower, lower + step]
@@ -307,24 +369,24 @@ function solveNearest(
 
   if (active.length === 1) {
     const [only] = active
-    for (const value of around(TOTAL_UNITS / counts[only])) {
+    for (const value of around(target / counts[only])) {
       consider({ [only]: value })
     }
   } else if (active.length === 2) {
     const [first, second] = active
     const countSum = counts[first] + counts[second]
-    for (let a = start; a <= TOTAL_UNITS / countSum; a += step) {
-      for (const b of around((TOTAL_UNITS - counts[first] * a) / counts[second])) {
+    for (let a = start; a <= target / countSum; a += step) {
+      for (const b of around((target - counts[first] * a) / counts[second])) {
         consider({ [first]: a, [second]: b })
       }
     }
   } else {
     const [first, second, third] = active
     const countSum = counts[first] + counts[second] + counts[third]
-    for (let a = start; a <= TOTAL_UNITS / countSum; a += step) {
-      const upperB = (TOTAL_UNITS - counts[first] * a) / (counts[second] + counts[third])
+    for (let a = start; a <= target / countSum; a += step) {
+      const upperB = (target - counts[first] * a) / (counts[second] + counts[third])
       for (let b = a; b <= upperB + step; b += step) {
-        const rest = TOTAL_UNITS - counts[first] * a - counts[second] * b
+        const rest = target - counts[first] * a - counts[second] * b
         for (const c of around(rest / counts[third])) {
           consider({ [first]: a, [second]: b, [third]: c })
         }
@@ -336,7 +398,7 @@ function solveNearest(
 }
 
 /**
- * Những cách chia lại số câu (cùng tổng số câu) gần cách đang có nhất mà chia được đúng 100.
+ * Những cách chia lại số câu (cùng tổng số câu) gần cách đang có nhất mà chia được đúng tổng chuẩn.
  * Dùng khi `suggestPoints` trả `exact: false`, để nói với giáo viên "đổi thành 11 / 12 / 7 thì chia được".
  */
 export function nearestSolvableCounts(

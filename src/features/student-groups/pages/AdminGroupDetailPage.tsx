@@ -13,13 +13,14 @@ import {
 import { memberCountLabel } from '../components/groupTheme'
 import AdminLayout from '../../../components/layout/AdminLayout'
 import { PublishStateBadge } from '../../../components/common/Badge'
+import ConsequenceList from '../../../components/common/ConsequenceList'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock, SkeletonTable } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
-import { formatDate, formatScore, roundToOneDecimal } from '../../../lib/format'
+import { formatDate, formatScore, roundScore } from '../../../lib/format'
 import {
   getGroup, listGroupStudents, publishGroup, removeStudentFromGroup, removeTeacherFromGroup,
   unpublishGroup,
@@ -77,7 +78,7 @@ export default function AdminGroupDetailPage() {
     const parts = [group.name, `${group.studentCount} học sinh`, `${group.teachers.length} giáo viên`]
     const scoredMembers = (students ?? []).filter(member => member.completedExams > 0)
     if (scoredMembers.length > 0) {
-      const averageScore = roundToOneDecimal(
+      const averageScore = roundScore(
         scoredMembers.reduce((sum, member) => sum + member.averageScore, 0) / scoredMembers.length,
       )
       parts.push(`điểm trung bình ${formatScore(averageScore)}`)
@@ -107,7 +108,8 @@ export default function AdminGroupDetailPage() {
     if (!group) return
     const removed = await confirm({
       title: 'Gỡ học sinh khỏi lớp',
-      message: `${student.fullName} sẽ rời lớp ${group.name} và chuyển về trạng thái chưa phân lớp. Tài khoản và kết quả bài làm của em ấy vẫn được giữ nguyên.`,
+      message: `${student.fullName} sẽ rời lớp ${group.name} và chuyển về trạng thái chưa phân lớp.`,
+      details: <ConsequenceList items={['Tài khoản và kết quả bài làm của em ấy vẫn được giữ nguyên.']} />,
       confirmLabel: 'Gỡ khỏi lớp',
       tone: 'danger',
       onConfirm: reloadOnFailure(() => removeStudentFromGroup(groupId, student.id)),
@@ -121,7 +123,15 @@ export default function AdminGroupDetailPage() {
     if (!group) return
     const removed = await confirm({
       title: 'Gỡ phân công giáo viên',
-      message: `${teacher.fullName} sẽ không còn thấy lớp ${group.name} và không giao được bài mới cho học sinh trong lớp; những bài đã giao vẫn giữ nguyên.`,
+      message: `${teacher.fullName} sẽ không còn phụ trách lớp ${group.name}.`,
+      details: (
+        <ConsequenceList
+          items={[
+            'Giáo viên này không còn thấy lớp và không giao được bài mới cho học sinh trong lớp.',
+            'Những bài đã giao vẫn giữ nguyên.',
+          ]}
+        />
+      ),
       confirmLabel: 'Gỡ phân công',
       tone: 'danger',
       onConfirm: reloadOnFailure(() => removeTeacherFromGroup(groupId, teacher.id)),
@@ -138,8 +148,18 @@ export default function AdminGroupDetailPage() {
     const published = await confirm({
       title: withoutTeacher ? 'Công bố lớp chưa có giáo viên?' : 'Công bố lớp',
       message: withoutTeacher
-        ? `Lớp "${group.name}" chưa có giáo viên nào phụ trách. Công bố bây giờ thì lớp vẫn chưa hiện với ai, vì giáo viên chỉ thấy lớp mình được phân công.`
-        : `${group.teachers.length} giáo viên được phân công sẽ thấy lớp "${group.name}" và có thể giao bài kiểm tra cho ${group.studentCount} học sinh trong lớp. Bạn có thể chuyển lớp về bản nháp sau nếu cần.`,
+        ? `Lớp “${group.name}” chưa có giáo viên nào phụ trách.`
+        : `Lớp “${group.name}” sẽ được công bố cho ${group.teachers.length} giáo viên được phân công.`,
+      details: (
+        <ConsequenceList
+          items={withoutTeacher
+            ? ['Công bố bây giờ thì lớp vẫn chưa hiện với ai, vì giáo viên chỉ thấy lớp mình được phân công.']
+            : [
+              `Các giáo viên này thấy lớp và có thể giao bài kiểm tra cho ${group.studentCount} học sinh trong lớp.`,
+              'Bạn có thể chuyển lớp về bản nháp sau nếu cần.',
+            ]}
+        />
+      ),
       confirmLabel: withoutTeacher ? 'Vẫn công bố' : 'Công bố',
       cancelLabel: 'Để sau',
       onConfirm: reloadOnFailure(() => publishGroup(group.id)),
@@ -157,7 +177,16 @@ export default function AdminGroupDetailPage() {
         : 'Lớp chưa có giáo viên phụ trách nên chưa ai mất quyền xem.'
     const unpublished = await confirm({
       title: 'Chuyển lớp về bản nháp',
-      message: `Lớp "${group.name}" sẽ trở lại dạng bản nháp: ${teacherPart} Học sinh trong lớp, bài đã giao và kết quả giữ nguyên. Bạn có thể công bố lại bất cứ lúc nào.`,
+      message: `Lớp “${group.name}” sẽ trở lại dạng bản nháp.`,
+      details: (
+        <ConsequenceList
+          items={[
+            teacherPart,
+            'Học sinh trong lớp, bài đã giao và kết quả giữ nguyên.',
+            'Bạn có thể công bố lại bất cứ lúc nào.',
+          ]}
+        />
+      ),
       confirmLabel: 'Chuyển về nháp',
       onConfirm: reloadOnFailure(() => unpublishGroup(group.id)),
     })
@@ -169,17 +198,25 @@ export default function AdminGroupDetailPage() {
   const hasNoTeacher = group !== undefined && group.teachers.length === 0
   const showHeaderSkeleton = groupLoading && group === undefined
 
+  // Nút quay lại nằm trên thanh tiêu đề (hẹp hơn thì đứng đầu nội dung), không chiếm một hàng riêng trong trang.
+  const backLink = (
+    <div className="flex w-full justify-start lg:justify-end">
+      <NavLink
+        to={groupListLink}
+        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap"
+      >
+        <ArrowLeft size={16} /> Quay lại danh sách lớp
+      </NavLink>
+    </div>
+  )
+
   return (
     <AdminLayout
       pageTitle="Chi tiết lớp"
       pageSubtitle={summaryText ?? 'Phân công giáo viên, xếp học sinh và công bố lớp'}
+      compactContent
+      headerTools={backLink}
     >
-      <NavLink
-        to={groupListLink}
-        className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors mb-4"
-      >
-        <ArrowLeft size={15} /> Quay lại danh sách lớp
-      </NavLink>
 
       {showHeaderSkeleton && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
@@ -195,14 +232,7 @@ export default function AdminGroupDetailPage() {
       )}
 
       {!showHeaderSkeleton && groupError && (
-        <div>
-          <ErrorState message={groupError} onRetry={reloadGroup} />
-          <div className="mt-4 flex justify-center">
-            <NavLink to={groupListLink} className={secondaryButtonClass}>
-              <ArrowLeft size={15} /> Quay lại danh sách lớp
-            </NavLink>
-          </div>
-        </div>
+        <ErrorState message={groupError} onRetry={reloadGroup} />
       )}
 
       {group && (

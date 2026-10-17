@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertCircle, ArrowLeft, AtSign, CheckCircle2, Copy, Hash, KeyRound, Loader2, Lock, Mail,
-  RotateCcw, Save, ShieldAlert, Trash2, User,
+  Phone, RotateCcw, Save, ShieldAlert, Trash2, User,
 } from 'lucide-react'
 import AdminLayout from '../../../components/layout/AdminLayout'
 import ErrorState from '../../../components/common/ErrorState'
@@ -13,6 +13,7 @@ import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import useAsync from '../../../hooks/useAsync'
+import { useUnsavedChangesGuard } from '../../../hooks/useUnsavedChangesGuard'
 import { formatDate, formatDateTime, getInitials } from '../../../lib/format'
 import { UNASSIGNED_GROUP_ID, UNASSIGNED_GROUP_NAME, listGroups } from '../../../services/groupService'
 import {
@@ -47,14 +48,16 @@ function groupChangeConsequences(fromGroup: string, toGroup: string | null): str
 const DIRECTORY_PAGE_SIZE = 500
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const phonePattern = /^[0-9\s.+-]{9,15}$/
 
-type FormFieldName = 'fullName' | 'email' | 'username' | 'code' | 'password'
+type FormFieldName = 'fullName' | 'email' | 'phone' | 'username' | 'code' | 'password'
 
 type FormErrors = Partial<Record<FormFieldName, string>>
 
 interface StudentFormValues {
   fullName: string
   email: string
+  phone: string
   username: string
   code: string
   groupId: number
@@ -65,6 +68,7 @@ interface StudentFormValues {
 const emptyValues: StudentFormValues = {
   fullName: '',
   email: '',
+  phone: '',
   username: '',
   code: '',
   groupId: UNASSIGNED_GROUP_ID,
@@ -109,6 +113,12 @@ function validateValues(
     errors.email = 'Email không đúng định dạng, ví dụ: an.nv@student.edu.vn'
   } else if (isTakenBy(students, currentId, student => student.email, email)) {
     errors.email = 'Email này đã được dùng cho một học sinh khác.'
+  }
+
+  // Số điện thoại tuỳ chọn; nhập thì phải đúng định dạng (cùng quy tắc với server).
+  const phone = values.phone.trim()
+  if (phone && !phonePattern.test(phone)) {
+    errors.phone = 'Số điện thoại chỉ gồm chữ số và dài 9–15 ký tự.'
   }
 
   if (!username) {
@@ -206,6 +216,7 @@ export default function StudentEditorPage() {
     setValues({
       fullName: loadedStudent.fullName,
       email: loadedStudent.email,
+      phone: loadedStudent.phone ?? '',
       username: loadedStudent.username,
       code: loadedStudent.code,
       groupId: loadedStudent.groupId,
@@ -225,6 +236,22 @@ export default function StudentEditorPage() {
   const groups = editorQuery.data?.groups ?? []
   const existingStudents = editorQuery.data?.existingStudents ?? []
   const errors = validateValues(values, existingStudents, studentId, isEditMode)
+
+  // Còn thay đổi chưa lưu khi form khác hồ sơ đã nạp (hoặc khác form trống, với tạo mới). Tài khoản chỉ để xem thì không có gì để mất.
+  const baselineValues: StudentFormValues = syncedStudent
+    ? {
+      fullName: syncedStudent.fullName,
+      email: syncedStudent.email,
+      phone: syncedStudent.phone ?? '',
+      username: syncedStudent.username,
+      code: syncedStudent.code,
+      groupId: syncedStudent.groupId,
+      status: syncedStudent.status,
+      password: '',
+    }
+    : emptyValues
+  const hasUnsavedChanges = !isReadOnly && JSON.stringify(values) !== JSON.stringify(baselineValues)
+  const guard = useUnsavedChangesGuard(hasUnsavedChanges)
 
   const groupChoices = [
     { id: UNASSIGNED_GROUP_ID, name: UNASSIGNED_GROUP_NAME },
@@ -257,6 +284,7 @@ export default function StudentEditorPage() {
     const payload: StudentPayload = {
       fullName: values.fullName.trim(),
       email: values.email.trim(),
+      phone: values.phone.trim(),
       username: values.username.trim(),
       code: values.code.trim(),
       groupId: values.groupId,
@@ -329,7 +357,7 @@ export default function StudentEditorPage() {
     }
 
     toast.success(isEditMode ? `Đã lưu thay đổi cho ${payload.fullName}.` : `Đã thêm học sinh ${payload.fullName}.`)
-    navigate('/quan-tri/hoc-sinh')
+    guard.leaveWithoutAsking(() => navigate('/quan-tri/hoc-sinh'))
   }
 
   /** Thao tác tài khoản có hiệu lực ngay, nên tải lại để form và nhãn trạng thái theo kịp. */
@@ -378,16 +406,20 @@ export default function StudentEditorPage() {
           ? 'Cập nhật hồ sơ, nhóm lớp và trạng thái tài khoản'
           : 'Tạo tài khoản mới để học sinh đăng nhập và làm bài kiểm tra'
 
+  // Nút quay lại nằm trên thanh tiêu đề (hẹp hơn thì đứng đầu nội dung), không chiếm một hàng riêng trong trang.
+  const backLink = (
+    <div className="flex w-full justify-start lg:justify-end">
+      <NavLink
+        to="/quan-tri/hoc-sinh"
+        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap"
+      >
+        <ArrowLeft size={16} /> Quay lại danh sách học sinh
+      </NavLink>
+    </div>
+  )
+
   return (
-    <AdminLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle}>
-      <div className="mb-5">
-        <NavLink
-          to="/quan-tri/hoc-sinh"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
-        >
-          <ArrowLeft size={16} /> Quay lại danh sách học sinh
-        </NavLink>
-      </div>
+    <AdminLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle} compactContent headerTools={backLink}>
 
       {editorQuery.loading && !editorQuery.data ? (
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
@@ -487,6 +519,18 @@ export default function StudentEditorPage() {
                     onBlur={() => markTouched('email')}
                     error={errorFor('email')}
                     placeholder="khoa.nm@student.edu.vn"
+                    autoComplete="off"
+                  />
+                  <StudentTextField
+                    label="Số điện thoại"
+                    icon={Phone}
+                    type="tel"
+                    value={values.phone}
+                    onChange={value => updateValues({ phone: value })}
+                    onBlur={() => markTouched('phone')}
+                    error={errorFor('phone')}
+                    placeholder="Ví dụ: 0912 345 678"
+                    hint="Không bắt buộc. Học sinh không tự đổi được số này."
                     autoComplete="off"
                   />
                 </div>

@@ -15,9 +15,8 @@ interface StudentLayoutProps {
    *
    * Trong lúc thi, mọi liên kết trên thanh trên cùng đều là một cái bẫy: chạm nhầm vào "Kết quả
    * của tôi" hay "Đăng xuất" là rời phòng thi ngay, không cảnh báo, trong khi đồng hồ vẫn chạy.
-   * Router của app dùng BrowserRouter nên không có useBlocker để chặn điều hướng; mà kể cả có thì
-   * dựng một hộp xác nhận trước mỗi liên kết vẫn tệ hơn là bỏ hẳn liên kết đi. Đang thi thì không
-   * có việc gì phải đi đâu cả.
+   * Dựng một hộp xác nhận trước mỗi liên kết (như `useUnsavedChangesGuard` làm ở các biểu mẫu) vẫn
+   * tệ hơn là bỏ hẳn liên kết đi. Đang thi thì không có việc gì phải đi đâu cả.
    */
   examMode?: boolean
 }

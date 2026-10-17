@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import {
   Bell, UserCircle, LogOut, GraduationCap, ChevronRight, X, type LucideIcon,
 } from 'lucide-react'
+import UserAvatar from '../common/UserAvatar'
 
 export interface SidebarMenuItem {
   icon: LucideIcon
@@ -16,6 +17,8 @@ interface SidebarProps {
   onLogout: () => void
   userName: string
   initials: string
+  /** Ảnh đại diện của người dùng; bỏ trống thì vẽ chữ cái đầu. */
+  avatarUrl?: string
   unreadCount: number
   /** Gốc đường dẫn của vai trò, ví dụ '/giao-vien'. Không có dấu gạch chéo cuối. */
   basePath: string
@@ -31,7 +34,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({
-  open, onClose, onLogout, userName, initials, unreadCount,
+  open, onClose, onLogout, userName, initials, avatarUrl, unreadCount,
   basePath, roleLabel, roleDetail, menuItems, collapsed, peeking, onPeekChange,
 }: SidebarProps) {
   const trimmedRoleDetail = roleDetail?.trim()
@@ -88,12 +91,12 @@ export default function Sidebar({
           collapsed ? 'justify-center px-2' : 'gap-3 px-4'
         }`}
       >
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+        <UserAvatar
+          avatarUrl={avatarUrl}
+          initials={initials}
+          className="w-10 h-10 rounded-full text-sm flex-shrink-0"
           style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)' }}
-        >
-          {initials}
-        </div>
+        />
         {!collapsed && (
           <div className="min-w-0">
             <p className="text-white text-sm font-semibold truncate">{userName}</p>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  BarChart3, Copy, FileText, FilterX, MoreVertical, Pencil, Plus, Search, Trash2,
+  Copy, Eye, FileText, MoreVertical, Pencil, Plus, Search, Trash2,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import { LifecycleBadge } from '../../../components/common/Badge'
@@ -18,7 +18,8 @@ import { useAsync } from '../../../hooks/useAsync'
 import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
 import { useUrlListState } from '../../../hooks/useUrlListState'
 import { deleteExam, duplicateExam, listExams } from '../../../services/examService'
-import { formatDateTime, formatDuration, parseDateTime } from '../../../lib/format'
+import { formatDateTime, formatDuration, formatExamSize, parseDateTime } from '../../../lib/format'
+import { openOnRowClick, stopRowClick } from '../../../lib/rowClick'
 import { lifecycleLabels } from '../../../types'
 import type { Exam, ExamLifecycle } from '../../../types'
 import { examDeleteConfirmCopy, examDuplicateConfirmCopy } from '../utils/examConfirmations'
@@ -106,7 +107,7 @@ function ExamRowMenu({ exam, onRequestDelete, onRequestDuplicate }: ExamRowMenuP
     if (!trigger) return
 
     const rect = trigger.getBoundingClientRect()
-    const menuHeight = estimateMenuHeight(hasSubmission ? 4 : 3)
+    const menuHeight = estimateMenuHeight(3)
     // Gần đáy màn hình thì lật menu lên trên để không bị khuất.
     const openUpward = rect.bottom + menuHeight + 16 > window.innerHeight
     const top = openUpward ? rect.top - menuHeight - 8 : rect.bottom + 8
@@ -172,15 +173,6 @@ function ExamRowMenu({ exam, onRequestDelete, onRequestDuplicate }: ExamRowMenuP
             style={{ top: anchor.top, left: anchor.left, width: MENU_WIDTH }}
             className="fixed z-40 bg-white rounded-2xl border border-slate-100 shadow-lg p-1.5 animate-fade-in"
           >
-            {hasSubmission && (
-              <NavLink
-                to={`/giao-vien/ket-qua?bai-kiem-tra=${exam.id}`}
-                role="menuitem"
-                className={menuItemClass}
-              >
-                <BarChart3 size={15} /> Xem kết quả
-              </NavLink>
-            )}
             <NavLink
               to={`/giao-vien/bai-kiem-tra/${exam.id}/sua`}
               role="menuitem"
@@ -228,12 +220,13 @@ interface ExamRowProps {
 }
 
 function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
+  const navigate = useNavigate()
   const hasAssignment = exam.assignedCount > 0
-  const hasSubmission = exam.submittedCount > 0
+  // Bấm vào chỗ nào của dòng cũng mở chi tiết; nút "Chi tiết" và menu ⋮ vẫn làm việc riêng của chúng.
+  const openDetail = openOnRowClick(() => navigate(`/giao-vien/bai-kiem-tra/${exam.id}`))
   const submittedRatio = hasAssignment
     ? Math.round((exam.submittedCount / exam.assignedCount) * 100)
     : 0
-  const isDraft = exam.lifecycle === 'draft'
 
   const submissionProgress = (
     <div className="w-full max-w-24">
@@ -253,7 +246,10 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
   return (
     // Chiều cao cố định: hàng chưa giao không có ô tiến độ nên thấp hơn hàng đã giao, và thanh trang
     // sẽ nhảy lên xuống tuỳ trang đó nhiều hay ít đề đã giao.
-    <tr className="h-[77px] border-b border-slate-50 hover:bg-slate-50 transition-colors">
+    <tr
+      onClick={openDetail}
+      className="h-[77px] border-b border-slate-50 hover:bg-indigo-100/70 transition-colors cursor-pointer"
+    >
       <td data-card="head" className="px-3 xl:px-5 py-3">
         <p className="font-semibold text-slate-800 line-clamp-2" title={exam.description || undefined}>
           {exam.title}
@@ -262,7 +258,7 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
 
       <td data-label="Cấu hình" className="px-3 xl:px-5 py-3 text-slate-600">
         <p>{formatDuration(exam.durationMinutes)}</p>
-        <p className="text-xs text-slate-400 mt-0.5">{exam.totalQuestions} câu</p>
+        <p className="text-xs text-slate-400 mt-0.5">{formatExamSize(exam)}</p>
       </td>
 
       {/* Cột phụ: dưới cỡ xl nhường chỗ cho Tiến độ và Trạng thái, hai cột cần thấy ngay không cuộn. */}
@@ -296,23 +292,13 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         </p>
       </td>
 
-      <td data-label="Số lớp" className="px-3 py-3">
+      <td data-label="Số lớp" className="px-3 py-3" onClick={stopRowClick}>
         <ClassUsagePopover windows={exam.assignmentWindows} />
       </td>
 
       <td data-label="Đã nộp" className="px-3 py-3">
         {!hasAssignment && <p className="text-slate-400 whitespace-nowrap">Chưa giao</p>}
-        {hasAssignment && !hasSubmission && submissionProgress}
-        {hasAssignment && hasSubmission && (
-          <NavLink
-            to={`/giao-vien/ket-qua?bai-kiem-tra=${exam.id}`}
-            aria-label={`Xem kết quả bài kiểm tra ${exam.title}`}
-            title="Xem kết quả của bài kiểm tra này"
-            className="group/progress inline-block align-top -m-1.5 p-1.5 rounded-xl hover:bg-indigo-50 transition-colors"
-          >
-            {submissionProgress}
-          </NavLink>
-        )}
+        {hasAssignment && submissionProgress}
       </td>
 
       <td data-label="Trạng thái" className="px-3 py-3">
@@ -321,30 +307,13 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
       </td>
 
       <td data-card="foot" className="px-3 xl:px-5 py-3">
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2" onClick={stopRowClick}>
           <NavLink
             to={`/giao-vien/bai-kiem-tra/${exam.id}`}
-            className={`${rowActionClass} text-slate-600 bg-white border border-slate-200 hover:bg-slate-100`}
+            className={`${rowActionClass} inline-flex items-center gap-1.5 text-slate-600 bg-white border border-slate-200 hover:bg-slate-100`}
           >
-            Chi tiết
+            <Eye size={14} /> Chi tiết
           </NavLink>
-          {isDraft ? (
-            <button
-              type="button"
-              disabled
-              title="Cần xuất bản đề trước khi giao"
-              className={`${rowActionClass} text-slate-300 bg-slate-50 cursor-not-allowed`}
-            >
-              Giao bài
-            </button>
-          ) : (
-            <NavLink
-              to={`/giao-vien/bai-kiem-tra/${exam.id}/giao-bai`}
-              className={`${rowActionClass} text-indigo-600 bg-indigo-50 hover:bg-indigo-100`}
-            >
-              Giao bài
-            </NavLink>
-          )}
           <ExamRowMenu exam={exam} onRequestDelete={onRequestDelete} onRequestDuplicate={onRequestDuplicate} />
         </div>
       </td>
@@ -423,17 +392,6 @@ export default function ExamListPage() {
         ))}
       </select>
 
-      {/* Luôn có mặt (mờ đi khi chưa lọc gì): hiện ra giữa chừng thì ô tìm kiếm bị đẩy sang trái ngay
-          khi người dùng gõ chữ đầu tiên. */}
-      <button
-        type="button"
-        onClick={clearAll}
-        disabled={!isFiltering}
-        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-default disabled:hover:bg-slate-100"
-      >
-        <FilterX size={15} /> Xoá bộ lọc
-      </button>
-
       <NavLink
         to="/giao-vien/bai-kiem-tra/tao"
         className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all whitespace-nowrap"
@@ -450,7 +408,7 @@ export default function ExamListPage() {
       pageSubtitle={
         data && !error
           ? `${data.total} bài kiểm tra${isFiltering ? ' khớp bộ lọc' : ''}`
-          : 'Quản lý ma trận đề, lịch mở bài và trạng thái giao bài'
+          : 'Quản lý bài kiểm tra, lịch mở bài và trạng thái giao bài'
       }
       compactContent
       headerTools={tools}
@@ -480,7 +438,7 @@ export default function ExamListPage() {
             <EmptyState
               icon={FileText}
               title="Chưa có bài kiểm tra nào"
-              description="Tạo bài kiểm tra đầu tiên để dựng ma trận đề, đặt lịch mở bài và giao cho học sinh."
+              description="Tạo bài kiểm tra đầu tiên để chọn câu hỏi, đặt lịch mở bài và giao cho học sinh."
               action={
                 <NavLink
                   to="/giao-vien/bai-kiem-tra/tao"
@@ -503,19 +461,20 @@ export default function ExamListPage() {
           >
             <TableScroller style={wrapperStyle}>
               {/* Bố cục cố định, cột chia theo tỉ lệ: đổi trang không làm các cột xê dịch. Cột thao tác
-                  240px là vừa đủ cho "Chi tiết" + "Giao bài" + nút ba chấm. Tám cột cần 1100px; dưới cỡ xl
+                  160px là vừa đủ cho "Chi tiết" + nút ba chấm (giao bài nằm ở tab Giao bài của trang chi tiết);
+                  cột tên bài không đặt bề rộng nên nhận phần còn lại. Tám cột cần 1100px; dưới cỡ xl
                   cột Độ khó ẩn đi và còn sáu cột chia vừa ~900px, hẹp hơn nữa thì cuộn ngang và cột thao
                   tác dính mép phải. */}
               <table ref={tableRef} className="stack-table w-full table-fixed text-sm min-w-[760px] xl:min-w-[1100px]">
                 <colgroup>
-                  <col className="w-[17%] xl:w-[18%]" />
+                  <col />
                   <col className="w-[12%]" />
                   <col className="w-[8%] max-xl:hidden" />
                   <col className="w-[17%] xl:w-[15%]" />
                   <col className="w-[6%] xl:w-[7%]" />
                   <col className="w-[8%]" />
                   <col className="w-[12%] xl:w-[10%]" />
-                  <col className="w-60" />
+                  <col className="w-40" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/60">

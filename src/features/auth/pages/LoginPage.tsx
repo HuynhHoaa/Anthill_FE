@@ -312,15 +312,6 @@ export default function LoginPage() {
         description="Tính năng tự đặt lại mật khẩu sẽ có ở phiên bản tiếp theo."
         onClose={() => setForgotOpen(false)}
         size="sm"
-        footer={
-          <button
-            type="button"
-            onClick={() => setForgotOpen(false)}
-            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
-          >
-            Đóng
-          </button>
-        }
       >
         <div className="space-y-3 text-sm text-slate-600 leading-relaxed">
           <p>

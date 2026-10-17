@@ -97,7 +97,7 @@ function NotificationRow({ notification, processing, onOpen }: NotificationRowPr
   } ${
     isInteractive
       ? notification.isRead
-        ? 'hover:bg-slate-50 cursor-pointer'
+        ? 'hover:bg-indigo-100/70 cursor-pointer'
         : 'hover:bg-indigo-50 cursor-pointer'
       : ''
   } ${processing ? 'opacity-60' : ''}`

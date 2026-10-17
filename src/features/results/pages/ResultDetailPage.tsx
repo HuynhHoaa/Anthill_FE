@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { NavLink, useParams } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, CircleSlash, Clock, EyeOff,
   Hourglass, ListChecks, ShieldAlert, UserRound, XCircle,
@@ -37,21 +37,36 @@ const examTitleClass = 'text-2xl font-bold text-slate-800 leading-snug'
 
 const inlineLinkClass = 'font-semibold text-slate-600 hover:text-indigo-600 hover:underline transition-colors'
 
+/**
+ * Khung trang. Giáo viên có thanh tiêu đề nhận công cụ nên nút quay lại lên đó; khung của học sinh không có chỗ đó
+ * nên nút vẫn đứng đầu nội dung.
+ */
 function DetailShell({
-  audience, pageSubtitle, children,
+  audience, pageSubtitle, backLink, children,
 }: {
   audience: ResultAudience
   pageSubtitle?: string
+  backLink: ReactNode
   children: ReactNode
 }) {
   if (audience === 'teacher') {
     return (
-      <TeacherLayout pageTitle="Chi tiết kết quả" pageSubtitle={pageSubtitle}>
+      <TeacherLayout
+        pageTitle="Chi tiết kết quả"
+        pageSubtitle={pageSubtitle}
+        compactContent
+        headerTools={<div className="flex w-full justify-start lg:justify-end">{backLink}</div>}
+      >
         {children}
       </TeacherLayout>
     )
   }
-  return <StudentLayout>{children}</StudentLayout>
+  return (
+    <StudentLayout>
+      <div className="mb-5">{backLink}</div>
+      {children}
+    </StudentLayout>
+  )
 }
 
 function SummaryRow({ label, value }: { label: ReactNode; value: ReactNode }) {
@@ -80,7 +95,15 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
     [attemptIdNumber],
   )
 
-  const backTo = audience === 'teacher' ? '/giao-vien/ket-qua' : '/hoc-sinh/ket-qua'
+  // Giáo viên không còn bảng kết quả chung: bài làm được mở từ hồ sơ học sinh (lớp → học sinh) hoặc từ trang theo
+  // dõi của một bài kiểm tra (đề → lớp → học sinh). "Quay lại" đưa về đúng nơi vừa đi tới; mở thẳng từ đường dẫn
+  // (không có lịch sử) thì về danh sách lớp.
+  const navigate = useNavigate()
+  const location = useLocation()
+  const goBack = () => {
+    if (location.key !== 'default') navigate(-1)
+    else navigate('/giao-vien/nhom-lop')
+  }
   const selectedLabel = audience === 'teacher' ? 'Học sinh đã chọn' : 'Bạn đã chọn'
 
   const numberedQuestions = useMemo<NumberedQuestion[]>(
@@ -91,33 +114,37 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
   const counts = useMemo(() => {
     const total = numberedQuestions.length
     const correct = numberedQuestions.filter(item => item.question.isCorrect).length
-    const blank = numberedQuestions.filter(item => item.question.selectedAnswerId === null).length
+    const blank = numberedQuestions.filter(item => item.question.selectedAnswerIds.length === 0).length
     return { total, correct, blank, wrong: Math.max(0, total - correct - blank) }
   }, [numberedQuestions])
 
   const visibleQuestions = useMemo(
     () =>
       numberedQuestions.filter(({ question }) => {
-        if (questionFilter === 'wrong') return !question.isCorrect && question.selectedAnswerId !== null
-        if (questionFilter === 'blank') return question.selectedAnswerId === null
+        if (questionFilter === 'wrong') return !question.isCorrect && question.selectedAnswerIds.length > 0
+        if (questionFilter === 'blank') return question.selectedAnswerIds.length === 0
         return true
       }),
     [numberedQuestions, questionFilter],
   )
 
-  const backLink = (
-    <NavLink
-      to={backTo}
-      className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
-    >
+  const backLinkClass =
+    audience === 'teacher'
+      ? 'inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap'
+      : 'inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors'
+  const backLink = audience === 'teacher' ? (
+    <button type="button" onClick={goBack} className={backLinkClass}>
+      <ArrowLeft size={16} /> Quay lại
+    </button>
+  ) : (
+    <NavLink to="/hoc-sinh/ket-qua" className={backLinkClass}>
       <ArrowLeft size={16} /> Quay lại danh sách kết quả
     </NavLink>
   )
 
   if (loading && !detail) {
     return (
-      <DetailShell audience={audience}>
-        <div className="mb-5">{backLink}</div>
+      <DetailShell audience={audience} backLink={backLink}>
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-4">
             <SkeletonBlock className="h-32 rounded-2xl" />
@@ -132,16 +159,25 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
 
   if (error || !detail) {
     return (
-      <DetailShell audience={audience}>
-        <div className="mb-5">{backLink}</div>
+      <DetailShell audience={audience} backLink={backLink}>
         <ErrorState message={error ?? 'Không tìm thấy bài làm này.'} onRetry={reload} />
         <div className="mt-4 flex justify-center">
-          <NavLink
-            to={backTo}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
-          >
-            <ArrowLeft size={16} /> Quay lại danh sách kết quả
-          </NavLink>
+          {audience === 'teacher' ? (
+            <button
+              type="button"
+              onClick={goBack}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+            >
+              <ArrowLeft size={16} /> Quay lại
+            </button>
+          ) : (
+            <NavLink
+              to="/hoc-sinh/ket-qua"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+            >
+              <ArrowLeft size={16} /> Quay lại danh sách kết quả
+            </NavLink>
+          )}
         </div>
       </DetailShell>
     )
@@ -151,15 +187,14 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
   const currentUserCode = getCurrentUser()?.code ?? ''
   if (audience === 'student' && currentUserCode && detail.studentCode && currentUserCode !== detail.studentCode) {
     return (
-      <DetailShell audience={audience}>
-        <div className="mb-5">{backLink}</div>
+      <DetailShell audience={audience} backLink={backLink}>
         <EmptyState
           icon={ShieldAlert}
           title="Bài làm này không thuộc về bạn"
           description="Bạn chỉ xem được kết quả của những bài kiểm tra do chính mình thực hiện."
           action={
             <NavLink
-              to={backTo}
+              to="/hoc-sinh/ket-qua"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
             >
               <ArrowLeft size={16} /> Về kết quả của tôi
@@ -309,7 +344,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
         ) : (
           <div className="space-y-4">
             {visibleQuestions.map(({ question, number }) => {
-              const isBlank = question.selectedAnswerId === null
+              const isBlank = question.selectedAnswerIds.length === 0
               const questionImageUrl = resolveMediaUrl(question.imageUrl)
 
               return (
@@ -321,6 +356,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                         Câu {number} · {formatScore(question.point)} điểm
+                        {question.allowMultiple && ' · Nhiều đáp án'}
                       </p>
                       <h2 className="font-bold text-slate-800 mt-1 leading-relaxed">{question.content}</h2>
                     </div>
@@ -366,8 +402,8 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
 
                   <div className="space-y-2">
                     {question.answers.map((answer, answerIndex) => {
-                      const isCorrectAnswer = answer.id === question.correctAnswerId
-                      const isSelected = answer.id === question.selectedAnswerId
+                      const isCorrectAnswer = question.correctAnswerIds?.includes(answer.id) ?? false
+                      const isSelected = question.selectedAnswerIds.includes(answer.id)
                       const answerImageUrl = resolveMediaUrl(answer.imageUrl)
                       const answerLetter = String.fromCharCode(65 + answerIndex)
                       const answerImageAlt = answer.content
@@ -426,6 +462,12 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                       {audience === 'teacher' ? 'Học sinh không chọn đáp án nào cho câu này.' : 'Bạn đã bỏ trống câu này.'}
                     </p>
                   )}
+
+                  {question.allowMultiple && !isBlank && question.isCorrect === false && (
+                    <p className="mt-3 text-xs text-slate-500">
+                      Câu nhiều đáp án: phải chọn đúng và đủ các đáp án đúng mới được điểm.
+                    </p>
+                  )}
                 </div>
               )
             })}
@@ -436,9 +478,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
   }
 
   return (
-    <DetailShell audience={audience} pageSubtitle={`${detail.examTitle} · ${detail.studentName}`}>
-      <div className="mb-5">{backLink}</div>
-
+    <DetailShell audience={audience} pageSubtitle={`${detail.examTitle} · ${detail.studentName}`} backLink={backLink}>
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 items-start">
         <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 animate-fade-in-up">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6 pb-6 border-b border-slate-50">
@@ -478,6 +518,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                   {/* Chi tiết bài làm không kèm nhóm lớp, nên bỏ trống là chuyện thường —
                       in dấu chấm giữa mà không có gì theo sau trông như dữ liệu bị mất. */}
                   {detail.group !== '' && ` · ${detail.group}`}
+                  {detail.paperLabel && ` · Đề ${detail.paperLabel}`}
                   {detail.studentStatus !== 'active' && (
                     <span className="ml-2 align-middle">
                       <StudentStatusPill status={detail.studentStatus} />
@@ -606,7 +647,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                   {/* Ghép bằng join thay vì nối chuỗi có điều kiện: thiếu nhóm lớp thì dấu chấm
                       giữa cũng biến mất theo, không để lại "HS1001 ·" cụt đuôi. */}
                   <p className="text-xs text-slate-400 truncate">
-                    {[detail.studentCode, detail.group].filter(Boolean).join(' · ')}
+                    {[detail.studentCode, detail.group, detail.paperLabel ? `Đề ${detail.paperLabel}` : ''].filter(Boolean).join(' · ')}
                   </p>
                   {detail.studentStatus !== 'active' && (
                     <div className="mt-1.5">

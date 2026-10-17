@@ -108,6 +108,8 @@ export default function ConfirmDialog({
       open={open}
       title={title}
       size="sm"
+      // Hộp xác nhận đã có nút Huỷ ở chân, nên không thêm nút X.
+      showCloseButton={false}
       onClose={() => {
         if (!loading) onCancel()
       }}

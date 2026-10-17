@@ -185,6 +185,16 @@ export async function updateProfile(payload: Partial<UserProfile>): Promise<User
 }
 
 /**
+ * Đặt hay gỡ ảnh đại diện của chính mình (`null` là gỡ). Ảnh phải được tải lên trước qua `uploadImage`; server chỉ nhận
+ * đường dẫn do chính nó cấp. Giáo viên và quản trị viên mới đổi được, học sinh nhận 403.
+ */
+export async function updateAvatar(avatarUrl: string | null): Promise<UserProfile> {
+  const updated = await apiClient.put<UserProfile>('/api/auth/me/avatar', { avatarUrl })
+  saveSession(updated)
+  return updated
+}
+
+/**
  * Đổi mật khẩu.
  *
  * Đổi xong, server xoay `SecurityStamp` nên **token hiện tại chết ngay lập tức** — đó là chủ đích,

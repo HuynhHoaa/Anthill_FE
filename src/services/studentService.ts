@@ -20,6 +20,8 @@ export interface StudentPayload {
   username: string
   code: string
   groupId: number
+  /** Tuỳ chọn. Bỏ trống khi sửa thì server giữ nguyên số đang có; chuỗi rỗng là xoá trắng. */
+  phone?: string
   /** Bắt buộc khi tạo mới: người tạo tài khoản là người phải trao mật khẩu cho học sinh. */
   password?: string
 }

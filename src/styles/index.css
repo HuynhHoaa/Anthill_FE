@@ -142,7 +142,8 @@ body {
 /*
  * Cột cuối (thao tác) dính mép phải khung: bảng rộng hơn khung thì các cột còn lại trượt đi, còn
  * nút bấm vẫn nằm trong tầm mắt. Màu nền đặc để nội dung trượt bên dưới không lộ ra; màu khớp với
- * hàng tiêu đề (bg-slate-50/60 trên nền trắng) và với hàng khi rê chuột (hover:bg-slate-50).
+ * hàng tiêu đề (bg-slate-50/60 trên nền trắng). Khi rê chuột, màu hàng (hover:bg-indigo-100/70 ở từng trang) là màu
+ * trong suốt nên ô dính phải tự vẽ lại đúng màu đó trên nền trắng, nếu không vệt sáng bị hụt mất cột cuối.
  * Bóng ở mép trái chỉ hiện khi còn nội dung bị che phía sau.
  */
 .table-scroller th:last-child,
@@ -158,7 +159,18 @@ body {
 }
 
 .table-scroller tbody tr:hover td:last-child {
-  background-color: #f8fafc;
+  background-image: linear-gradient(
+    color-mix(in oklab, var(--color-indigo-100, #e0e7ff) 70%, transparent),
+    color-mix(in oklab, var(--color-indigo-100, #e0e7ff) 70%, transparent)
+  );
+}
+
+/*
+ * Hàng không mờ dần khi đổi màu: ô dính phải là lớp vẽ riêng và đổi màu ngay, còn <tr> có transition-colors thì mất
+ * 0,15s mới đủ màu, nên cột Thao tác sáng trước cả hàng. Tắt hiệu ứng ở hàng để mọi ô đổi màu cùng một khung hình.
+ */
+.table-scroller tbody tr {
+  transition: none;
 }
 
 .table-scroller[data-overflow-right='true'] th:last-child,
@@ -251,6 +263,16 @@ body {
 ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
 
+/*
+ * Thanh cuộn rõ cho một danh sách dài cuộn trong khung (danh sách câu hỏi của đề): thanh mặc định của ứng dụng mảnh và
+ * nhạt đến mức không thấy được, mà ở đó người dùng cần biết ngay còn bao nhiêu câu phía dưới. Chỉ dùng các luật
+ * ::-webkit-scrollbar: đặt scrollbar-color/-width thì Chrome bỏ qua chúng.
+ */
+.scroll-visible::-webkit-scrollbar { width: 12px; }
+.scroll-visible::-webkit-scrollbar-track { background: #f1f5f9; }
+.scroll-visible::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 9999px; border: 3px solid #f1f5f9; }
+.scroll-visible::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
 /* ===== Animations ===== */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(16px); }
@@ -288,6 +310,35 @@ body {
   animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/*
+ * Trượt nội dung qua lại (SlideSwap): nội dung mới vào từ một bên, nội dung cũ ra về bên kia. Thời lượng
+ * phải khớp `durationMs` mặc định của component, vì lớp cũ chỉ được gỡ khỏi trang sau chừng đó thời gian.
+ */
+@keyframes slideInFromRight {
+  from { opacity: 0; transform: translateX(64px) scale(0.985); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes slideInFromLeft {
+  from { opacity: 0; transform: translateX(-64px) scale(0.985); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes slideOutToLeft {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 0; transform: translateX(-64px) scale(0.985); }
+}
+
+@keyframes slideOutToRight {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 0; transform: translateX(64px) scale(0.985); }
+}
+
+.slide-enter-from-right { animation: slideInFromRight 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.slide-enter-from-left  { animation: slideInFromLeft 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.slide-exit-to-left     { animation: slideOutToLeft 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.slide-exit-to-right    { animation: slideOutToRight 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
 /* ===== Skeleton ===== */
 @keyframes skeletonShimmer {
   from { background-position: 200% 0; }
@@ -305,7 +356,18 @@ body {
   .animate-fade-in,
   .animate-modal-in,
   .animate-toast-in,
+  .slide-enter-from-right,
+  .slide-enter-from-left,
+  .slide-exit-to-left,
+  .slide-exit-to-right,
   .skeleton {
     animation: none;
+  }
+
+  /* Ngăn cũ của SlideSwap chỉ mờ đi nhờ animation; tắt animation thì phải ẩn hẳn, không thì chữ cũ lộ ra
+     dưới ngăn mới trong suốt suốt thời gian chờ gỡ. */
+  .slide-exit-to-left,
+  .slide-exit-to-right {
+    display: none;
   }
 }

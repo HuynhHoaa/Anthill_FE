@@ -18,9 +18,8 @@ interface ClassRow {
 /**
  * Số lớp đang dùng một đề, bấm vào để xem tên từng lớp và sĩ số.
  *
- * Mỗi lớp đã giao là một khung trong `assignmentWindows`. Học sinh được chọn riêng gom theo giờ và
- * không mang `groupId`, nên không bị tính là lớp: đề chỉ giao như vậy hiện "Riêng" thay vì "0" cạnh
- * một tiến độ nộp khác 0.
+ * Mỗi lớp đã giao là một khung trong `assignmentWindows`. Bài chỉ giao theo lớp; khung không mang
+ * `groupId` (dữ liệu cũ từ thời còn giao riêng từng em) không phải lớp nên không được đếm.
  *
  * Là nút chứ không phải `title`: chú thích của trình duyệt không hiện bằng bàn phím hay cảm ứng.
  * Tên lớp cũng nằm trong `aria-label` để trình đọc màn hình đọc được mà không cần mở.
@@ -32,12 +31,9 @@ export default function ClassUsagePopover({ windows }: ClassUsagePopoverProps) {
   const open = anchor !== null
 
   const classes = new Map<number, ClassRow>()
-  let individual = 0
   for (const item of windows) {
     if (item.groupId !== undefined) {
       classes.set(item.groupId, { name: item.groupName ?? 'Lớp', students: item.assignedCount })
-    } else {
-      individual += item.assignedCount
     }
   }
   const rows = Array.from(classes.values())
@@ -47,7 +43,7 @@ export default function ClassUsagePopover({ windows }: ClassUsagePopoverProps) {
     if (!trigger) return
 
     const rect = trigger.getBoundingClientRect()
-    const height = (rows.length + (individual > 0 && rows.length > 0 ? 1 : 0)) * ROW_HEIGHT + CHROME_HEIGHT
+    const height = rows.length * ROW_HEIGHT + CHROME_HEIGHT
     const openUpward = rect.bottom + height + 16 > window.innerHeight
     const top = openUpward ? rect.top - height - 8 : rect.bottom + 8
     const left = Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 12)
@@ -85,14 +81,11 @@ export default function ClassUsagePopover({ windows }: ClassUsagePopoverProps) {
   }, [open])
 
   // Chưa giao cho ai: không có gì để mở.
-  if (rows.length === 0 && individual === 0) {
+  if (rows.length === 0) {
     return <span className="text-slate-400">0</span>
   }
 
-  const onlyIndividual = rows.length === 0
-  const label = onlyIndividual
-    ? `Giao riêng cho ${individual} học sinh, bấm để xem`
-    : `${rows.length} lớp: ${rows.map(row => row.name).join(', ')}`
+  const label = `${rows.length} lớp: ${rows.map(row => row.name).join(', ')}`
 
   return (
     <>
@@ -106,11 +99,11 @@ export default function ClassUsagePopover({ windows }: ClassUsagePopoverProps) {
         aria-haspopup="true"
         aria-expanded={open}
         aria-label={label}
-        className={`rounded-md px-1.5 py-0.5 -mx-1.5 underline decoration-dotted underline-offset-4 transition-colors ${
-          onlyIndividual ? 'text-xs text-slate-500' : 'font-semibold text-slate-700'
-        } ${open ? 'bg-slate-100' : 'hover:bg-slate-100'}`}
+        className={`rounded-md px-1.5 py-0.5 -mx-1.5 underline decoration-dotted underline-offset-4 transition-colors font-semibold text-slate-700 ${
+          open ? 'bg-slate-100' : 'hover:bg-slate-100'
+        }`}
       >
-        {onlyIndividual ? 'Riêng' : rows.length}
+        {rows.length}
       </button>
 
       {anchor &&
@@ -118,12 +111,12 @@ export default function ClassUsagePopover({ windows }: ClassUsagePopoverProps) {
           <div
             ref={popoverRef}
             role="group"
-            aria-label={onlyIndividual ? 'Giao riêng từng học sinh' : 'Các lớp đang dùng đề này'}
+            aria-label="Các lớp đang dùng đề này"
             style={{ top: anchor.top, left: anchor.left, width: POPOVER_WIDTH }}
             className="fixed z-50 rounded-2xl border border-slate-100 bg-white p-3 shadow-xl animate-fade-in"
           >
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
-              {onlyIndividual ? 'Giao riêng từng học sinh' : 'Lớp đang dùng đề này'}
+              Lớp đang dùng đề này
             </p>
             <ul className="space-y-1">
               {rows.map(row => (
@@ -132,12 +125,6 @@ export default function ClassUsagePopover({ windows }: ClassUsagePopoverProps) {
                   <span className="flex-shrink-0 text-xs text-slate-400">{row.students} em</span>
                 </li>
               ))}
-              {individual > 0 && (
-                <li className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate font-medium text-slate-700">Học sinh chọn riêng</span>
-                  <span className="flex-shrink-0 text-xs text-slate-400">{individual} em</span>
-                </li>
-              )}
             </ul>
           </div>,
           document.body,

@@ -74,6 +74,11 @@ export interface Student {
   fullName: string
   email: string
   username: string
+  /**
+   * Số điện thoại do nhà trường quản lý. Chỉ quản trị viên nhận trường này; giáo viên và học sinh không
+   * tự sửa được.
+   */
+  phone?: string
   code: string
   group: string
   groupId: number
@@ -149,10 +154,21 @@ export interface AnswerOption {
 
 export interface Question {
   id: number
+  /**
+   * Tên ngắn do giáo viên đặt, để nhận ra câu trong ngân hàng và trong đề. Có thể là chuỗi rỗng: câu chưa
+   * được đặt tên thì nơi hiển thị dùng phần đầu của `content` (xem `questionDisplayTitle`). Học sinh không
+   * thấy tên này khi làm bài.
+   */
+  title: string
   content: string
   imageUrl?: string
   topic: string
   difficulty: DifficultyLevel
+  /**
+   * Câu cho chọn nhiều đáp án: có từ một đáp án đúng trở lên, và học sinh phải chọn đúng và đủ mới được điểm.
+   * Tắt thì là câu một đáp án đúng.
+   */
+  allowMultiple: boolean
   defaultPoint: number
   status: QuestionStatus
   updatedAt: string
@@ -160,6 +176,14 @@ export interface Question {
 }
 
 // ===== Bài kiểm tra =====
+
+/** Một câu trong danh sách câu hỏi của đề, kèm điểm của riêng câu đó. */
+export interface ExamQuestionItem {
+  /** Thứ tự giáo viên xếp, từ 0. */
+  ordinal: number
+  point: number
+  question: Question
+}
 
 export interface Exam {
   id: number
@@ -177,8 +201,16 @@ export interface Exam {
   pointEasy: number
   pointMedium: number
   pointHard: number
-  /** Số câu mỗi mức × điểm mức đó; server tính sẵn. Chuẩn là 100 nhưng không bắt buộc: có thể khác. */
+  /**
+   * Tổng điểm của đề; server tính sẵn. Chuẩn là 100 nhưng không bắt buộc: có thể khác. Đề theo ma trận là
+   * số câu mỗi mức × điểm mức đó; đề theo danh sách là tổng điểm từng câu.
+   */
   totalScore: number
+  /**
+   * Đề soạn theo danh sách câu hỏi cụ thể (xem `getExamQuestions`) thay vì ma trận. Khi `true`, số câu, tỷ lệ
+   * và điểm theo mức chỉ là số liệu dẫn xuất từ danh sách và không còn là thứ giáo viên nhập.
+   */
+  usesQuestionList: boolean
   /** Chủ đề câu hỏi được dùng để sinh đề. Chuỗi rỗng nghĩa là lấy từ tất cả chủ đề. */
   topic: string
   shuffleQuestions: boolean
@@ -191,6 +223,18 @@ export interface Exam {
    * Server làm thật — hạt giống sinh đề gắn với từng lượt giao bài.
    */
   randomizePerStudent: boolean
+
+  /**
+   * Số đề nhỏ mỗi lớp nhận (1 = cả lớp một đề). Từ 2 trở lên thì `totalQuestions`, ba tỷ lệ và `totalScore` là
+   * của MỘT đề nhỏ, còn danh sách câu hỏi của đề (`getExamQuestions`) là đề lớn để rút ra các đề nhỏ.
+   */
+  paperCount: number
+
+  /**
+   * Số đơn vị 0,01 điểm cộng thêm cho các câu mức cao nhất của MỖI đề nhỏ để đề cộng đúng 10 (0 với đề một đề, hoặc khi điểm
+   * theo mức đã ra đúng 10). `totalScore` đã tính phần này.
+   */
+  paperBonusUnits: number
 
   assignedCount: number
   submittedCount: number
@@ -222,7 +266,7 @@ export interface Exam {
   closeAt: string
 
   /**
-   * Khung giờ thật của từng lớp đã được giao đề này, cộng thêm các học sinh chọn đích danh gom theo giờ.
+   * Khung giờ thật của từng lớp đã được giao đề này. Bài chỉ giao theo lớp.
    *
    * Có mặt vì lịch phía trên chỉ là mặc định: một đề chạy cho 12A1 sáng thứ Ba và 12A2 chiều thứ Năm mà
    * màn hình chỉ hiện lịch chung thì giáo viên không trả lời được câu hỏi đơn giản nhất — "lớp nào đang
@@ -234,9 +278,9 @@ export interface Exam {
   createdAt: string
 }
 
-/** Một khung giờ đang áp cho một lớp, hoặc cho một nhóm học sinh chọn lẻ cùng giờ. */
+/** Một khung giờ đang áp cho một lớp. */
 export interface AssignmentWindow {
-  /** Không có với học sinh được chọn đích danh — các em đó không đến từ lớp nào. */
+  /** Vắng mặt chỉ với dữ liệu cũ từ thời còn giao riêng từng em; bài giao mới luôn gắn với một lớp. */
   groupId?: number
   groupName?: string
 
@@ -287,10 +331,16 @@ export interface ExamAssignment {
   scheduleLocked: boolean
 
   /**
-   * Lớp mà em được giao bài qua đó. Vắng mặt khi giáo viên chọn đích danh em — và chỉ những em đó mới
-   * dời được giờ riêng, vì giờ của em theo lớp thuộc về cả lớp.
+   * Lớp mà em được giao bài qua đó. Bài chỉ giao theo lớp nên giờ của em là giờ của lớp; vắng mặt chỉ với
+   * dữ liệu cũ từ thời còn giao riêng từng em.
    */
   assignedViaGroupId?: number
+
+  /**
+   * Mã đề của em ("A", "B"…) khi đề được chia nhiều đề. Chỉ giáo viên và quản trị viên nhận; học sinh không
+   * thấy mã đề của mình, càng không thấy của bạn.
+   */
+  paperLabel?: string
 }
 
 /** Kết quả tổng hợp một lượt làm bài, dùng cho cả màn hình giáo viên và học sinh. */
@@ -337,6 +387,11 @@ export interface AttemptQuestion {
   content: string
   imageUrl?: string
   point: number
+  /**
+   * Câu cho chọn nhiều đáp án: màn hình làm bài vẽ ô tích thay cho ô chọn một. Chỉ nói "được chọn nhiều ô"
+   * chứ không nói có bao nhiêu ô đúng.
+   */
+  allowMultiple: boolean
   /** Không có `isCorrect` — xem chú thích ở AttemptAnswerOption. */
   answers: AttemptAnswerOption[]
 }
@@ -363,8 +418,8 @@ export interface AttemptSession {
   totalQuestions: number
   maxScore: number
   questions: AttemptQuestion[]
-  /** Map questionId -> answerId đã lưu nháp. */
-  savedAnswers: Record<number, number>
+  /** Map questionId -> các answerId đã lưu nháp (một phần tử với câu một đáp án). Câu chưa chọn thì vắng mặt. */
+  savedAnswers: Record<number, number[]>
   /** Số thứ tự lần ghi cuối server đã nhận, để lần lưu nháp sau không lùi về sau nó. */
   lastAppliedSeq: number
 }
@@ -374,7 +429,7 @@ export interface AttemptSession {
  *
  * Cố ý **không có** `isCorrect`, khác với `AnswerOption` dùng ở màn hình soạn câu hỏi. Backend
  * dùng hai DTO tách biệt vì đúng lý do này (§3 quy tắc ①): trong ngữ cảnh bài làm, đáp án đúng chỉ
- * được nói ở cấp câu hỏi qua `correctAnswerId`, và chỉ khi người xem đủ điều kiện. Nếu tái dùng
+ * được nói ở cấp câu hỏi qua `correctAnswerIds`, và chỉ khi người xem đủ điều kiện. Nếu tái dùng
  * `AnswerOption` ở đây thì kiểu dữ liệu tự nó mời gọi việc gắn cờ đúng/sai vào từng phương án —
  * và chỉ cần một lần gắn là đáp án rời server trong lúc học sinh còn đang làm bài.
  */
@@ -391,8 +446,10 @@ export interface AttemptAnswerDetail {
   imageUrl?: string
   point: number
   answers: AttemptAnswerOption[]
-  /** `null` khi học sinh bỏ trống câu này — và câu bỏ trống vẫn phải hiện ra. */
-  selectedAnswerId: number | null
+  /** Câu cho chọn nhiều đáp án: phải chọn đúng và đủ mới được điểm. */
+  allowMultiple: boolean
+  /** Rỗng khi học sinh bỏ trống câu này — và câu bỏ trống vẫn phải hiện ra. */
+  selectedAnswerIds: number[]
 
   /**
    * `null` khi người xem chưa được phép biết đáp án đúng.
@@ -400,7 +457,7 @@ export interface AttemptAnswerDetail {
    * Server **không gửi** hai trường này thay vì gửi giá trị rỗng, nên chúng vắng mặt thật sự trong
    * JSON chứ không phải bị giao diện giấu đi — mở tab Network cũng không thấy gì.
    */
-  correctAnswerId: number | null
+  correctAnswerIds: number[] | null
   isCorrect: boolean | null
 }
 
@@ -432,6 +489,8 @@ export interface AttemptDetail {
   showAnswers: boolean
   /** Khi nào học sinh xem được đáp án từng câu; null nếu server không báo. */
   answersVisibleAt: string | null
+  /** Mã đề của em ("A", "B"…) khi đề chia nhiều đề; chỉ giáo viên nhận, học sinh thì vắng. */
+  paperLabel?: string
   questions: AttemptAnswerDetail[]
 }
 
@@ -491,6 +550,8 @@ export interface UserProfile {
   phone?: string
   subject?: string
   avatarColor: string
+  /** Ảnh đại diện đã tải lên (giáo viên và quản trị viên). Vắng mặt khi chưa có: vẽ chữ cái đầu trên nền avatarColor. */
+  avatarUrl?: string
   joinedAt: string
 }
 

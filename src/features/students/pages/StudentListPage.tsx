@@ -1,6 +1,6 @@
 // Trang thuộc vai trò quản trị viên: admin sở hữu tài khoản học sinh.
 import { useState } from 'react'
-import { NavLink, useSearchParams } from 'react-router-dom'
+import { NavLink, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   FilterX, Mail, Plus, RotateCcw, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, Users, UsersRound,
 } from 'lucide-react'
@@ -13,6 +13,7 @@ import TableScroller from '../../../components/common/TableScroller'
 import useAsync from '../../../hooks/useAsync'
 import useDebouncedValue from '../../../hooks/useDebouncedValue'
 import { formatDate, formatDateTime, formatScore, getInitials, getScoreTone } from '../../../lib/format'
+import { openOnRowClick } from '../../../lib/rowClick'
 import { UNASSIGNED_GROUP_ID, UNASSIGNED_GROUP_NAME, listGroups } from '../../../services/groupService'
 import { isRetiredStudent, listStudents } from '../../../services/studentService'
 import StudentStatusPill from '../components/StudentStatusPill'
@@ -39,6 +40,7 @@ export default function StudentListPage() {
   // tới đây bằng đường đó, và giữ trong state thì đổi bộ lọc xong URL vẫn nói điều cũ — tải lại hay
   // bấm Back là bộ lọc cũ quay về. Chỉ nhận đúng các giá trị có trong ô lọc: một giá trị lạ mà lọt
   // vào thì server trả 400 và cả trang thành trang lỗi.
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedStatus = searchParams.get('trang-thai')
   const status: 'all' | StudentStatus = statusFilterOptions.find(option => option === requestedStatus) ?? 'all'
@@ -276,7 +278,8 @@ export default function StudentListPage() {
                     return (
                       <tr
                         key={student.id}
-                        className={`border-b border-slate-50 hover:bg-slate-50 transition-colors ${
+                        onClick={openOnRowClick(() => navigate(`/quan-tri/hoc-sinh/${student.id}/sua`))}
+                        className={`border-b border-slate-50 hover:bg-indigo-100/70 transition-colors cursor-pointer ${
                           isRetired ? 'text-slate-400' : ''
                         }`}
                       >

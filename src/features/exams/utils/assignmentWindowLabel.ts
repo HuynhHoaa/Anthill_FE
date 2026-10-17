@@ -1,6 +1,6 @@
 import type { AssignmentWindow } from '../../../types'
 
-/** Nhãn của một khung giờ: tên lớp, hoặc nhóm học sinh được chọn đích danh. */
+/** Nhãn của một khung giờ: tên lớp. Khung không gắn lớp là dữ liệu cũ, từ thời còn giao riêng từng em. */
 export function windowLabel(window: AssignmentWindow): string {
-  return window.groupName ?? 'Học sinh chọn riêng'
+  return window.groupName ?? 'Chưa gắn lớp'
 }

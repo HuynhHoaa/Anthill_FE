@@ -241,7 +241,7 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
                   <label
                     key={student.id}
                     className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
-                      isSelected ? 'bg-indigo-50/60' : 'hover:bg-slate-50'
+                      isSelected ? 'bg-indigo-50/60' : 'hover:bg-indigo-100/70'
                     }`}
                   >
                     <input

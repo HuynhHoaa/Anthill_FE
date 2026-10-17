@@ -12,7 +12,7 @@ import { useAsync } from '../../../hooks/useAsync'
 import { useRealtimeRefresh } from '../../../hooks/useRealtime'
 import { getTeacherDashboard } from '../../../services/dashboardService'
 import { getQuestionBankSummary } from '../../../services/questionService'
-import { formatDateTime, formatDuration, formatRelativeTime, formatScore } from '../../../lib/format'
+import { formatDateTime, formatDuration, formatExamSize, formatRelativeTime, formatScore } from '../../../lib/format'
 import { getTopicLabel } from '../../../lib/topicTheme'
 import { difficultyLabels } from '../../../types'
 import type { ActivityTone, DifficultyLevel, TeacherDashboardData } from '../../../types'
@@ -66,9 +66,9 @@ const quickActions: { label: string; description: string; to: string; icon: Luci
     gradient: 'linear-gradient(135deg,#8B5CF6,#6366F1)',
   },
   {
-    label: 'Xem kết quả',
-    description: 'Theo dõi điểm số',
-    to: '/giao-vien/ket-qua',
+    label: 'Bài kiểm tra',
+    description: 'Theo dõi bài đã giao',
+    to: '/giao-vien/bai-kiem-tra',
     icon: TrendingUp,
     gradient: 'linear-gradient(135deg,#10B981,#0D9488)',
   },
@@ -204,7 +204,7 @@ export default function TeacherDashboardPage() {
                     <tr
                       key={exam.id}
                       onClick={() => navigate(`/giao-vien/bai-kiem-tra/${exam.id}`)}
-                      className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer"
+                      className="border-b border-slate-50 hover:bg-indigo-100/70 transition-colors cursor-pointer"
                     >
                       <td data-card="head" className="px-4 py-3.5">
                         <Link
@@ -221,7 +221,7 @@ export default function TeacherDashboardPage() {
                           <Clock size={13} />{formatDuration(exam.durationMinutes)}
                         </span>
                       </td>
-                      <td data-label="Số câu" className="px-4 py-3.5 text-slate-700 whitespace-nowrap">{exam.totalQuestions} câu</td>
+                      <td data-label="Số câu" className="px-4 py-3.5 text-slate-700 whitespace-nowrap">{formatExamSize(exam)}</td>
                       <td data-label="Đã nộp" className="px-4 py-3.5 whitespace-nowrap">
                         <span className="flex items-center gap-1 text-slate-500">
                           <Users size={13} />{exam.submittedCount}/{exam.assignedCount} HS

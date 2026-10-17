@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import AdminLayout from '../../../components/layout/AdminLayout'
 import { PublishStateBadge } from '../../../components/common/Badge'
+import ConsequenceList from '../../../components/common/ConsequenceList'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
@@ -24,6 +25,7 @@ import { usePagination } from '../../../hooks/usePagination'
 import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
 import { useUrlListState } from '../../../hooks/useUrlListState'
 import { formatDate } from '../../../lib/format'
+import { openOnRowClick } from '../../../lib/rowClick'
 import { deleteGroup, listGroups, publishGroup, unpublishGroup } from '../../../services/groupService'
 import type { StudentGroup } from '../../../types'
 import GroupFormModal from '../components/GroupFormModal'
@@ -163,7 +165,15 @@ export default function AdminGroupListPage() {
     if (group.studentCount > 0) {
       const openManager = await confirm({
         title: 'Chưa thể xoá lớp',
-        message: `Lớp "${group.name}" đang có ${group.studentCount} học sinh nên chưa thể xoá. Hãy chuyển các em sang lớp khác trong trang quản lý lớp trước — tài khoản học sinh sẽ không bị xoá theo.`,
+        message: `Lớp “${group.name}” đang có ${group.studentCount} học sinh nên chưa thể xoá.`,
+        details: (
+          <ConsequenceList
+            items={[
+              'Hãy chuyển các em sang lớp khác trong trang quản lý lớp trước.',
+              'Tài khoản học sinh sẽ không bị xoá theo.',
+            ]}
+          />
+        ),
         confirmLabel: 'Mở trang quản lý lớp',
         cancelLabel: 'Để sau',
       })
@@ -171,13 +181,19 @@ export default function AdminGroupListPage() {
       return
     }
 
-    const teacherPart =
-      group.teachers.length > 0
-        ? ` ${group.teachers.length} giáo viên đang phụ trách sẽ không còn thấy lớp này.`
-        : ''
     const deleted = await confirm({
       title: 'Xoá lớp',
-      message: `Lớp "${group.name}" sẽ bị xoá và không khôi phục được.${teacherPart} Lớp hiện không có học sinh nào nên không tài khoản hay kết quả bài làm nào bị ảnh hưởng.`,
+      message: `Lớp “${group.name}” sẽ bị xoá và không khôi phục được.`,
+      details: (
+        <ConsequenceList
+          items={[
+            ...(group.teachers.length > 0
+              ? [`${group.teachers.length} giáo viên đang phụ trách sẽ không còn thấy lớp này.`]
+              : []),
+            'Lớp hiện không có học sinh nào nên không tài khoản hay kết quả bài làm nào bị ảnh hưởng.',
+          ]}
+        />
+      ),
       confirmLabel: 'Xoá lớp',
       tone: 'danger',
       onConfirm: reloadOnFailure(() => deleteGroup(group.id)),
@@ -195,8 +211,21 @@ export default function AdminGroupListPage() {
     const published = await confirm({
       title: withoutTeacher ? 'Công bố lớp chưa có giáo viên?' : 'Công bố lớp',
       message: withoutTeacher
-        ? `Lớp "${group.name}" chưa có giáo viên nào phụ trách. Công bố bây giờ thì lớp vẫn chưa hiện với ai, vì giáo viên chỉ thấy lớp mình được phân công. Bạn nên phân công giáo viên trong trang quản lý lớp trước.`
-        : `${group.teachers.length} giáo viên được phân công sẽ thấy lớp "${group.name}" và có thể giao bài kiểm tra cho ${group.studentCount} học sinh trong lớp. Bạn có thể chuyển lớp về bản nháp sau nếu cần.`,
+        ? `Lớp “${group.name}” chưa có giáo viên nào phụ trách.`
+        : `Lớp “${group.name}” sẽ được công bố cho ${group.teachers.length} giáo viên được phân công.`,
+      details: (
+        <ConsequenceList
+          items={withoutTeacher
+            ? [
+              'Công bố bây giờ thì lớp vẫn chưa hiện với ai, vì giáo viên chỉ thấy lớp mình được phân công.',
+              'Bạn nên phân công giáo viên trong trang quản lý lớp trước.',
+            ]
+            : [
+              `Các giáo viên này thấy lớp và có thể giao bài kiểm tra cho ${group.studentCount} học sinh trong lớp.`,
+              'Bạn có thể chuyển lớp về bản nháp sau nếu cần.',
+            ]}
+        />
+      ),
       confirmLabel: withoutTeacher ? 'Vẫn công bố' : 'Công bố',
       cancelLabel: 'Để sau',
       onConfirm: reloadOnFailure(() => publishGroup(group.id)),
@@ -213,7 +242,16 @@ export default function AdminGroupListPage() {
         : 'Lớp chưa có giáo viên phụ trách nên chưa ai mất quyền xem.'
     const unpublished = await confirm({
       title: 'Chuyển lớp về bản nháp',
-      message: `Lớp "${group.name}" sẽ trở lại dạng bản nháp: ${teacherPart} Học sinh trong lớp, bài đã giao và kết quả giữ nguyên. Bạn có thể công bố lại bất cứ lúc nào.`,
+      message: `Lớp “${group.name}” sẽ trở lại dạng bản nháp.`,
+      details: (
+        <ConsequenceList
+          items={[
+            teacherPart,
+            'Học sinh trong lớp, bài đã giao và kết quả giữ nguyên.',
+            'Bạn có thể công bố lại bất cứ lúc nào.',
+          ]}
+        />
+      ),
       confirmLabel: 'Chuyển về nháp',
       onConfirm: reloadOnFailure(() => unpublishGroup(group.id)),
     })
@@ -337,7 +375,11 @@ export default function AdminGroupListPage() {
               </thead>
               <tbody>
                 {pageItems.map(group => (
-                  <tr key={group.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                  <tr
+                    key={group.id}
+                    onClick={openOnRowClick(() => navigate(groupDetailLink(group.id)))}
+                    className="border-b border-slate-50 hover:bg-indigo-100/70 transition-colors cursor-pointer"
+                  >
                     <td data-card="head" className="px-5 py-4">
                       <div className="flex items-start gap-2.5 max-w-[420px]">
                         <GroupHealthIndicator group={group} />

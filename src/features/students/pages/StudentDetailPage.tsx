@@ -3,7 +3,7 @@
  * Tài khoản học sinh (tạo, sửa, khoá/mở) thuộc quyền quản trị viên, không có ở đây.
  */
 import { useMemo, type ReactNode } from 'react'
-import { NavLink, useParams } from 'react-router-dom'
+import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Award, CalendarDays, ClipboardList, Eye, Hash, Lock, Mail, ShieldCheck, UsersRound,
   type LucideIcon,
@@ -15,9 +15,10 @@ import { StatusBadge } from '../../../components/common/Badge'
 import { SkeletonBlock, SkeletonTable } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import {
-  formatDate, formatDateTime, formatScore, getInitials, getScoreTone, NO_VALUE, roundToOneDecimal,
-  toHundredScale,
+  formatDate, formatDateTime, formatScore, getInitials, getScoreTone, NO_VALUE, roundScore, STANDARD_SCORE,
+  toStandardScale,
 } from '../../../lib/format'
+import { openOnRowClick } from '../../../lib/rowClick'
 import { listGroups } from '../../../services/groupService'
 import { DELETION_RETENTION_DAYS, getStudent } from '../../../services/studentService'
 import { listResults } from '../../../services/resultService'
@@ -55,6 +56,7 @@ function StatTile({ icon: Icon, iconBg, iconColor, label, children }: StatTilePr
 }
 
 export default function StudentDetailPage() {
+  const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const studentId = Number(id)
   const isValidId = Number.isInteger(studentId) && studentId > 0
@@ -90,15 +92,15 @@ export default function StudentDetailPage() {
   // để ô số liệu không bao giờ mâu thuẫn với số dòng đang hiển thị.
   const averageScore = useMemo(() => {
     // Bài đã chấm nhưng bị giấu điểm không mang con số nào; tính chúng như 0 sẽ kéo trung bình
-    // xuống mà giáo viên không thấy dấu hiệu gì trên bảng bên dưới. Mỗi điểm quy về thang 100 theo điểm
+    // xuống mà giáo viên không thấy dấu hiệu gì trên bảng bên dưới. Mỗi điểm quy về thang 10 theo điểm
     // tối đa của đề đó: đề cũ 9 điểm và đề mới 100 điểm không cộng thô được.
     const visibleScores = historyItems
       .filter(result => result.status === 'graded')
-      .map(result => (result.score === null ? null : toHundredScale(result.score, result.maxScore)))
+      .map(result => (result.score === null ? null : toStandardScale(result.score, result.maxScore)))
       .filter((score): score is number => score !== null)
 
     if (visibleScores.length === 0) return null
-    return roundToOneDecimal(
+    return roundScore(
       visibleScores.reduce((total, score) => total + score, 0) / visibleScores.length,
     )
   }, [historyItems])
@@ -182,7 +184,8 @@ export default function StudentDetailPage() {
                 return (
                   <tr
                     key={result.attemptId}
-                    className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-b-0"
+                    onClick={openOnRowClick(() => navigate(`/giao-vien/ket-qua/${result.attemptId}`))}
+                    className="border-b border-slate-50 hover:bg-indigo-100/70 transition-colors last:border-b-0 cursor-pointer"
                   >
                     <td data-card="head" className="px-5 py-4">
                       <NavLink
@@ -241,17 +244,25 @@ export default function StudentDetailPage() {
     )
   }
 
+  // Nút quay lại nằm trên thanh tiêu đề (hẹp hơn thì đứng đầu nội dung), không chiếm một hàng riêng trong trang.
+  const backLink = (
+    <div className="flex w-full justify-start lg:justify-end">
+      <NavLink
+        to={backTo}
+        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap"
+      >
+        <ArrowLeft size={16} /> {backLabel}
+      </NavLink>
+    </div>
+  )
+
   return (
     <TeacherLayout
       pageTitle="Chi tiết học sinh"
       pageSubtitle={summaryText ?? 'Xem hồ sơ và lịch sử làm bài của học sinh'}
+      compactContent
+      headerTools={backLink}
     >
-      <NavLink
-        to={backTo}
-        className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors mb-4"
-      >
-        <ArrowLeft size={15} /> {backLabel}
-      </NavLink>
 
       {showProfileSkeleton && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
@@ -267,17 +278,7 @@ export default function StudentDetailPage() {
       )}
 
       {!showProfileSkeleton && studentError && (
-        <div>
-          <ErrorState message={studentError} onRetry={reloadStudent} />
-          <div className="mt-4 flex justify-center">
-            <NavLink
-              to={groupListLink}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
-            >
-              <ArrowLeft size={15} /> Quay lại danh sách nhóm
-            </NavLink>
-          </div>
-        </div>
+        <ErrorState message={studentError} onRetry={reloadStudent} />
       )}
 
       {student && (
@@ -382,7 +383,7 @@ export default function StudentDetailPage() {
                 ) : (
                   <p className={`text-2xl font-bold leading-none ${getScoreTone(averageScore).color}`}>
                     {formatScore(averageScore)}
-                    <span className="text-sm font-semibold text-slate-400"> /100</span>
+                    <span className="text-sm font-semibold text-slate-400"> /{STANDARD_SCORE}</span>
                   </p>
                 ),
               )}

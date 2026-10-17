@@ -33,37 +33,6 @@ export interface ListResultsParams {
   pageSize?: number
 }
 
-export interface ResultStats {
-  totalAttempts: number
-  gradedCount: number
-
-  /** Lượt đang làm dở: nằm trong `totalAttempts` nhưng chưa phải bài đã nộp. */
-  inProgressCount: number
-
-  /**
-   * `null` khi chưa có bài nào được chấm.
-   *
-   * Không quy về 0: một lớp chưa ai thi mà hiện "điểm trung bình 0" trông y hệt một lớp làm sai
-   * hết bài, và giáo viên đọc con số đó sẽ hiểu sai hoàn toàn.
-   */
-  averageScore: number | null
-  highestScore: number | null
-
-  /**
-   * Phần trăm bài đã giao đã được nộp.
-   *
-   * Thay cho `passRate` của bản giả lập. Backend không có khái niệm điểm sàn nên không tính được
-   * tỷ lệ đạt; đổi tên theo đúng thứ con số này thật sự đo, thay vì giữ nhãn cũ trên dữ liệu mới.
-   */
-  completionRate: number
-}
-
-/** Bản thật trên dây của `ResultStats`: hai khoá điểm có thể vắng mặt. */
-type ResultStatsDto = Omit<ResultStats, 'averageScore' | 'highestScore'> & {
-  averageScore?: number | null
-  highestScore?: number | null
-}
-
 interface AttemptDetailAnswerDto {
   id: number
   ordinal: number
@@ -78,8 +47,9 @@ interface AttemptDetailQuestionDto {
   imageUrl?: string
   point: number
   answers: AttemptDetailAnswerDto[]
-  selectedAnswerId?: number
-  correctAnswerId?: number
+  allowMultiple?: boolean
+  selectedAnswerIds?: number[]
+  correctAnswerIds?: number[]
   isCorrect?: boolean
 }
 
@@ -105,6 +75,8 @@ interface AttemptDetailDto {
   canSeeAnswers: boolean
   /** Giờ đáp án chi tiết được mở cho học sinh: giờ đóng muộn nhất trong mọi lượt giao của đề. */
   answersVisibleAt?: string | null
+  /** Mã đề của em khi đề chia nhiều đề; chỉ giáo viên nhận. */
+  paperLabel?: string
   questions: AttemptDetailQuestionDto[]
 }
 
@@ -138,27 +110,6 @@ export async function listMyResults(params: {
   return { ...response, items: response.items.map(toResultSummary) }
 }
 
-/**
- * Bốn ô số liệu đầu trang.
- *
- * Nhận **cùng bộ lọc** với bảng bên dưới, vì server tính chúng trên đúng tập dữ liệu đang hiển thị.
- * Gọi mà bỏ bộ lọc đi thì bốn ô nói về toàn hệ thống trong khi bảng ngay dưới đã lọc — người xem
- * không có cách nào biết hai phần đang nói về hai chuyện khác nhau.
- */
-export async function getResultStats(params: ListResultsParams = {}): Promise<ResultStats> {
-  const dto = await apiClient.get<ResultStatsDto>('/api/results/stats', {
-    search: params.search,
-    status: params.status,
-    examId: params.examId,
-    studentId: params.studentId,
-    groupId: params.groupId,
-  })
-
-  // Khi chưa có bài nào được chấm, server bỏ hẳn hai khoá điểm chứ không gửi null. Quy về null ở đây để
-  // `ResultStats` đúng như nó khai: `undefined !== null` lọt qua phép kiểm và hiện ra "TB —/100".
-  return { ...dto, averageScore: dto.averageScore ?? null, highestScore: dto.highestScore ?? null }
-}
-
 /** Chi tiết một lượt làm bài, soi từng câu. */
 export async function getAttemptDetail(attemptId: number): Promise<AttemptDetail> {
   const dto = await apiClient.get<AttemptDetailDto>(`/api/results/${attemptId}`)
@@ -185,8 +136,9 @@ export async function getAttemptDetail(attemptId: number): Promise<AttemptDetail
     autoSubmitted: dto.autoSubmitted,
     showAnswers: dto.canSeeAnswers,
     answersVisibleAt: dto.answersVisibleAt ?? null,
+    paperLabel: dto.paperLabel,
 
-    // Câu bỏ trống vẫn nằm trong danh sách với selectedAnswerId là null — đó thường là những câu
+    // Câu bỏ trống vẫn nằm trong danh sách với selectedAnswerIds rỗng — đó thường là những câu
     // đáng xem nhất khi soi lại bài, nên lọc chúng đi là bỏ mất phần quan trọng nhất.
     questions: dto.questions.map(question => ({
       questionId: question.paperQuestionId,
@@ -199,8 +151,9 @@ export async function getAttemptDetail(attemptId: number): Promise<AttemptDetail
         content: answer.content,
         imageUrl: answer.imageUrl,
       })),
-      selectedAnswerId: question.selectedAnswerId ?? null,
-      correctAnswerId: question.correctAnswerId ?? null,
+      allowMultiple: question.allowMultiple === true,
+      selectedAnswerIds: question.selectedAnswerIds ?? [],
+      correctAnswerIds: question.correctAnswerIds ?? null,
       isCorrect: question.isCorrect ?? null,
     })),
   }

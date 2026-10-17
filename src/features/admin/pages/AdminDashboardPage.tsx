@@ -2,7 +2,7 @@
  * Tổng quan dành cho QUẢN TRỊ VIÊN — người sở hữu tài khoản học sinh.
  * Mọi con số ở đây đều lấy từ service thật, không có số liệu trang trí.
  */
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
   ChevronRight, Clock, Lock, ShieldCheck, UserPlus, Users, UsersRound, type LucideIcon,
 } from 'lucide-react'
@@ -12,6 +12,7 @@ import ErrorState from '../../../components/common/ErrorState'
 import { SkeletonBlock, SkeletonTable } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { formatDate, getInitials } from '../../../lib/format'
+import { openOnRowClick } from '../../../lib/rowClick'
 import { listGroups } from '../../../services/groupService'
 import { DELETION_RETENTION_DAYS, listStudents } from '../../../services/studentService'
 import StudentStatusPill from '../../students/components/StudentStatusPill'
@@ -122,6 +123,7 @@ const quickActions: { label: string; description: string; to: string; icon: Luci
 ]
 
 export default function AdminDashboardPage() {
+  const navigate = useNavigate()
   const { data: overview, loading, error, reload } = useAsync(loadAdminOverview, [])
 
   const isFirstLoad = loading && overview === undefined
@@ -241,7 +243,8 @@ export default function AdminDashboardPage() {
                   return (
                     <tr
                       key={student.id}
-                      className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-b-0"
+                      onClick={openOnRowClick(() => navigate(`/quan-tri/hoc-sinh/${student.id}/sua`))}
+                      className="border-b border-slate-50 hover:bg-indigo-100/70 transition-colors last:border-b-0 cursor-pointer"
                     >
                       <td data-card="head" className="px-5 py-4">
                         <div className="flex items-center gap-3">
