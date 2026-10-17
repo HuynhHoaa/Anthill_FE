@@ -4,6 +4,7 @@ import {
   BarChart3, Activity, ClipboardList, TrendingUp, type LucideIcon,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
+import CountUp from '../../../components/common/CountUp'
 import { LifecycleBadge } from '../../../components/common/Badge'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
@@ -285,12 +286,12 @@ export default function TeacherDashboardPage() {
                           {difficultyLabels[level]}
                         </span>
                         <span className="text-xs text-slate-500">
-                          <strong className="text-slate-700">{count}</strong> câu · {percentage}%
+                          <strong className="text-slate-700"><CountUp value={count} /></strong> câu · <CountUp value={percentage} />%
                         </span>
                       </div>
                       <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
                         <div
-                          className="h-full rounded-full transition-all duration-500"
+                          className="h-full rounded-full transition-all duration-500 bar-grow"
                           style={{ width: `${percentage}%`, background: color }}
                         />
                       </div>

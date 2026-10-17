@@ -5,6 +5,8 @@ interface ModalProps {
   open: boolean
   title: string
   description?: string
+  /** Biểu tượng nhỏ đặt trong ô màu cạnh tiêu đề — dùng cho hộp là một "công cụ" (Soạn tự động...), không cần cho hộp xác nhận. */
+  icon?: ReactNode
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
@@ -41,6 +43,7 @@ export default function Modal({
   open,
   title,
   description,
+  icon,
   onClose,
   children,
   footer,
@@ -137,9 +140,20 @@ export default function Modal({
         className={`w-full ${panelWidthClass[size]} max-h-[90vh] flex flex-col bg-white rounded-3xl border border-slate-100 shadow-xl animate-modal-in outline-none`}
       >
         <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 border-b border-slate-100">
-          <div className="min-w-0">
-            <h2 className="text-base font-bold text-slate-800">{title}</h2>
-            {description && <p className="text-sm text-slate-500 mt-1 leading-relaxed">{description}</p>}
+          <div className="min-w-0 flex items-start gap-3">
+            {icon && (
+              <span
+                aria-hidden="true"
+                className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white shadow-sm"
+                style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+              >
+                {icon}
+              </span>
+            )}
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-slate-800">{title}</h2>
+              {description && <p className="text-sm text-slate-500 mt-1 leading-relaxed">{description}</p>}
+            </div>
           </div>
           {dismissible && showCloseButton && (
             <button

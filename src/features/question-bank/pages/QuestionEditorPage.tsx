@@ -4,6 +4,7 @@ import { ArrowLeft, Info, Loader2, Plus, Save } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import ComboboxInput from '../../../components/common/ComboboxInput'
 import ErrorState from '../../../components/common/ErrorState'
+import SlidingSegments from '../../../components/common/SlidingSegments'
 import ImageUploader from '../../../components/common/ImageUploader'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
@@ -580,9 +581,10 @@ export default function QuestionEditorPage() {
       <div className="min-w-0 animate-fade-in-up">
         <div>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div
+          <SlidingSegments
             role="tablist"
             aria-label="Các phần của câu hỏi"
+            activeKey={activeTab}
             className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 w-full sm:w-fit"
           >
             {editorTabs.map(tab => {
@@ -600,8 +602,9 @@ export default function QuestionEditorPage() {
                   aria-selected={isActive}
                   aria-controls={`question-panel-${tab.id}`}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`inline-flex flex-1 sm:flex-none items-center justify-center gap-2 px-3 sm:px-4 py-1.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors ${
-                    isActive ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  data-tab-active={isActive}
+                  className={`relative z-10 inline-flex flex-1 sm:flex-none items-center justify-center gap-2 px-3 sm:px-4 py-1.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors ${
+                    isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <span className="sm:hidden">{tab.shortLabel}</span>
@@ -626,7 +629,7 @@ export default function QuestionEditorPage() {
                 </button>
               )
             })}
-          </div>
+          </SlidingSegments>
 
           {saveButton}
           </div>
@@ -638,7 +641,7 @@ export default function QuestionEditorPage() {
             id="question-panel-noi-dung"
             aria-labelledby="question-tab-noi-dung"
             hidden={activeTab !== 'noi-dung'}
-            className={`${cardClass} p-4 space-y-3`}
+            className={`${cardClass} p-4 space-y-3 animate-tab-in`}
           >
             <div>
               <label htmlFor="question-title" className={labelClass}>
@@ -759,11 +762,13 @@ export default function QuestionEditorPage() {
             id="question-panel-dap-an"
             aria-labelledby="question-tab-dap-an"
             hidden={activeTab !== 'dap-an'}
-            className={`${cardClass} p-4`}
+            className={`${cardClass} p-4 animate-tab-in`}
           >
-            <div
+            <SlidingSegments
               role="radiogroup"
               aria-label="Loại câu hỏi"
+              activeKey={String(allowMultiple)}
+              indicatorClassName="rounded-lg"
               className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100 mb-3"
             >
               {[
@@ -776,16 +781,17 @@ export default function QuestionEditorPage() {
                   role="radio"
                   aria-checked={allowMultiple === option.value}
                   onClick={() => changeAllowMultiple(option.value)}
-                  className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap ${
+                  data-tab-active={allowMultiple === option.value}
+                  className={`relative z-10 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap ${
                     allowMultiple === option.value
-                      ? 'bg-white text-indigo-600 shadow-sm'
+                      ? 'text-indigo-600'
                       : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   {option.label}
                 </button>
               ))}
-            </div>
+            </SlidingSegments>
 
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-xs text-slate-500">
@@ -836,6 +842,7 @@ export default function QuestionEditorPage() {
             id="question-panel-xem-truoc"
             aria-labelledby="question-tab-xem-truoc"
             hidden={activeTab !== 'xem-truoc'}
+            className="animate-tab-in"
           >
             <QuestionPreview
               key={previewInstanceId}

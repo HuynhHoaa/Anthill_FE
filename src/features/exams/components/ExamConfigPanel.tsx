@@ -139,7 +139,7 @@ export default function ExamConfigPanel({
                       </span>
                     </div>
                     <div className="h-1.5 rounded-full bg-white/70 overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${usageRatio}%`, background: barColor }} />
+                      <div className="h-full rounded-full bar-grow" style={{ width: `${usageRatio}%`, background: barColor }} />
                     </div>
                     <p className="text-xs text-slate-500 mt-1">Ngân hàng có {available} câu đang dùng được</p>
                   </div>

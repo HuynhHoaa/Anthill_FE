@@ -7,6 +7,7 @@ import {
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import DateTimeInput from '../../../components/common/DateTimeInput'
 import ErrorState from '../../../components/common/ErrorState'
+import SlidingSegments from '../../../components/common/SlidingSegments'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
@@ -1218,7 +1219,7 @@ export default function ExamBuilderPage() {
           {/* Chia form dài thành hai tab thay vì một trang cuộn: mỗi tab vừa một màn hình nên
               không phải kéo lên kéo xuống để đối chiếu hai ô liên quan nhau. Dấu chấm đỏ trên
               nhãn tab là thứ khiến việc ẩn bớt nội dung không giấu mất lỗi. */}
-          <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 w-fit">
+          <SlidingSegments activeKey={activeTab} className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 w-fit">
             {visibleTabs.map(tab => {
               const isActive = activeTab === tab.id
               const hasError = tab.id === 'assign'
@@ -1232,8 +1233,9 @@ export default function ExamBuilderPage() {
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                    isActive ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  data-tab-active={isActive}
+                  className={`relative z-10 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                    isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   {tab.label}
@@ -1247,7 +1249,7 @@ export default function ExamBuilderPage() {
                 </button>
               )
             })}
-          </div>
+          </SlidingSegments>
 
 
           {activeTab === 'general' && (

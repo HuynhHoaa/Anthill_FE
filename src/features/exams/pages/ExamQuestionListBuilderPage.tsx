@@ -5,6 +5,7 @@ import {
   Save, Scale, Send, Settings, Shuffle, Wand2, type LucideIcon,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
+import SlidingSegments from '../../../components/common/SlidingSegments'
 import EmptyState from '../../../components/common/EmptyState'
 import DateTimeInput from '../../../components/common/DateTimeInput'
 import ErrorState from '../../../components/common/ErrorState'
@@ -27,6 +28,7 @@ import ExamPaperSplitPanel from '../components/ExamPaperSplitPanel'
 import ExamQuestionCard from '../components/ExamQuestionCard'
 import FieldError from '../components/FieldError'
 import QuestionPickerDialog from '../components/QuestionPickerDialog'
+import ComposeShortfallNotice, { type ComposeShortfall } from '../components/ComposeShortfallNotice'
 import {
   classAssignmentProblems, createEmptyClassAssignment, effectiveGroupIds, toAssignClassTargets,
   type ClassAssignmentDraft,
@@ -251,6 +253,12 @@ export default function ExamQuestionListBuilderPage() {
   const [savingMode, setSavingMode] = useState<SaveMode | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
+  // Lần "Soạn tự động" gần nhất rút không đủ số câu yêu cầu. Toast mờ sau vài giây nên dễ bị bỏ sót, khiến giáo viên tưởng đề đã
+  // đủ; khung này nằm lại trên danh sách cho tới khi bấm "Đã hiểu" hoặc soạn lần khác.
+  const [composeShortfall, setComposeShortfall] = useState<ComposeShortfall | null>(null)
+  // Các câu vừa được thêm (chọn từ ngân hàng hay soạn tự động): sáng viền vài giây rồi tắt.
+  const [freshIds, setFreshIds] = useState<ReadonlySet<number>>(() => new Set())
+  const freshTimerRef = useRef<number | undefined>(undefined)
 
   const examQuery = useAsync<Exam | null>(
     () => (examId === undefined ? Promise.resolve(null) : getExam(examId)),
@@ -402,7 +410,11 @@ export default function ExamQuestionListBuilderPage() {
     return next.map((item, index) => ({ ...item, point: split[index] }))
   }
 
-  const addQuestions = (questions: Question[]) => {
+  /**
+   * Thêm câu vào cuối đề; trả về số câu thật sự được thêm (bỏ câu đã có). Câu mới sáng viền một nhịp; `scrollToNew` đưa câu mới
+   * đầu tiên vào tầm nhìn — bỏ khi trên đầu danh sách còn khung báo thiếu câu, kẻo cuộn đi làm giáo viên không đọc được nó.
+   */
+  const addQuestions = (questions: Question[], scrollToNew = true) => {
     const fresh = questions.filter(question => !existingIds.has(question.id))
     if (fresh.length === 0) return 0
 
@@ -411,6 +423,17 @@ export default function ExamQuestionListBuilderPage() {
       ...fresh.map(question => ({ question, point: initialPointOf(question) })),
     ])
     clearError('questions')
+
+    setFreshIds(new Set(fresh.map(question => question.id)))
+    window.clearTimeout(freshTimerRef.current)
+    freshTimerRef.current = window.setTimeout(() => setFreshIds(new Set()), 2600)
+
+    if (scrollToNew) {
+      const firstId = fresh[0].id
+      window.setTimeout(() => {
+        document.getElementById(`exam-question-${firstId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 120)
+    }
     return fresh.length
   }
 
@@ -454,7 +477,8 @@ export default function ExamQuestionListBuilderPage() {
 
   const handleComposed = (result: ComposeQuestionsResult) => {
     setComposeOpen(false)
-    const added = addQuestions(result.questions)
+    const missingBefore = levels.reduce((sum, level) => sum + result.missing[level], 0)
+    const added = addQuestions(result.questions, missingBefore === 0)
 
     const shortage = levels
       .filter(level => result.missing[level] > 0)
@@ -464,10 +488,16 @@ export default function ExamQuestionListBuilderPage() {
     const skipped = result.skippedAlreadyAssigned ?? 0
     const skippedNote = skipped > 0 ? ` Đã bỏ ${skipped} câu mà các lớp đã chọn đã nhận ở đề trước.` : ''
 
+    // Thiếu câu thì để lại một khung vàng ngay trên danh sách (không tự mất như toast); đủ câu thì xoá khung của lần trước.
+    const missingTotal = levels.reduce((sum, level) => sum + result.missing[level], 0)
+    setComposeShortfall(missingTotal > 0
+      ? { missing: result.missing, found: result.questions.length, skipped }
+      : null)
+
     if (added === 0) {
       toast.info(`Không rút được câu nào mới. Chương này có thể đã hết câu phù hợp, hoặc các câu đều đã có trong đề.${skippedNote}`)
     } else if (shortage.length > 0) {
-      toast.info(`Đã thêm ${added} câu. Còn thiếu ${shortage.join(', ')} so với số bạn yêu cầu.${skippedNote}`)
+      toast.error(`Chưa đủ số câu bạn yêu cầu: đã thêm ${added} câu, còn thiếu ${shortage.join(', ')}.${skippedNote}`)
     } else {
       toast.success(`Đã thêm ${added} câu vào đề. Hãy duyệt lại trước khi lưu.${skippedNote}`)
     }
@@ -799,7 +829,7 @@ export default function ExamQuestionListBuilderPage() {
             {isSplit ? 'Điểm mỗi đề' : 'Tổng điểm'}
           </p>
           <p className="text-3xl font-bold mt-0.5 leading-tight">
-            {formatNumber(total)}
+            <span key={formatNumber(total)} className="inline-block animate-pop">{formatNumber(total)}</span>
             <span className="text-lg font-semibold opacity-70"> / {EXAM_TOTAL_SCORE}</span>
           </p>
           <p className="text-xs font-semibold mt-1">
@@ -809,7 +839,11 @@ export default function ExamQuestionListBuilderPage() {
 
         <div className="rounded-xl px-4 py-3 bg-indigo-50 text-indigo-700 text-center min-w-[5.5rem]">
           <p className="text-xs font-semibold uppercase tracking-wider opacity-80">{isSplit ? 'Mỗi đề' : 'Số câu'}</p>
-          <p className="text-3xl font-bold mt-0.5 leading-tight">{isSplit ? spec.questionsPerPaper : items.length}</p>
+          <p className="text-3xl font-bold mt-0.5 leading-tight">
+            <span key={isSplit ? spec.questionsPerPaper : items.length} className="inline-block animate-pop">
+              {isSplit ? spec.questionsPerPaper : items.length}
+            </span>
+          </p>
           <p className="text-xs font-semibold mt-1">câu hỏi</p>
         </div>
       </div>
@@ -878,7 +912,7 @@ export default function ExamQuestionListBuilderPage() {
             </div>
           )}
 
-          <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 w-full sm:w-fit">
+          <SlidingSegments activeKey={activeTab} className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 w-full sm:w-fit">
             {visibleTabs.map(tab => {
               const isActive = activeTab === tab.id
               const hasError = tab.id === 'assign'
@@ -891,8 +925,9 @@ export default function ExamQuestionListBuilderPage() {
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`inline-flex flex-1 sm:flex-none items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors ${
-                    isActive ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  data-tab-active={isActive}
+                  className={`relative z-10 inline-flex flex-1 sm:flex-none items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors ${
+                    isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <tab.icon size={16} className="flex-shrink-0" aria-hidden="true" />
@@ -912,10 +947,10 @@ export default function ExamQuestionListBuilderPage() {
                 </button>
               )
             })}
-          </div>
+          </SlidingSegments>
 
           {activeTab === 'config' && (
-            <>
+            <div className="space-y-6 animate-tab-in">
               <section className={`${cardClass} p-4`}>
                 <div className="flex items-center gap-2 mb-3">
                   <FileText size={16} className="text-indigo-600" />
@@ -1107,11 +1142,11 @@ export default function ExamQuestionListBuilderPage() {
                   </p>
                 )}
               </section>
-            </>
+            </div>
           )}
 
           {activeTab === 'content' && (
-            <>
+            <div className="space-y-6 animate-tab-in">
               <section className="space-y-4">
                 <div className={`${cardClass} p-5`}>
                   <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1147,6 +1182,10 @@ export default function ExamQuestionListBuilderPage() {
                       </p>
                     </div>
                   </div>
+
+                  {composeShortfall && (
+                    <ComposeShortfallNotice shortfall={composeShortfall} onDismiss={() => setComposeShortfall(null)} />
+                  )}
 
                   {topicBreakdown.length > 0 && (
                     <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Số câu theo chương">
@@ -1262,6 +1301,7 @@ export default function ExamQuestionListBuilderPage() {
                         locked={isFrozen}
                         pointFromLevel={isSplit}
                         pointError={isSplit ? undefined : pointProblem(item.point)}
+                        highlight={freshIds.has(item.question.id)}
                         isFirst={index === 0}
                         isLast={index === items.length - 1}
                         onPointChange={rawValue => changePoint(index, rawValue)}
@@ -1272,10 +1312,11 @@ export default function ExamQuestionListBuilderPage() {
                   </div>
                 )}
               </section>
-            </>
+            </div>
           )}
 
           {activeTab === 'assign' && canAssignHere && (
+            <div className="animate-tab-in">
             <ExamClassAssignment
               groups={availableGroups}
               loading={groupsQuery.loading}
@@ -1291,6 +1332,7 @@ export default function ExamQuestionListBuilderPage() {
               canSaveDraft={canSaveDraft}
               allowRandomize={false}
             />
+            </div>
           )}
         </div>
 

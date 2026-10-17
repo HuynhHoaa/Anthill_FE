@@ -360,7 +360,7 @@ export default function ExamTrackingPanel({
                         </span>
                         <span className="hidden sm:block w-28 h-1.5 rounded-full bg-slate-100 overflow-hidden flex-shrink-0">
                           <span
-                            className="block h-full rounded-full"
+                            className="block h-full rounded-full bar-grow"
                             style={{ width: `${ratio}%`, background: primaryGradient }}
                           />
                         </span>

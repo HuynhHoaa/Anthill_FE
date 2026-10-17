@@ -235,7 +235,7 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
       </p>
       <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden mt-1.5">
         <div
-          className="h-full rounded-full"
+          className="h-full rounded-full bar-grow"
           style={{ width: `${submittedRatio}%`, background: primaryGradient }}
         />
       </div>

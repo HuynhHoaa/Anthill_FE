@@ -15,6 +15,8 @@ interface ExamQuestionCardProps {
   isLast: boolean
   /** Điểm do cấu hình chia đề đặt theo mức độ, không sửa riêng từng câu được: ô điểm chỉ để xem. */
   pointFromLevel?: boolean
+  /** Câu vừa được thêm vào đề: nổi lên và sáng viền một nhịp để giáo viên thấy đâu là câu mới. */
+  highlight?: boolean
   onPointChange: (rawValue: string) => void
   onRemove: () => void
   onMove: (direction: -1 | 1) => void
@@ -27,15 +29,16 @@ interface ExamQuestionCardProps {
  * Giáo viên duyệt đề ở đây nên đáp án đúng luôn hiện — khác màn hình làm bài của học sinh.
  */
 export default function ExamQuestionCard({
-  number, question, point, locked, pointError, isFirst, isLast, pointFromLevel = false, onPointChange, onRemove, onMove,
+  number, question, point, locked, pointError, isFirst, isLast, pointFromLevel = false, highlight = false, onPointChange, onRemove, onMove,
 }: ExamQuestionCardProps) {
   const isHidden = question.status === 'hidden'
 
   return (
     <article
+      id={`exam-question-${question.id}`}
       className={`rounded-2xl border bg-white shadow-sm ${
         isHidden ? 'border-amber-300' : 'border-slate-100'
-      }`}
+      } ${highlight ? 'animate-flash' : ''}`}
     >
       <div className="flex flex-wrap items-start gap-3 px-5 pt-4">
         <span className="inline-flex items-center justify-center min-w-8 h-8 px-2 rounded-xl bg-indigo-50 text-indigo-700 text-sm font-bold">

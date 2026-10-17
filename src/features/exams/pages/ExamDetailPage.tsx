@@ -3,6 +3,7 @@ import { NavLink, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import ErrorState from '../../../components/common/ErrorState'
+import SlidingSegments from '../../../components/common/SlidingSegments'
 import { SkeletonBlock, SkeletonTable } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import { useRealtimeRefresh } from '../../../hooks/useRealtime'
@@ -171,7 +172,7 @@ export default function ExamDetailPage() {
 
       {data && exam && !error && (
         <div className="space-y-5">
-          <div role="tablist" aria-label="Theo dõi và giao bài" className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 w-fit">
+          <SlidingSegments role="tablist" aria-label="Theo dõi và giao bài" activeKey={activeTab} className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 w-fit">
             {tabs.map(tab => {
               const isActive = activeTab === tab.id
               return (
@@ -183,21 +184,23 @@ export default function ExamDetailPage() {
                   aria-selected={isActive}
                   aria-controls={`exam-panel-${tab.id}`}
                   onClick={() => selectTab(tab.id)}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                    isActive ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  data-tab-active={isActive}
+                  className={`relative z-10 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                    isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   {tab.label}
                 </button>
               )
             })}
-          </div>
+          </SlidingSegments>
 
           <div
             role="tabpanel"
             id="exam-panel-theo-doi"
             aria-labelledby="exam-tab-theo-doi"
             hidden={activeTab !== 'theo-doi'}
+            className="animate-tab-in"
           >
             <ExamTrackingPanel
               exam={exam}
@@ -213,6 +216,7 @@ export default function ExamDetailPage() {
             id="exam-panel-cau-hinh"
             aria-labelledby="exam-tab-cau-hinh"
             hidden={activeTab !== 'cau-hinh'}
+            className="animate-tab-in"
           >
             <ExamConfigPanel
               exam={exam}
@@ -229,6 +233,7 @@ export default function ExamDetailPage() {
             id="exam-panel-noi-dung"
             aria-labelledby="exam-tab-noi-dung"
             hidden={activeTab !== 'noi-dung'}
+            className="animate-tab-in"
           >
             <ExamContentPanel
               exam={exam}

@@ -4,6 +4,7 @@ import {
 } from 'lucide-react'
 import { DifficultyBadge } from '../../../components/common/Badge'
 import EmptyState from '../../../components/common/EmptyState'
+import InfoTip from '../../../components/common/InfoTip'
 import ErrorState from '../../../components/common/ErrorState'
 import Modal from '../../../components/common/Modal'
 import SearchField from '../../../components/common/SearchField'
@@ -412,26 +413,28 @@ export default function QuestionPickerDialog({
 
             {groups.length > 0 && (
               <div>
-                <button
-                  type="button"
-                  onClick={() => setGroupsOpen(current => !current)}
-                  aria-expanded={groupsOpen}
-                  aria-controls="picker-groups"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 transition-colors"
-                >
-                  <Users size={13} />
-                  Lớp đã nhận
-                  {excludeKey && (
-                    <span className="px-1.5 rounded-md bg-indigo-100 text-indigo-700">{excludeKey.split(',').length}</span>
-                  )}
-                  <ChevronDown size={13} className={`transition-transform ${groupsOpen ? 'rotate-180' : ''}`} />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setGroupsOpen(current => !current)}
+                    aria-expanded={groupsOpen}
+                    aria-controls="picker-groups"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 transition-colors"
+                  >
+                    <Users size={13} />
+                    Lớp đã nhận
+                    {excludeKey && (
+                      <span className="px-1.5 rounded-md bg-indigo-100 text-indigo-700">{excludeKey.split(',').length}</span>
+                    )}
+                    <ChevronDown size={13} className={`transition-transform ${groupsOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  <InfoTip label="Giải thích về lớp đã nhận" title="Câu lớp đã nhận">
+                    <p>Tích các lớp sẽ làm đề này: danh sách ẩn những câu đã nằm trong các đề từng giao cho lớp đó, để các em không gặp lại câu cũ.</p>
+                  </InfoTip>
+                </div>
 
                 {groupsOpen && (
-                  <div id="picker-groups" className="mt-2 space-y-1.5">
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Tích các lớp sẽ làm đề này: ẩn những câu đã nằm trong các đề từng giao cho lớp đó.
-                    </p>
+                  <div id="picker-groups" className="mt-2">
                     <div className="max-h-28 overflow-y-auto rounded-xl border border-slate-100 divide-y divide-slate-50">
                       {groups.map(group => (
                         <label

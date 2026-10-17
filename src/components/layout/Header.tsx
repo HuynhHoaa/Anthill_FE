@@ -79,9 +79,12 @@ export default function Header({
         >
           <Bell size={18} />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
+            <>
+              <span aria-hidden="true" className="absolute -top-1 -right-1 min-w-4 h-4 rounded-full bg-red-400 opacity-60 animate-ping motion-reduce:animate-none" />
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            </>
           )}
         </NavLink>
 

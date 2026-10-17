@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Info } from 'lucide-react'
+import SlidingSegments from '../../../components/common/SlidingSegments'
 import { formatScore } from '../../../lib/format'
 import type { ExamPapersOverview } from '../../../services/examService'
 import { difficultyLabels, type ExamQuestionItem } from '../../../types'
@@ -28,8 +29,8 @@ type ViewMode = 'pool' | 'paper'
 const classKeyOf = (group: { groupId?: number; groupName: string }) => String(group.groupId ?? group.groupName)
 
 const segmentClass = (active: boolean) =>
-  `px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
-    active ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+  `relative z-10 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+    active ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
   }`
 
 /**
@@ -93,11 +94,12 @@ export default function ExamPaperViewer({ overview, pool, bonusUnits, focus, rev
       <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3" aria-label="Chọn đề cần xem">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-xs font-semibold text-slate-600">Xem</span>
-          <div role="radiogroup" aria-label="Đề cần xem" className="flex items-center gap-1 p-1 rounded-xl bg-slate-100">
+          <SlidingSegments role="radiogroup" aria-label="Đề cần xem" activeKey={mode} indicatorClassName="rounded-lg" className="flex items-center gap-1 p-1 rounded-xl bg-slate-100">
             <button
               type="button"
               role="radio"
               aria-checked={mode === 'pool'}
+              data-tab-active={mode === 'pool'}
               onClick={() => setMode('pool')}
               className={segmentClass(mode === 'pool')}
             >
@@ -107,12 +109,13 @@ export default function ExamPaperViewer({ overview, pool, bonusUnits, focus, rev
               type="button"
               role="radio"
               aria-checked={mode === 'paper'}
+              data-tab-active={mode === 'paper'}
               onClick={() => setMode('paper')}
               className={segmentClass(mode === 'paper')}
             >
               Từng đề nhỏ
             </button>
-          </div>
+          </SlidingSegments>
         </div>
 
         {mode === 'paper' && !hasClasses && (

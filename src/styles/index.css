@@ -310,6 +310,27 @@ body {
   animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Con số vừa đổi nảy lên một nhịp, để mắt biết chỗ nào vừa thay đổi. */
+@keyframes pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+.animate-pop {
+  animation: pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Vệt sáng quét ngang một nút chính khi rê chuột vào. */
+@keyframes sheen {
+  from { transform: translateX(0) skewX(-12deg); }
+  to   { transform: translateX(520%) skewX(-12deg); }
+}
+
+.animate-sheen {
+  animation: sheen 0.9s ease-out both;
+}
+
 /*
  * Trượt nội dung qua lại (SlideSwap): nội dung mới vào từ một bên, nội dung cũ ra về bên kia. Thời lượng
  * phải khớp `durationMs` mặc định của component, vì lớp cũ chỉ được gỡ khỏi trang sau chừng đó thời gian.
@@ -339,6 +360,115 @@ body {
 .slide-exit-to-left     { animation: slideOutToLeft 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .slide-exit-to-right    { animation: slideOutToRight 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
+/* ===== Chuyển động của giao diện (dùng chung) ===== */
+/*
+ * Các hiệu ứng "vào" dưới đây dùng fill-mode `backwards`, KHÔNG phải `both`: sau khi chạy xong không còn animation nào giữ
+ * opacity/transform trên phần tử. Animation đang giữ opacity sẽ tạo một stacking context và nhốt menu thả xuống nằm trong
+ * hàng của bảng — hàng kế tiếp vẽ đè lên menu.
+ */
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Hàng của bảng vào lần lượt từ trên xuống (mười hàng đầu; từ hàng mười một trở đi vào cùng lúc). */
+.table-scroller tbody tr,
+.stack-table tbody tr {
+  animation: rowIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.table-scroller tbody tr:nth-child(2),
+.stack-table tbody tr:nth-child(2) { animation-delay: 35ms; }
+.table-scroller tbody tr:nth-child(3),
+.stack-table tbody tr:nth-child(3) { animation-delay: 70ms; }
+.table-scroller tbody tr:nth-child(4),
+.stack-table tbody tr:nth-child(4) { animation-delay: 105ms; }
+.table-scroller tbody tr:nth-child(5),
+.stack-table tbody tr:nth-child(5) { animation-delay: 140ms; }
+.table-scroller tbody tr:nth-child(6),
+.stack-table tbody tr:nth-child(6) { animation-delay: 175ms; }
+.table-scroller tbody tr:nth-child(7),
+.stack-table tbody tr:nth-child(7) { animation-delay: 210ms; }
+.table-scroller tbody tr:nth-child(8),
+.stack-table tbody tr:nth-child(8) { animation-delay: 245ms; }
+.table-scroller tbody tr:nth-child(9),
+.stack-table tbody tr:nth-child(9) { animation-delay: 280ms; }
+.table-scroller tbody tr:nth-child(10),
+.stack-table tbody tr:nth-child(10) { animation-delay: 315ms; }
+.table-scroller tbody tr:nth-child(n+11),
+.stack-table tbody tr:nth-child(n+11) { animation-delay: 315ms; }
+
+/* Các thẻ con trực tiếp vào lần lượt (lưới thẻ, hàng thao tác nhanh). */
+.stagger-in > * {
+  animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.stagger-in > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-in > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-in > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-in > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-in > *:nth-child(6) { animation-delay: 300ms; }
+.stagger-in > *:nth-child(7) { animation-delay: 360ms; }
+.stagger-in > *:nth-child(8) { animation-delay: 420ms; }
+
+/* Thanh tiến độ mọc từ trái sang phải khi hiện ra. */
+@keyframes barGrow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+.bar-grow {
+  transform-origin: left center;
+  animation: barGrow 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.15s backwards;
+}
+
+/* Nội dung của một tab trượt nhẹ lên khi tab được mở (phần tử `hidden` đổi sang hiện thì animation chạy lại). */
+@keyframes tabIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-tab-in {
+  animation: tabIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* Phần tử vừa được thêm sáng viền một nhịp rồi tắt, để mắt biết đó là cái mới. */
+@keyframes flash {
+  0%   { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.55), 0 8px 24px -8px rgba(99, 102, 241, 0.45); background-color: #eef2ff; }
+  100% { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0), 0 8px 24px -8px rgba(99, 102, 241, 0); background-color: #ffffff; }
+}
+
+.animate-flash {
+  animation:
+    fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards,
+    flash 2.2s ease-out backwards;
+}
+
+/* Biểu tượng trong khung trống bồng bềnh nhẹ. */
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+.animate-float {
+  animation: floatY 3.2s ease-in-out infinite;
+}
+
+/* Bấm nút thì nút lún xuống một chút: cảm giác chạm thật. Chỉ nút đang dùng được; `scale` là thuộc tính riêng nên không vướng
+   các lớp translate/rotate của Tailwind. */
+button:not(:disabled):not([aria-disabled='true']):active,
+a[role='button']:active {
+  scale: 0.96;
+}
+
+/* Thẻ bấm được nổi lên khi rê chuột. */
+.hover-lift {
+  transition: translate 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  translate: 0 -3px;
+  box-shadow: 0 12px 28px -10px rgba(99, 102, 241, 0.28);
+}
+
 /* ===== Skeleton ===== */
 @keyframes skeletonShimmer {
   from { background-position: 200% 0; }
@@ -356,6 +486,15 @@ body {
   .animate-fade-in,
   .animate-modal-in,
   .animate-toast-in,
+  .animate-pop,
+  .animate-sheen,
+  .bar-grow,
+  .animate-tab-in,
+  .animate-flash,
+  .animate-float,
+  .stagger-in > *,
+  .table-scroller tbody tr,
+  .stack-table tbody tr,
   .slide-enter-from-right,
   .slide-enter-from-left,
   .slide-exit-to-left,

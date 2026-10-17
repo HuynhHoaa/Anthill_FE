@@ -139,20 +139,26 @@ export default function Sidebar({
           <Bell size={18} className="flex-shrink-0" />
           {collapsed ? (
             unreadCount > 0 && (
-              <span
-                className="absolute top-1.5 right-2.5 w-2.5 h-2.5 rounded-full border-2"
-                style={{ background: '#ef4444', borderColor: '#3730A3' }}
-              />
+              <>
+                <span aria-hidden="true" className="absolute top-1.5 right-2.5 w-2.5 h-2.5 rounded-full bg-red-400 opacity-60 animate-ping motion-reduce:animate-none" />
+                <span
+                  className="absolute top-1.5 right-2.5 w-2.5 h-2.5 rounded-full border-2"
+                  style={{ background: '#ef4444', borderColor: '#3730A3' }}
+                />
+              </>
             )
           ) : (
             <>
               <span className="flex-1">Thông báo</span>
               {unreadCount > 0 && (
-                <span
-                  className="text-white text-xs rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center font-bold"
-                  style={{ background: '#ef4444' }}
-                >
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                <span className="relative flex">
+                  <span aria-hidden="true" className="absolute inset-0 rounded-full bg-red-400 opacity-60 animate-ping motion-reduce:animate-none" />
+                  <span
+                    className="relative text-white text-xs rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center font-bold"
+                    style={{ background: '#ef4444' }}
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
                 </span>
               )}
             </>
