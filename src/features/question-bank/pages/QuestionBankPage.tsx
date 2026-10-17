@@ -12,10 +12,11 @@ import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
 import SearchField from '../../../components/common/SearchField'
 import { SkeletonTable } from '../../../components/common/Skeleton'
+import TableScroller from '../../../components/common/TableScroller'
 import { DifficultyBadge } from '../../../components/common/Badge'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
-import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
+import { useUrlListState } from '../../../hooks/useUrlListState'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
 import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
 import { resolveMediaUrl } from '../../../lib/apiClient'
@@ -75,7 +76,7 @@ interface QuestionRowProps {
 /** Ba nút thao tác chung của dòng bảng (desktop) và của thẻ (màn hình hẹp). */
 function QuestionActionButtons({ question, onToggleStatus, onDelete }: Omit<QuestionRowProps, 'onPreview'>) {
   const isActive = question.status === 'active'
-  const toggleLabel = isActive ? 'Ẩn câu hỏi khỏi ngân hàng đề' : 'Đưa câu hỏi trở lại ngân hàng đề'
+  const toggleLabel = isActive ? 'Ẩn câu hỏi khỏi ngân hàng' : 'Đưa câu hỏi trở lại ngân hàng'
 
   return (
     <>
@@ -284,16 +285,22 @@ export default function QuestionBankPage() {
   const toast = useToast()
   const confirm = useConfirm()
 
-  const [searchInput, setSearchInput] = useState('')
-  const [topicFilter, setTopicFilter] = useState('all')
-  const [difficultyFilter, setDifficultyFilter] = useState<'all' | DifficultyLevel>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | QuestionStatus>('all')
-  const [page, setPage] = useState(1)
+  // Từ khoá, ba bộ lọc và trang nằm trên URL: sửa một câu rồi Back về đúng bộ lọc và đúng trang đang xem.
+  const { searchInput, setSearchInput, search, filters, setFilter, page, setPage, clearAll } = useUrlListState(
+    {
+      'chu-de': { default: 'all' },
+      'do-kho': { default: 'all', allowed: ['all', 'easy', 'medium', 'hard'] },
+      'trang-thai': { default: 'all', allowed: ['all', 'active', 'hidden'] },
+    },
+    { debounceMs: 350 },
+  )
+  const topicFilter = filters['chu-de']
+  const difficultyFilter = filters['do-kho'] as 'all' | DifficultyLevel
+  const statusFilter = filters['trang-thai'] as 'all' | QuestionStatus
 
   const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null)
   const syncedResponseRef = useRef<Paged<Question> | undefined>(undefined)
 
-  const debouncedSearch = useDebouncedValue(searchInput, 350)
 
   // Một lời gọi trả về cả tổng số, số đang dùng và danh sách chủ đề — trước đây phải ghép ba
   // request rời để dựng đúng dòng phụ đề này.
@@ -302,18 +309,20 @@ export default function QuestionBankPage() {
   const listState = useAsync(
     () =>
       listQuestions({
-        search: debouncedSearch,
+        search,
         topic: topicFilter === 'all' ? undefined : topicFilter,
         difficulty: difficultyFilter,
         status: statusFilter,
         page,
         pageSize: PAGE_SIZE,
       }),
-    [debouncedSearch, topicFilter, difficultyFilter, statusFilter, page],
+    [search, topicFilter, difficultyFilter, statusFilter, page],
   )
 
-  // Bảy cột chỉ vừa từ cỡ lg; hẹp hơn thì dùng thẻ như trước, để khỏi phải cuộn ngang tìm nút thao tác.
-  const isDesktop = useMediaQuery('(min-width: 1024px)')
+  // Bảng cần 1100px, cộng thanh bên dạng dải icon (76px) và lề trang (64px) là ~1240px: dưới cỡ xl thì
+  // dùng thẻ, để khỏi phải cuộn ngang mới thấy nút thao tác. (Đặt ở lg thì từ 1024 tới ~1240px cột nút
+  // nằm ngoài màn hình.)
+  const isDesktop = useMediaQuery('(min-width: 80rem)')
 
   const pagedQuestions = listState.data
   const questions = pagedQuestions?.items ?? []
@@ -334,7 +343,7 @@ export default function QuestionBankPage() {
   }, [summary])
   // So khớp với từ khoá đã gửi cho service, không phải từ khoá đang gõ, để nhãn không lệch với kết quả
   const isFiltering =
-    debouncedSearch.trim() !== '' || topicFilter !== 'all' || difficultyFilter !== 'all' || statusFilter !== 'all'
+    search.trim() !== '' || topicFilter !== 'all' || difficultyFilter !== 'all' || statusFilter !== 'all'
   const responsePage = pagedQuestions?.page
 
   // Chủ đề đang lọc có thể vừa biến mất khỏi ngân hàng, vẫn giữ lại để select không rơi về rỗng
@@ -352,40 +361,18 @@ export default function QuestionBankPage() {
     if (pagedQuestions.page !== page) {
       setPage(pagedQuestions.page)
     }
-  }, [pagedQuestions, page])
+  }, [pagedQuestions, page, setPage])
 
   function reloadAll() {
     listState.reload()
     summaryState.reload()
   }
 
-  function handleSearchChange(value: string) {
-    setSearchInput(value)
-    setPage(1)
-  }
-
-  function handleTopicChange(value: string) {
-    setTopicFilter(value)
-    setPage(1)
-  }
-
-  function handleDifficultyChange(value: 'all' | DifficultyLevel) {
-    setDifficultyFilter(value)
-    setPage(1)
-  }
-
-  function handleStatusChange(value: 'all' | QuestionStatus) {
-    setStatusFilter(value)
-    setPage(1)
-  }
-
-  function handleClearFilters() {
-    setSearchInput('')
-    setTopicFilter('all')
-    setDifficultyFilter('all')
-    setStatusFilter('all')
-    setPage(1)
-  }
+  const handleSearchChange = setSearchInput
+  const handleTopicChange = (value: string) => setFilter('chu-de', value)
+  const handleDifficultyChange = (value: 'all' | DifficultyLevel) => setFilter('do-kho', value)
+  const handleStatusChange = (value: 'all' | QuestionStatus) => setFilter('trang-thai', value)
+  const handleClearFilters = clearAll
 
   async function handleToggleStatus(question: Question) {
     const nextStatus: QuestionStatus = question.status === 'active' ? 'hidden' : 'active'
@@ -406,8 +393,8 @@ export default function QuestionBankPage() {
     }
     toast.success(
       nextStatus === 'hidden'
-        ? 'Đã ẩn câu hỏi khỏi ngân hàng đề.'
-        : 'Đã đưa câu hỏi trở lại ngân hàng đề.',
+        ? 'Đã ẩn câu hỏi khỏi ngân hàng.'
+        : 'Đã đưa câu hỏi trở lại ngân hàng.',
     )
     reloadAll()
   }
@@ -453,7 +440,7 @@ export default function QuestionBankPage() {
       <EmptyState
         icon={Library}
         title="Ngân hàng câu hỏi đang trống"
-        description="Hãy tạo câu hỏi đầu tiên để bắt đầu xây dựng đề kiểm tra cho lớp của bạn."
+        description="Tạo câu hỏi đầu tiên, rồi dựng đề kiểm tra từ ngân hàng này."
         action={
           <NavLink to="/giao-vien/cau-hoi/tao" className={primaryButtonClass} style={primaryButtonStyle}>
             <Plus size={16} /> Tạo câu hỏi
@@ -470,7 +457,7 @@ export default function QuestionBankPage() {
               listState.loading ? 'opacity-60' : ''
             }`}
           >
-            <div className="overflow-x-auto" style={wrapperStyle}>
+            <TableScroller style={wrapperStyle}>
               {/* Bố cục cố định: các cột hẹp có bề rộng riêng, cột câu hỏi nhận phần còn lại, nên đổi trang
                   không làm cột nào xê dịch. */}
               <table ref={tableRef} className="w-full table-fixed text-sm min-w-[1100px]">
@@ -506,7 +493,7 @@ export default function QuestionBankPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroller>
           </div>
         ) : (
           <div

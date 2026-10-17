@@ -5,7 +5,7 @@
  * sách trả về đã được server giới hạn trong những lớp giáo viên này được phân công **và** đã công
  * bố; màn hình không lọc lại lần nữa.
  */
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Eye, Search, UsersRound, X } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
@@ -14,22 +14,24 @@ import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
 import SearchField from '../../../components/common/SearchField'
 import { SkeletonTable } from '../../../components/common/Skeleton'
+import TableScroller from '../../../components/common/TableScroller'
 import { useAsync } from '../../../hooks/useAsync'
-import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { usePagination } from '../../../hooks/usePagination'
 import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
+import { useUrlListState } from '../../../hooks/useUrlListState'
 import { formatDate } from '../../../lib/format'
 import { listGroups } from '../../../services/groupService'
 
 const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500'
 
-// Mười hai dòng vừa với khoảng trống còn lại của một cửa sổ cao ~900px sau khi đã bỏ thẻ tìm kiếm.
+// Mười hai dòng 55px (tên + mô tả một dòng) cùng thanh trang vừa một cửa sổ cao ~900px, sau khi đã bỏ
+// thẻ tìm kiếm. Đổi cỡ trang hay độ cao dòng thì đo lại bằng cửa sổ 1440x900.
 const PAGE_SIZE = 12
 
 export default function TeacherGroupListPage() {
-  const [searchInput, setSearchInput] = useState('')
-  const debouncedSearch = useDebouncedValue(searchInput, 300)
-  const trimmedSearch = debouncedSearch.trim()
+  // Từ khoá và số trang nằm trên URL: Back từ trang chi tiết một lớp về đúng chỗ đang xem.
+  const { searchInput, setSearchInput, search, page, setPage, clearAll } = useUrlListState({})
+  const trimmedSearch = search.trim()
   const hasSearch = trimmedSearch.length > 0
 
   const { data: groups, loading, error, reload } = useAsync(
@@ -48,7 +50,7 @@ export default function TeacherGroupListPage() {
   }, [allGroups])
 
   const rows = groups ?? []
-  const { currentPage, pageItems, setPage } = usePagination(rows, PAGE_SIZE)
+  const { currentPage, pageItems } = usePagination(rows, PAGE_SIZE, page, setPage, groups !== undefined)
   const { tableRef, wrapperStyle } = useStableTableHeight(pageItems, PAGE_SIZE, rows.length)
   const showSkeleton = loading && groups === undefined
   const isRefreshing = loading && groups !== undefined
@@ -62,10 +64,7 @@ export default function TeacherGroupListPage() {
         <div className="w-full max-w-sm">
           <SearchField
             value={searchInput}
-            onChange={value => {
-              setSearchInput(value)
-              setPage(1)
-            }}
+            onChange={setSearchInput}
             placeholder="Tìm theo tên hoặc mô tả lớp"
             label="Tìm kiếm lớp"
           />
@@ -82,11 +81,11 @@ export default function TeacherGroupListPage() {
             <EmptyState
               icon={Search}
               title="Không tìm thấy lớp phù hợp"
-              description={`Không có lớp nào khớp với từ khoá "${trimmedSearch}". Thử từ khoá khác hoặc xoá bộ lọc để xem toàn bộ lớp của bạn.`}
+              description={`Không có lớp nào khớp với từ khoá "${trimmedSearch}". Thử từ khoá khác hoặc xoá tìm kiếm để xem toàn bộ lớp của bạn.`}
               action={
                 <button
                   type="button"
-                  onClick={() => setSearchInput('')}
+                  onClick={clearAll}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                 >
                   <X size={15} /> Xoá tìm kiếm
@@ -107,10 +106,10 @@ export default function TeacherGroupListPage() {
             isRefreshing ? 'opacity-60' : 'opacity-100'
           }`}
         >
-          <div className="overflow-x-auto" style={wrapperStyle}>
+          <TableScroller style={wrapperStyle}>
             {/* Bố cục cố định: độ rộng cột chia theo tỉ lệ cố định, không còn phụ thuộc chữ dài nhất của trang đang xem, nên đổi
                 trang không làm các cột xê dịch. */}
-            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[760px]">
+            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[600px]">
               <colgroup>
                 <col className="w-[40%]" />
                 <col className="w-[20%]" />
@@ -128,7 +127,7 @@ export default function TeacherGroupListPage() {
               <tbody>
                 {pageItems.map(group => (
                   <tr key={group.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-2.5">
+                    <td className="px-5 py-2">
                       <div className="max-w-[420px] min-w-0">
                         <NavLink
                           to={`/giao-vien/nhom-lop/${group.id}`}
@@ -136,12 +135,15 @@ export default function TeacherGroupListPage() {
                         >
                           {group.name}
                         </NavLink>
-                        <p className="text-xs text-slate-400 mt-0.5 truncate">
+                        <p
+                          className="text-xs text-slate-400 mt-0.5 truncate"
+                          title={group.description || undefined}
+                        >
                           {group.description || 'Chưa có mô tả cho lớp này.'}
                         </p>
                       </div>
                     </td>
-                    <td className="px-5 py-2.5">
+                    <td className="px-5 py-2">
                       {group.studentCount > 0 ? (
                         <p className="text-slate-800">
                           <span className="font-semibold">{group.studentCount}</span>{' '}
@@ -155,10 +157,10 @@ export default function TeacherGroupListPage() {
                         </p>
                       )}
                     </td>
-                    <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">
+                    <td className="px-5 py-2 text-slate-500 whitespace-nowrap">
                       {formatDate(group.createdAt)}
                     </td>
-                    <td className="px-5 py-2.5">
+                    <td className="px-5 py-2">
                       <div className="flex items-center justify-end">
                         <NavLink
                           to={`/giao-vien/nhom-lop/${group.id}`}
@@ -172,7 +174,7 @@ export default function TeacherGroupListPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroller>
         </div>
       )}
 

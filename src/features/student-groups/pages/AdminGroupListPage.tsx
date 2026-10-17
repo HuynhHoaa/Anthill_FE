@@ -17,11 +17,12 @@ import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
 import { SkeletonTable } from '../../../components/common/Skeleton'
+import TableScroller from '../../../components/common/TableScroller'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
-import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { usePagination } from '../../../hooks/usePagination'
 import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
+import { useUrlListState } from '../../../hooks/useUrlListState'
 import { formatDate } from '../../../lib/format'
 import { deleteGroup, listGroups, publishGroup, unpublishGroup } from '../../../services/groupService'
 import type { StudentGroup } from '../../../types'
@@ -87,9 +88,9 @@ export default function AdminGroupListPage() {
   const toast = useToast()
   const confirm = useConfirm()
   const navigate = useNavigate()
-  const [searchInput, setSearchInput] = useState('')
-  const debouncedSearch = useDebouncedValue(searchInput, 300)
-  const trimmedSearch = debouncedSearch.trim()
+  // Từ khoá và số trang nằm trên URL: Back từ trang chi tiết một lớp về đúng chỗ đang xem.
+  const { searchInput, setSearchInput, search, page, setPage, clearAll } = useUrlListState({})
+  const trimmedSearch = search.trim()
   const hasSearch = trimmedSearch.length > 0
 
   const { data: groups, loading, error, reload } = useAsync(
@@ -222,7 +223,7 @@ export default function AdminGroupListPage() {
   }
 
   const rows = groups ?? []
-  const { currentPage, pageItems, setPage } = usePagination(rows, PAGE_SIZE)
+  const { currentPage, pageItems } = usePagination(rows, PAGE_SIZE, page, setPage, groups !== undefined)
   const { tableRef, wrapperStyle } = useStableTableHeight(pageItems, PAGE_SIZE, rows.length)
   const showSkeleton = loading && groups === undefined
   const isRefreshing = loading && groups !== undefined
@@ -238,10 +239,7 @@ export default function AdminGroupListPage() {
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={searchInput}
-              onChange={event => {
-                setSearchInput(event.target.value)
-                setPage(1)
-              }}
+              onChange={event => setSearchInput(event.target.value)}
               className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"
               placeholder="Tìm theo tên hoặc mô tả lớp"
               aria-label="Tìm kiếm lớp"
@@ -249,10 +247,7 @@ export default function AdminGroupListPage() {
             {searchInput && (
               <button
                 type="button"
-                onClick={() => {
-                  setSearchInput('')
-                  setPage(1)
-                }}
+                onClick={clearAll}
                 aria-label="Xoá tìm kiếm"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
               >
@@ -281,11 +276,11 @@ export default function AdminGroupListPage() {
             <EmptyState
               icon={Search}
               title="Không tìm thấy lớp phù hợp"
-              description={`Không có lớp nào khớp với từ khoá "${trimmedSearch}". Thử từ khoá khác hoặc xoá bộ lọc để xem toàn bộ lớp.`}
+              description={`Không có lớp nào khớp với từ khoá "${trimmedSearch}". Thử từ khoá khác hoặc xoá tìm kiếm để xem toàn bộ lớp.`}
               action={
                 <button
                   type="button"
-                  onClick={() => setSearchInput('')}
+                  onClick={clearAll}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                 >
                   <X size={15} /> Xoá tìm kiếm
@@ -316,17 +311,19 @@ export default function AdminGroupListPage() {
             isRefreshing ? 'opacity-60' : 'opacity-100'
           }`}
         >
-          <div className="overflow-x-auto" style={wrapperStyle}>
-            {/* Bố cục cố định: độ rộng cột chia theo tỉ lệ cố định, không còn phụ thuộc chữ dài nhất của trang đang xem, nên đổi
-                trang không làm các cột xê dịch. */}
-            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[1120px]">
+          <TableScroller style={wrapperStyle}>
+            {/* Bố cục cố định, nên đổi trang không làm các cột xê dịch. Bốn cột hẹp có bề rộng riêng; cột
+                thao tác 320px là vừa đủ cho "Công bố" + "Quản lý" + Sửa + Xoá của một lớp nháp (chia theo
+                phần trăm thì ở 1280–1536px nút bị bóp còn 18px và "Công bố" xuống hai dòng). Lớp và giáo
+                viên chia đều phần còn lại. */}
+            <table ref={tableRef} className="w-full table-fixed text-sm min-w-[880px] xl:min-w-[1040px]">
               <colgroup>
-                <col className="w-[24%]" />
-                <col className="w-[10%]" />
-                <col className="w-[20%]" />
-                <col className="w-[13%]" />
-                <col className="w-[11%]" />
-                <col className="w-[22%]" />
+                <col />
+                <col className="w-24" />
+                <col />
+                <col className="w-32" />
+                <col className="w-28 max-xl:hidden" />
+                <col className="w-80" />
               </colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
@@ -334,7 +331,7 @@ export default function AdminGroupListPage() {
                   <th className={`${headerCellClass} text-left`}>Sĩ số</th>
                   <th className={`${headerCellClass} text-left`}>Giáo viên phụ trách</th>
                   <th className={`${headerCellClass} text-left`}>Trạng thái</th>
-                  <th className={`${headerCellClass} text-left`}>Ngày tạo</th>
+                  <th className={`${headerCellClass} text-left max-xl:hidden`}>Ngày tạo</th>
                   <th className={`${headerCellClass} text-right`}>Thao tác</th>
                 </tr>
               </thead>
@@ -351,7 +348,10 @@ export default function AdminGroupListPage() {
                           >
                             {group.name}
                           </NavLink>
-                          <p className="text-xs text-slate-400 mt-0.5 truncate">
+                          <p
+                            className="text-xs text-slate-400 mt-0.5 truncate"
+                            title={group.description || undefined}
+                          >
                             {group.description || 'Chưa có mô tả cho lớp này.'}
                           </p>
                         </div>
@@ -367,11 +367,11 @@ export default function AdminGroupListPage() {
                     <td className="px-5 py-4">
                       <PublishStateBadge isPublished={group.isPublished} />
                     </td>
-                    <td className="px-5 py-4 text-slate-500 whitespace-nowrap">
+                    <td className="px-5 py-4 text-slate-500 whitespace-nowrap max-xl:hidden">
                       {formatDate(group.createdAt)}
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                         {!group.isPublished && (
                           <button
                             type="button"
@@ -422,7 +422,7 @@ export default function AdminGroupListPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroller>
         </div>
       )}
 

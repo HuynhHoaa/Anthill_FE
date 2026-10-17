@@ -5,23 +5,24 @@ import {
   BarChart3, Copy, FileText, FilterX, MoreVertical, Pencil, Plus, Search, Trash2,
 } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
-import { LifecycleBadge, TopicBadge } from '../../../components/common/Badge'
+import { LifecycleBadge } from '../../../components/common/Badge'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
 import SearchField from '../../../components/common/SearchField'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { SkeletonTable } from '../../../components/common/Skeleton'
+import TableScroller from '../../../components/common/TableScroller'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
-import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
 import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
+import { useUrlListState } from '../../../hooks/useUrlListState'
 import { deleteExam, duplicateExam, listExams } from '../../../services/examService'
-import { formatDateTime, formatDuration, parseDateTime, roundToOneDecimal } from '../../../lib/format'
+import { formatDateTime, formatDuration, parseDateTime } from '../../../lib/format'
 import { lifecycleLabels } from '../../../types'
-import { windowLabel } from '../utils/assignmentWindowLabel'
-import type { AssignmentWindow, Exam, ExamLifecycle } from '../../../types'
+import type { Exam, ExamLifecycle } from '../../../types'
 import { examDeleteConfirmCopy, examDuplicateConfirmCopy } from '../utils/examConfirmations'
+import ClassUsagePopover from '../components/ClassUsagePopover'
 
 // Tám dòng (mỗi dòng ~77px) cùng thanh trang vừa một cửa sổ cao ~900px mà không phải cuộn.
 const PAGE_SIZE = 8
@@ -38,15 +39,13 @@ const lifecycleOptions: Array<{ value: LifecycleFilter; label: string }> = [
 
 const primaryGradient = 'linear-gradient(135deg,#6366F1,#8B5CF6)'
 
-/** Chấm màu của một khung giờ, cùng bảng màu với nhãn vòng đời để hai chỗ không nói hai điều khác nhau. */
-const windowDotClass: Record<ExamLifecycle, string> = {
-  draft: 'bg-amber-400',
-  scheduled: 'bg-indigo-400',
-  open: 'bg-emerald-500',
-  closed: 'bg-slate-300',
-}
+// Ô sát hơn (px-3) dưới cỡ xl, nơi bảng phải nhét vừa ~880px; từ xl trở lên giữ px-5 như các bảng khác.
+const headCellClass =
+  'px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500'
 
-const headCellClass = 'px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500'
+/** Cột chỉ chứa một con số: lề hẹp ở mọi cỡ để không chiếm chỗ của các cột còn lại. */
+const narrowHeadCellClass =
+  'px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap'
 
 const selectClass =
   'px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'
@@ -74,18 +73,6 @@ function formatScheduleMoment(value: string): string {
   const yearPart = year === new Date().getFullYear() ? '' : `/${padTwoDigits(year % 100)}`
 
   return `${dayMonth}${yearPart} ${time}`
-}
-
-/** Số lớp trong mỗi trạng thái, để cột vòng đời nói được khi lớp và đề không cùng một trạng thái. */
-function countWindowLifecycles(windows: AssignmentWindow[]): string {
-  const labels = ['open', 'scheduled', 'closed'] as const
-  return labels
-    .map(lifecycle => {
-      const count = windows.filter(window => window.lifecycle === lifecycle).length
-      return count === 0 ? '' : `${count} ${lifecycleLabels[lifecycle].toLowerCase()}`
-    })
-    .filter(Boolean)
-    .join(' · ')
 }
 
 interface ExamRowMenuProps {
@@ -248,10 +235,6 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
     : 0
   const isDraft = exam.lifecycle === 'draft'
 
-  // Chỉ nói tới khung giờ riêng: lớp đang theo lịch chung thì hai dòng phía trên đã nói hộ rồi.
-  const ownWindows = exam.assignmentWindows.filter(window => window.hasScheduleOverride)
-  const differsFromExam = exam.assignmentWindows.some(window => window.lifecycle !== exam.lifecycle)
-
   const submissionProgress = (
     <div className="w-full max-w-24">
       <p className="font-semibold text-slate-800 group-hover/progress:text-indigo-600 transition-colors">
@@ -268,22 +251,22 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
   )
 
   return (
-    <tr className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-      <td className="px-5 py-3">
-        <p className="font-semibold text-slate-800" title={exam.description || undefined}>
+    // Chiều cao cố định: hàng chưa giao không có ô tiến độ nên thấp hơn hàng đã giao, và thanh trang
+    // sẽ nhảy lên xuống tuỳ trang đó nhiều hay ít đề đã giao.
+    <tr className="h-[77px] border-b border-slate-50 hover:bg-slate-50 transition-colors">
+      <td className="px-3 xl:px-5 py-3">
+        <p className="font-semibold text-slate-800 line-clamp-2" title={exam.description || undefined}>
           {exam.title}
         </p>
-        <div className="mt-1.5">
-          <TopicBadge topic={exam.topic} />
-        </div>
       </td>
 
-      <td className="px-5 py-3 text-slate-600">
-        {formatDuration(exam.durationMinutes)} · {exam.totalQuestions} câu ·{' '}
-        {roundToOneDecimal(exam.totalQuestions * exam.pointPerQuestion)} điểm
+      <td className="px-3 xl:px-5 py-3 text-slate-600">
+        <p>{formatDuration(exam.durationMinutes)}</p>
+        <p className="text-xs text-slate-400 mt-0.5">{exam.totalQuestions} câu</p>
       </td>
 
-      <td className="px-5 py-3">
+      {/* Cột phụ: dưới cỡ xl nhường chỗ cho Tiến độ và Trạng thái, hai cột cần thấy ngay không cuộn. */}
+      <td className="px-3 py-3 max-xl:hidden">
         {/*
           Nói tỷ lệ chứ không nói số câu: phép làm tròn từ tỷ lệ ra số câu do server giữ, nên một
           con số tự tính lại ở đây có thể lệch với đề thật sự được sinh ra. Cần số câu chính xác
@@ -304,38 +287,21 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         </div>
       </td>
 
-      <td className="px-5 py-3 whitespace-nowrap">
+      <td className="px-3 xl:px-5 py-3 whitespace-nowrap">
         <p className="text-xs text-slate-500" title={formatDateTime(exam.openAt)}>
           Mở <span className="font-semibold text-slate-600">{formatScheduleMoment(exam.openAt)}</span>
         </p>
         <p className="text-xs text-slate-500 mt-0.5" title={formatDateTime(exam.closeAt)}>
           Đóng <span className="font-semibold text-slate-600">{formatScheduleMoment(exam.closeAt)}</span>
         </p>
-
-        {/* Lịch trên chỉ là mặc định. Lớp có khung giờ riêng phải hiện ra ngay ở danh sách, nếu không
-            giáo viên đọc "đã đóng" trong khi một lớp còn đang ngồi làm bài. */}
-        {ownWindows.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-slate-100 space-y-1">
-            {ownWindows.slice(0, 2).map(window => (
-              <p
-                key={`${window.groupId ?? 'le'}-${window.openAt}`}
-                className="text-xs text-slate-500 flex items-center gap-1.5"
-                title={`${windowLabel(window)}: ${formatDateTime(window.openAt)} – ${formatDateTime(window.closeAt)} · ${lifecycleLabels[window.lifecycle]}`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${windowDotClass[window.lifecycle]}`} />
-                <span className="font-semibold text-slate-600 truncate max-w-[7rem]">{windowLabel(window)}</span>
-                <span className="whitespace-nowrap">{formatScheduleMoment(window.openAt)}</span>
-              </p>
-            ))}
-            {ownWindows.length > 2 && (
-              <p className="text-xs text-slate-400">+{ownWindows.length - 2} khung giờ riêng nữa</p>
-            )}
-          </div>
-        )}
       </td>
 
-      <td className="px-5 py-3">
-        {!hasAssignment && <p className="text-slate-400">Chưa giao</p>}
+      <td className="px-3 py-3">
+        <ClassUsagePopover windows={exam.assignmentWindows} />
+      </td>
+
+      <td className="px-3 py-3">
+        {!hasAssignment && <p className="text-slate-400 whitespace-nowrap">Chưa giao</p>}
         {hasAssignment && !hasSubmission && submissionProgress}
         {hasAssignment && hasSubmission && (
           <NavLink
@@ -349,17 +315,12 @@ function ExamRow({ exam, onRequestDelete, onRequestDuplicate }: ExamRowProps) {
         )}
       </td>
 
-      <td className="px-5 py-3">
+      <td className="px-3 py-3">
+        {/* Một trạng thái duy nhất, theo lịch chung của đề. Giờ mở/đóng riêng của từng lớp nằm ở trang chi tiết. */}
         <LifecycleBadge lifecycle={exam.lifecycle} />
-        {/* Vòng đời của đề tính theo lịch chung; các lớp có giờ riêng có thể đang ở trạng thái khác. */}
-        {differsFromExam && (
-          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-            Lớp: {countWindowLifecycles(exam.assignmentWindows)}
-          </p>
-        )}
       </td>
 
-      <td className="px-5 py-3">
+      <td className="px-3 xl:px-5 py-3">
         <div className="flex items-center justify-end gap-2">
           <NavLink
             to={`/giao-vien/bai-kiem-tra/${exam.id}`}
@@ -395,11 +356,12 @@ export default function ExamListPage() {
   const toast = useToast()
   const confirm = useConfirm()
   const navigate = useNavigate()
-  const [searchInput, setSearchInput] = useState('')
-  const [lifecycle, setLifecycle] = useState<LifecycleFilter>('all')
-  const [page, setPage] = useState(1)
-
-  const search = useDebouncedValue(searchInput, 350)
+  // Tìm kiếm, trạng thái và trang nằm trên URL: mở một đề rồi Back về đúng bộ lọc và đúng trang đang xem.
+  const { searchInput, setSearchInput, search, filters, setFilter, page, setPage, clearAll } = useUrlListState(
+    { 'trang-thai': { default: 'all', allowed: lifecycleOptions.map(option => option.value) } },
+    { debounceMs: 350 },
+  )
+  const lifecycle = filters['trang-thai'] as LifecycleFilter
   const { data, loading, error, reload } = useAsync(
     () => listExams({ search, lifecycle, page, pageSize: PAGE_SIZE }),
     [search, lifecycle, page],
@@ -408,12 +370,6 @@ export default function ExamListPage() {
   const exams = data?.items ?? []
   const isFiltering = searchInput.trim() !== '' || lifecycle !== 'all'
   const { tableRef, wrapperStyle } = useStableTableHeight(exams, PAGE_SIZE, data?.total ?? 0)
-
-  const resetFilters = () => {
-    setSearchInput('')
-    setLifecycle('all')
-    setPage(1)
-  }
 
   const requestDelete = async (exam: Exam) => {
     const deleted = await confirm({
@@ -448,10 +404,7 @@ export default function ExamListPage() {
       <div className="flex-1 min-w-[12rem] max-w-xs">
         <SearchField
           value={searchInput}
-          onChange={value => {
-            setSearchInput(value)
-            setPage(1)
-          }}
+          onChange={setSearchInput}
           placeholder="Tìm theo tên bài, chủ đề"
           label="Tìm kiếm bài kiểm tra"
         />
@@ -459,10 +412,7 @@ export default function ExamListPage() {
 
       <select
         value={lifecycle}
-        onChange={event => {
-          setLifecycle(event.target.value as LifecycleFilter)
-          setPage(1)
-        }}
+        onChange={event => setFilter('trang-thai', event.target.value)}
         aria-label="Lọc theo trạng thái"
         className={selectClass}
       >
@@ -473,15 +423,16 @@ export default function ExamListPage() {
         ))}
       </select>
 
-      {isFiltering && (
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap"
-        >
-          <FilterX size={15} /> Xoá bộ lọc
-        </button>
-      )}
+      {/* Luôn có mặt (mờ đi khi chưa lọc gì): hiện ra giữa chừng thì ô tìm kiếm bị đẩy sang trái ngay
+          khi người dùng gõ chữ đầu tiên. */}
+      <button
+        type="button"
+        onClick={clearAll}
+        disabled={!isFiltering}
+        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-default disabled:hover:bg-slate-100"
+      >
+        <FilterX size={15} /> Xoá bộ lọc
+      </button>
 
       <NavLink
         to="/giao-vien/bai-kiem-tra/tao"
@@ -504,7 +455,7 @@ export default function ExamListPage() {
       compactContent
       headerTools={tools}
     >
-      {loading && !data && <SkeletonTable rows={8} cols={7} />}
+      {loading && !data && <SkeletonTable rows={8} cols={8} />}
 
       {error && !loading && <ErrorState message={error} onRetry={reload} />}
 
@@ -514,11 +465,11 @@ export default function ExamListPage() {
             <EmptyState
               icon={Search}
               title="Không tìm thấy bài kiểm tra phù hợp"
-              description="Không có bài kiểm tra nào khớp với từ khoá và bộ lọc hiện tại. Hãy thử từ khoá khác hoặc bỏ bộ lọc."
+              description="Không có bài kiểm tra nào khớp từ khoá và bộ lọc hiện tại. Thử từ khoá khác hoặc xoá bộ lọc."
               action={
                 <button
                   type="button"
-                  onClick={resetFilters}
+                  onClick={clearAll}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
                 >
                   Xoá bộ lọc
@@ -550,26 +501,33 @@ export default function ExamListPage() {
               loading ? 'opacity-60' : ''
             }`}
           >
-            <div className="overflow-x-auto" style={wrapperStyle}>
-              {/* Bố cục cố định, cột chia theo tỉ lệ: đổi trang không làm các cột xê dịch. */}
-              <table ref={tableRef} className="w-full table-fixed text-sm min-w-[1180px]">
+            <TableScroller style={wrapperStyle}>
+              {/* Bố cục cố định, cột chia theo tỉ lệ: đổi trang không làm các cột xê dịch. Cột thao tác
+                  240px là vừa đủ cho "Chi tiết" + "Giao bài" + nút ba chấm. Tám cột cần 1100px; dưới cỡ xl
+                  cột Độ khó ẩn đi và còn sáu cột chia vừa ~900px, hẹp hơn nữa thì cuộn ngang và cột thao
+                  tác dính mép phải. */}
+              <table ref={tableRef} className="w-full table-fixed text-sm min-w-[760px] xl:min-w-[1100px]">
                 <colgroup>
-                  <col className="w-[22%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[21%]" />
+                  <col className="w-[17%] xl:w-[18%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[8%] max-xl:hidden" />
+                  <col className="w-[17%] xl:w-[15%]" />
+                  <col className="w-[6%] xl:w-[7%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[12%] xl:w-[10%]" />
+                  <col className="w-60" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/60">
                     <th className={headCellClass}>Bài kiểm tra</th>
                     <th className={headCellClass}>Cấu hình</th>
-                    <th className={headCellClass}>Độ khó</th>
+                    <th className={`${narrowHeadCellClass} max-xl:hidden`}>Độ khó</th>
                     <th className={headCellClass}>Lịch</th>
-                    <th className={headCellClass}>Tiến độ nộp</th>
-                    <th className={headCellClass}>Trạng thái</th>
+                    <th className={narrowHeadCellClass}>Số lớp</th>
+                    <th className={narrowHeadCellClass} title="Số học sinh đã nộp bài / số học sinh được giao">
+                      Đã nộp
+                    </th>
+                    <th className={narrowHeadCellClass}>Trạng thái</th>
                     <th className={`${headCellClass} text-right`}>Thao tác</th>
                   </tr>
                 </thead>
@@ -584,7 +542,7 @@ export default function ExamListPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroller>
 
             <div className="px-5 pb-4">
               <Pagination page={data.page} pageSize={data.pageSize} total={data.total} onPageChange={setPage} />

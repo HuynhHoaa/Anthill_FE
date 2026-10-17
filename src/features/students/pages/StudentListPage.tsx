@@ -9,6 +9,7 @@ import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
 import { SkeletonTable } from '../../../components/common/Skeleton'
+import TableScroller from '../../../components/common/TableScroller'
 import useAsync from '../../../hooks/useAsync'
 import useDebouncedValue from '../../../hooks/useDebouncedValue'
 import { formatDate, formatDateTime, formatScore, getInitials, getScoreTone } from '../../../lib/format'
@@ -252,7 +253,7 @@ export default function StudentListPage() {
               studentsQuery.loading ? 'opacity-60' : ''
             }`}
           >
-            <div className="overflow-x-auto">
+            <TableScroller>
               <table className="w-full text-sm min-w-[920px]">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/60">
@@ -388,7 +389,7 @@ export default function StudentListPage() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableScroller>
           </div>
 
           <Pagination

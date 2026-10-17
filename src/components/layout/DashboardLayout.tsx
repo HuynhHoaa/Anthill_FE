@@ -30,7 +30,9 @@ export default function DashboardLayout({
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [peeking, setPeeking] = useState(false)
-  const isDesktop = useMediaQuery('(min-width: 1024px)')
+  // 64rem chứ không phải 1024px, cho khớp breakpoint `lg` của Tailwind và các @media trong index.css:
+  // ba chỗ cùng một ngưỡng mà khác đơn vị thì đổi cỡ chữ gốc của trình duyệt sẽ làm chúng lệch nhau.
+  const isDesktop = useMediaQuery('(min-width: 64rem)')
   // Thiết bị cảm ứng không có trạng thái rê chuột thật. Thu về dải icon ở đó là
   // nhốt người dùng với icon không nhãn, vì không còn nút nào để mở ra.
   const canHover = useMediaQuery('(hover: hover)')

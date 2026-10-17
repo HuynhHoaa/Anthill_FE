@@ -666,7 +666,9 @@ export default function TakeExamPage() {
 
   if (loading && !session) {
     return (
-      <StudentLayout>
+      // Đã ở phòng thi thì thanh điều hướng không được nháy lên trong lúc tải rồi mới biến mất khi đề về
+      // (F5 giữa bài). Hai nhánh lỗi và rỗng bên dưới giữ thanh bình thường vì chúng có lối ra riêng.
+      <StudentLayout examMode>
         <TakeExamSkeleton />
       </StudentLayout>
     )
