@@ -192,7 +192,7 @@ export default function ExamIntroPage() {
     const maxScore = assignment.maxScore ?? assignment.totalScore
     // Bài đã chấm vẫn có thể bị giấu điểm, nên "đã chấm" chưa đủ để kết luận là có điểm để hiện.
     const hasVisibleScore = isGraded && assignment.score !== null
-    const resultLink = assignment.attemptId ? `/hoc-sinh/ket-qua/${assignment.attemptId}` : '/hoc-sinh/ket-qua'
+    const resultLink = assignment.attemptId ? `/hoc-sinh/ket-qua/${assignment.attemptId}` : '/hoc-sinh/bang-diem'
 
     const notes: { icon: LucideIcon; text: string }[] = [
       {

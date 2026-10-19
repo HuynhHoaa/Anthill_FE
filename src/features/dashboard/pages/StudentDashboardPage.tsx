@@ -145,7 +145,7 @@ function OpenExamCard({ exam, index, now }: { exam: StudentExamItem; index: numb
           </span>
         )}
 
-        <p className="text-xs font-medium mb-1 opacity-70">{getTopicLabel(exam.topic)}</p>
+        <p className="text-xs font-medium mb-1 opacity-70">{getTopicLabel(exam.topic)}{exam.groupName ? ` · ${exam.groupName}` : ''}</p>
         <h3 className="font-bold text-xl leading-snug mb-5">{exam.name}</h3>
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm mb-6 opacity-80">
@@ -357,7 +357,7 @@ export default function StudentDashboardPage() {
           description="Khi giáo viên giao bài, bài kiểm tra sẽ xuất hiện ngay tại đây kèm hạn nộp và thời gian làm bài."
           action={
             <Link
-              to="/hoc-sinh/bai-kiem-tra"
+              to="/hoc-sinh/lop-hoc"
               className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
             >
               Mở danh sách bài kiểm tra <ChevronRight size={15} />
@@ -371,7 +371,7 @@ export default function StudentDashboardPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h2 className="text-lg font-bold text-slate-800">🔥 Đang mở — cần làm ngay</h2>
               <Link
-                to="/hoc-sinh/bai-kiem-tra"
+                to="/hoc-sinh/lop-hoc"
                 className="text-sm text-indigo-600 font-semibold hover:text-indigo-800 inline-flex items-center gap-1 transition-colors"
               >
                 Xem tất cả <ChevronRight size={16} />
@@ -393,7 +393,7 @@ export default function StudentDashboardPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h2 className="text-lg font-bold text-slate-800">📅 Sắp tới</h2>
               <Link
-                to="/hoc-sinh/bai-kiem-tra"
+                to="/hoc-sinh/lop-hoc"
                 className="text-sm text-indigo-600 font-semibold hover:text-indigo-800 inline-flex items-center gap-1 transition-colors"
               >
                 Xem tất cả <ChevronRight size={16} />
@@ -416,7 +416,7 @@ export default function StudentDashboardPage() {
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-800 truncate">{exam.name}</p>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {getTopicLabel(exam.topic)} · {exam.totalQuestions} câu · {exam.durationMinutes} phút
+                          {exam.groupName ? `${exam.groupName} · ` : ''}{getTopicLabel(exam.topic)} · {exam.totalQuestions} câu · {exam.durationMinutes} phút
                         </p>
                       </div>
                     </div>
@@ -434,7 +434,7 @@ export default function StudentDashboardPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h2 className="text-lg font-bold text-slate-800">✅ Kết quả gần đây</h2>
               <Link
-                to="/hoc-sinh/ket-qua"
+                to="/hoc-sinh/bang-diem"
                 className="text-sm text-indigo-600 font-semibold hover:text-indigo-800 inline-flex items-center gap-1 transition-colors"
               >
                 Xem tất cả <ChevronRight size={16} />

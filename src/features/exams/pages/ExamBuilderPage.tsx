@@ -13,11 +13,12 @@ import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue'
+import { useUnsavedChangesGuard } from '../../../hooks/useUnsavedChangesGuard'
 import {
   assignExam, createExam, duplicateExam, getExam, previewBlueprint, publishExam, updateExam,
   type AssignExamResult, type BlueprintPreview, type ExamPayload,
 } from '../../../services/examService'
-import { listGroups } from '../../../services/groupService'
+import { listOpenGroups } from '../../../services/groupService'
 import { listTopics } from '../../../services/questionService'
 import { difficultyLabels, type DifficultyLevel, type Exam } from '../../../types'
 import DifficultyRatioEditor from '../components/DifficultyRatioEditor'
@@ -147,6 +148,33 @@ function createInitialForm(): ExamFormState {
     openAtLocal: schedule.openAtLocal,
     closeAtLocal: schedule.closeAtLocal,
   }
+}
+
+/** Form của một đề đã lưu, đúng như lúc nạp vào trang sửa. */
+function formFromExam(exam: Exam): ExamFormState {
+  return {
+    title: exam.title,
+    description: exam.description,
+    durationMinutes: exam.durationMinutes,
+    totalQuestions: exam.totalQuestions,
+    pointEasy: exam.pointEasy,
+    pointMedium: exam.pointMedium,
+    pointHard: exam.pointHard,
+    topic: exam.topic,
+    easyPercentage: exam.easyPercentage,
+    mediumPercentage: exam.mediumPercentage,
+    hardPercentage: exam.hardPercentage,
+    shuffleQuestions: exam.shuffleQuestions,
+    shuffleAnswers: exam.shuffleAnswers,
+    showResultAfterSubmit: exam.showResultAfterSubmit,
+    openAtLocal: toDateTimeLocalValue(exam.openAt),
+    closeAtLocal: toDateTimeLocalValue(exam.closeAt),
+  }
+}
+
+/** Dấu vết những gì đang soạn: so với dấu vết lúc mở để biết còn thay đổi chưa lưu. */
+function snapshotOf(form: ExamFormState, assignment: ClassAssignmentDraft): string {
+  return JSON.stringify({ form, assignment })
 }
 
 function toSafeNumber(rawValue: string): number {
@@ -502,7 +530,7 @@ function BlueprintPreviewCard({
 
 export default function ExamBuilderPage() {
   const { id } = useParams()
-  const navigate = useNavigate()
+  const navigateRaw = useNavigate()
   const toast = useToast()
   const confirm = useConfirm()
 
@@ -523,7 +551,9 @@ export default function ExamBuilderPage() {
   const frozenMergeReasonRef = useRef<'draft' | 'conflict'>('draft')
   const [frozenNotice, setFrozenNotice] = useState<string | null>(null)
 
-  const [form, setForm] = useState<ExamFormState>(() => restoredForm ?? createInitialForm())
+  // Form "chưa nhập gì" của đề mới: giờ mở mặc định tính một lần để dấu vết so sánh không lệch vì một phút trôi qua.
+  const [pristineForm] = useState(createInitialForm)
+  const [form, setForm] = useState<ExamFormState>(() => restoredForm ?? pristineForm)
   // Effect nạp đề chỉ chạy lại khi đề đổi, nhưng cần so với form mới nhất chứ không phải bản lúc gắn trang.
   const formRef = useRef(form)
   formRef.current = form
@@ -531,6 +561,10 @@ export default function ExamBuilderPage() {
   const [assignment, setAssignment] = useState<ClassAssignmentDraft>(
     () => restoredDraft?.assignment ?? createEmptyClassAssignment(),
   )
+  // Dấu vết "sạch": form trống của đề mới, hoặc đề đã lưu sau khi nạp xong. Đề đang sửa chưa nạp xong thì chưa có gì để so (null).
+  const [cleanSnapshot, setCleanSnapshot] = useState<string | null>(() => (isEditing
+    ? null
+    : snapshotOf(pristineForm, createEmptyClassAssignment())))
   const [activeTab, setActiveTab] = useState<BuilderTab>('general')
   const [anchorLevel, setAnchorLevel] = useState<DifficultyLevel>('easy')
   const [savingMode, setSavingMode] = useState<SaveMode | null>(null)
@@ -540,7 +574,7 @@ export default function ExamBuilderPage() {
     [examId ?? 0],
   )
   const topicsQuery = useAsync(() => listTopics(), [])
-  const groupsQuery = useAsync(() => listGroups(), [])
+  const groupsQuery = useAsync(() => listOpenGroups(), [])
   const loadedExam = examQuery.data
 
   // Xoá ở effect riêng chứ không xoá trong initializer, vì StrictMode chạy initializer hai lần.
@@ -552,6 +586,9 @@ export default function ExamBuilderPage() {
 
   useEffect(() => {
     if (!loadedExam) return
+    const serverForm = formFromExam(loadedExam)
+    // Mốc "đã lưu" để biết còn thay đổi chưa lưu — kể cả khi form đang giữ bản nháp khôi phục khác với đề trên server.
+    setCleanSnapshot(snapshotOf(serverForm, createEmptyClassAssignment()))
     // Những gì giáo viên soạn mà chưa lưu phải thắng dữ liệu nạp từ service, nếu không form bị đè ngay.
     // Trừ các trường server đã khoá: giữ bản đang soạn của chúng thì lần lưu nào cũng nhận 409, mà ô đã
     // tắt nên giáo viên không tự chỉnh về được.
@@ -605,25 +642,13 @@ export default function ExamBuilderPage() {
       setFrozenNotice(notices.join(' '))
       return
     }
-    setForm({
-      title: loadedExam.title,
-      description: loadedExam.description,
-      durationMinutes: loadedExam.durationMinutes,
-      totalQuestions: loadedExam.totalQuestions,
-      pointEasy: loadedExam.pointEasy,
-      pointMedium: loadedExam.pointMedium,
-      pointHard: loadedExam.pointHard,
-      topic: loadedExam.topic,
-      easyPercentage: loadedExam.easyPercentage,
-      mediumPercentage: loadedExam.mediumPercentage,
-      hardPercentage: loadedExam.hardPercentage,
-      shuffleQuestions: loadedExam.shuffleQuestions,
-      shuffleAnswers: loadedExam.shuffleAnswers,
-      showResultAfterSubmit: loadedExam.showResultAfterSubmit,
-      openAtLocal: toDateTimeLocalValue(loadedExam.openAt),
-      closeAtLocal: toDateTimeLocalValue(loadedExam.closeAt),
-    })
+    setForm(serverForm)
   }, [loadedExam])
+
+  const hasUnsavedChanges = cleanSnapshot !== null && snapshotOf(form, assignment) !== cleanSnapshot
+  const guard = useUnsavedChangesGuard(hasUnsavedChanges)
+  // Mọi lần chính trang này chủ động chuyển đi (lưu xong, sang ngân hàng câu hỏi, sang bản sao) không bị hỏi "thoát mà chưa lưu".
+  const navigate = (to: string) => guard.leaveWithoutAsking(() => navigateRaw(to))
 
   const ratios = useMemo<DifficultyRatios>(
     () => ({

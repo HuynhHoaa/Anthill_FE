@@ -13,7 +13,7 @@ import { useClassListView } from '../../../hooks/useClassListView'
 import {
   assignExam, type AssignClassTarget, type AssignExamResult,
 } from '../../../services/examService'
-import { listGroups } from '../../../services/groupService'
+import { listOpenGroups } from '../../../services/groupService'
 import { formatDateTime } from '../../../lib/format'
 import type { AssignmentWindow, Exam, ExamAssignment, StudentGroup } from '../../../types'
 import AssignWindowFields from './AssignWindowFields'
@@ -253,7 +253,7 @@ export default function ExamAssignPanel({ exam, assignments, onAssigned, onViewT
 
   // Đề và các lượt giao đã có do trang chung nạp; chỉ danh sách lớp là của riêng tab này. Bài chỉ giao theo
   // lớp nên không cần nạp danh sách học sinh: sĩ số của lớp đã đủ để biết sẽ giao cho bao nhiêu em.
-  const { data: groupList, loading, error, reload } = useAsync(() => listGroups(), [])
+  const { data: groupList, loading, error, reload } = useAsync(() => listOpenGroups(), [])
 
   const groups = useMemo(() => groupList ?? [], [groupList])
   const classView = useClassListView(groups, CLASS_PAGE_SIZE)

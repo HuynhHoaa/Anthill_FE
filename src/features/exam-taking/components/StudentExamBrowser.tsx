@@ -5,7 +5,6 @@ import {
   CheckCircle2, XCircle, Calendar, ChevronRight, ChevronDown, BookOpen,
   AlertTriangle, Eye, ArrowUpDown, Hourglass,
 } from 'lucide-react'
-import StudentLayout from '../../../components/layout/StudentLayout'
 import { StatusBadge, TopicBadge } from '../../../components/common/Badge'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
@@ -75,7 +74,7 @@ function ScoreRing({ score, maxScore }: { score: number; maxScore?: number | nul
   return (
     <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
       <div
-        className={`w-12 h-12 rounded-full border-2 flex items-center justify-center font-bold text-base ${tone.bg} ${tone.color} ${tone.ring}`}
+        className={`w-10 h-10 rounded-full border-2 flex items-center justify-center font-bold text-sm ${tone.bg} ${tone.color} ${tone.ring}`}
       >
         {formatScore(score)}
       </div>
@@ -112,9 +111,12 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
     ? Math.max(0, Math.ceil(remainingMs / 60000))
     : exam.durationMinutes
 
+  const metaChip = 'inline-flex items-center gap-1 text-[11px] text-slate-500 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md'
+
+  // Thẻ gọn: một lớp có thể có hàng chục bài, mỗi thẻ chỉ cần đủ tên bài, vài số liệu, hạn và nút.
   return (
     <div
-      className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col
+      className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col
         ${isExpired ? 'border-slate-100 opacity-70' :
           isUrgent  ? 'border-red-200 hover:border-red-300' :
           isInProgress ? 'border-amber-200 hover:border-amber-300' :
@@ -122,32 +124,31 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
                       'border-slate-100 hover:border-slate-200'}`}
     >
       {/* Dải màu theo chủ đề */}
-      <div className="h-1.5 w-full" style={{ background: exam.topicColor }} />
+      <div className="h-1 w-full" style={{ background: exam.topicColor }} />
 
-      <div className="p-5 flex flex-col flex-1">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 mb-3">
+      <div className="px-4 py-3 flex flex-col flex-1 gap-2">
+        <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            <div className="flex flex-wrap items-center gap-1.5 mb-1">
               <TopicBadge topic={exam.topic} />
               {isUrgent && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 flex items-center gap-1">
+                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 flex items-center gap-1">
                   <AlertTriangle size={10} /> Sắp hết hạn
                 </span>
               )}
               {isInProgress && (
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
+                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
                   <PlayCircle size={10} /> Đang làm dở
                 </span>
               )}
               {isSubmitted && (
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 flex items-center gap-1">
+                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 flex items-center gap-1">
                   <Hourglass size={10} /> Chờ chấm
                 </span>
               )}
             </div>
-            <h3 className="font-bold text-slate-800 text-base leading-snug">{exam.name}</h3>
-            <p className="text-xs text-slate-400 mt-1 truncate">GV: {exam.teacher}</p>
+            <h3 className="font-bold text-slate-800 text-sm leading-snug">{exam.name}</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5 truncate">GV: {exam.teacher}</p>
           </div>
           {/* score null là "đề chưa cho xem điểm", nên không có vòng điểm nào để vẽ. */}
           {isGraded && exam.score !== null && (
@@ -155,48 +156,37 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
           )}
         </div>
 
-        {/* Mô tả */}
-        {exam.description && (isOpen || isUpcoming || isInProgress) && (
-          <p className="text-xs text-slate-500 leading-relaxed mb-4 line-clamp-2">{exam.description}</p>
-        )}
-
-        {/* Thông tin nhanh */}
-        <div className="flex flex-wrap gap-2 mb-4">
+        {/* Thông tin nhanh, gọn một dòng */}
+        <div className="flex flex-wrap gap-1.5">
           <span
             title={isDurationClampedByCloseTime ? `Đề đóng lúc ${formatDateTime(exam.closeAt)}, ngắn hơn thời lượng gốc ${exam.durationMinutes} phút` : undefined}
-            className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border ${
-              isDurationClampedByCloseTime
-                ? 'text-red-600 bg-red-50 border-red-100 font-semibold'
-                : 'text-slate-500 bg-slate-50 border-slate-100'
-            }`}
+            className={`${metaChip} ${isDurationClampedByCloseTime ? '!text-red-600 !bg-red-50 !border-red-100 font-semibold' : ''}`}
           >
-            <Clock size={12} />
+            <Clock size={11} />
             {isDurationClampedByCloseTime
               ? `Còn ${formatDuration(effectiveDurationMinutes)} (đề sắp đóng)`
               : `${exam.durationMinutes} phút`}
           </span>
-          <span className="inline-flex items-center gap-1 text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-lg">
-            <FileText size={12} /> {exam.totalQuestions} câu hỏi
+          <span className={metaChip}>
+            <FileText size={11} /> {exam.totalQuestions} câu
           </span>
           {isGraded && exam.correctCount !== null && (
-            <span className="inline-flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
-              <CheckCircle2 size={12} /> {exam.correctCount}/{exam.totalQuestions} đúng
+            <span className={`${metaChip} !text-emerald-600 !bg-emerald-50 !border-emerald-100`}>
+              <CheckCircle2 size={11} /> {exam.correctCount}/{exam.totalQuestions} đúng
             </span>
           )}
         </div>
 
-        <div className="flex-1" />
-
         {/* Hạn nộp và hành động */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-50">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 mt-auto border-t border-slate-50">
           <div className="min-w-0">
             {(isOpen || isInProgress || isExpired) && (
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium mb-0.5">
-                  {isExpired ? 'Đã hết hạn' : isInProgress ? '⏳ Đang làm — còn lại' : '⏰ Còn lại'}
-                </p>
-                <p
-                  className={`text-sm font-bold ${
+              <p className="text-xs leading-tight">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wide font-medium mr-1.5">
+                  {isExpired ? 'Hết hạn' : isInProgress ? 'Đang làm · còn' : 'Còn'}
+                </span>
+                <span
+                  className={`font-bold ${
                     isExpired ? 'text-slate-400' :
                     isUrgent  ? 'text-red-600' :
                     isInProgress ? 'text-amber-600' :
@@ -204,40 +194,33 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
                   }`}
                 >
                   {/* exam.deadline đã là mốc đúng cho cả hai trường hợp (giờ đóng đề khi chưa vào,
-                      giờ hết bài của lượt làm khi đang dở — xem toStudentExamItem), nên dùng chung
-                      một nguồn thay vì exam.closeAt, thứ chỉ đúng với bài chưa bắt đầu. */}
+                      giờ hết bài của lượt làm khi đang dở — xem toStudentExamItem). */}
                   {isExpired ? formatDateTime(exam.deadline.toISOString()) : countdown}
-                </p>
-              </div>
+                </span>
+              </p>
             )}
             {isUpcoming && (
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium mb-0.5">Mở vào</p>
-                <p className="text-sm font-bold text-slate-600">
+              <p className="text-xs leading-tight">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wide font-medium mr-1.5">Mở vào</span>
+                <span className="font-bold text-slate-600">
                   {openDate
                     ? openDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                     : formatDateTime(exam.openAt)}
-                </p>
-              </div>
+                </span>
+              </p>
             )}
             {isGraded && exam.score !== null && (
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium mb-0.5">Điểm số</p>
-                <p className="text-sm font-bold text-slate-700">
+              <p className="text-xs leading-tight">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wide font-medium mr-1.5">Điểm</span>
+                <span className="font-bold text-slate-700">
                   {formatScore(exam.score)}
                   {exam.maxScore !== null && `/${formatScore(exam.maxScore)}`}
-                </p>
-              </div>
+                </span>
+              </p>
             )}
-            {isSubmitted && (
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium mb-0.5">Trạng thái</p>
-                <p className="text-sm font-semibold text-slate-600">Chờ giáo viên chấm</p>
-              </div>
-            )}
+            {isSubmitted && <p className="text-xs font-semibold text-slate-500">Chờ giáo viên chấm</p>}
           </div>
 
-          {/* Nút hành động */}
           {/*
             Quyền vào làm do server chốt qua `canStart` — nó biết cả những điều kiện giao diện không
             thấy (bài bị thu hồi, tài khoản bị khoá). `justClosed` chỉ để nút biến mất ngay khi đồng
@@ -246,7 +229,7 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
           {exam.canStart && !justClosed && (
             <NavLink
               to={`/hoc-sinh/bai-kiem-tra/${exam.assignmentId}`}
-              className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
               style={{
                 background: isUrgent
                   ? '#EF4444'
@@ -255,23 +238,23 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
                     : 'linear-gradient(135deg,#6366F1,#8B5CF6)',
               }}
             >
-              <PlayCircle size={15} /> {isInProgress ? 'Tiếp tục làm bài' : 'Vào làm bài'}
+              <PlayCircle size={13} /> {isInProgress ? 'Tiếp tục làm bài' : 'Vào làm bài'}
             </NavLink>
           )}
           {isUpcoming && (
             <NavLink
               to={`/hoc-sinh/bai-kiem-tra/${exam.assignmentId}`}
-              className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
             >
-              <Eye size={15} /> Xem trước
+              <Eye size={13} /> Xem trước
             </NavLink>
           )}
           {isDone && (
             <NavLink
-              to={exam.attemptId ? `/hoc-sinh/ket-qua/${exam.attemptId}` : '/hoc-sinh/ket-qua'}
-              className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+              to={exam.attemptId ? `/hoc-sinh/ket-qua/${exam.attemptId}` : '/hoc-sinh/bang-diem'}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
             >
-              <Eye size={15} /> Xem kết quả
+              <Eye size={13} /> Xem kết quả và đáp án
             </NavLink>
           )}
           {isExpired && <StatusBadge status="expired" />}
@@ -281,8 +264,12 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
   )
 }
 
-// ===== Page =====
-export default function StudentExamListPage() {
+// ===== Danh sách bài của một lớp =====
+/**
+ * Các bài kiểm tra em được giao qua một lớp: lọc theo trạng thái, tìm theo tên, sắp xếp; bài đã nộp mở ra kết quả (và đáp án khi giáo
+ * viên cho xem). Không có tiêu đề riêng: trang một lớp đặt nó dưới phần thông tin lớp.
+ */
+export default function StudentExamBrowser({ groupId }: { groupId: number }) {
   const [activeTab, setActiveTab] = useState<FilterTab>('all')
   const [searchInput, setSearchInput] = useState('')
   // Chỉ gọi service sau khi học sinh ngừng gõ, tránh bắn một request cho mỗi phím.
@@ -301,7 +288,7 @@ export default function StudentExamListPage() {
   // Nạp trọn danh sách một lần rồi lọc tại máy: server không nhận tham số tìm kiếm cho endpoint
   // này, và danh sách bài của một học sinh vốn ngắn. Gõ tìm kiếm không còn gọi lại API nên kết quả
   // hiện ra tức thì, và các tab bên dưới vẫn đếm trên đúng tập vừa lọc.
-  const { data: allExamItems, loading, error, reload, refresh } = useAsync(() => listMyExams(), [])
+  const { data: allExamItems, loading, error, reload, refresh } = useAsync(() => listMyExams({ groupId }), [groupId])
   useRealtimeRefresh(['ExamAssigned', 'ExamUpdated', 'AutoSubmitted'], refresh)
 
   const examItems = useMemo(() => {
@@ -366,20 +353,17 @@ export default function StudentExamListPage() {
   )
 
   return (
-    <StudentLayout>
-      {/* Tiêu đề trang */}
-      <div className="mb-6 animate-fade-in-up">
-        <h1 className="text-2xl font-bold text-slate-800">Bài kiểm tra của tôi</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          {error
-            ? 'Không tải được danh sách bài kiểm tra được giao.'
-            : examItems === undefined
-              ? 'Đang tải danh sách bài kiểm tra được giao...'
-              : hasSearch
-                ? <>Tìm thấy <strong>{counts.all}</strong> bài kiểm tra khớp với từ khoá</>
-                : <>Tổng cộng <strong>{counts.all}</strong> bài kiểm tra được giao</>}
-        </p>
-      </div>
+    <>
+      <h2 className="text-lg font-bold text-slate-800 mb-1 animate-fade-in-up">Bài kiểm tra của lớp</h2>
+      <p className="text-slate-500 text-sm mb-3 animate-fade-in-up">
+        {error
+          ? 'Không tải được danh sách bài kiểm tra của lớp.'
+          : examItems === undefined
+            ? 'Đang tải danh sách bài kiểm tra...'
+            : hasSearch
+              ? <>Tìm thấy <strong>{counts.all}</strong> bài kiểm tra khớp với từ khoá</>
+              : <>Tổng cộng <strong>{counts.all}</strong> bài kiểm tra, kể cả bài đã làm. Bài đã nộp có nút xem lại kết quả và đáp án (khi giáo viên cho xem).</>}
+      </p>
 
       {/* Cảnh báo bài sắp hết hạn */}
       {urgentExams.length > 0 && (
@@ -395,7 +379,7 @@ export default function StudentExamListPage() {
       )}
 
       {/* Ô tìm kiếm và sắp xếp */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6 animate-fade-in-up">
+      <div className="flex flex-col sm:flex-row gap-3 mb-4 animate-fade-in-up">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -423,7 +407,7 @@ export default function StudentExamListPage() {
       </div>
 
       {/* Tab lọc theo trạng thái */}
-      <div className="flex gap-2 mb-7 overflow-x-auto pb-1 animate-fade-in-up">
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1 animate-fade-in-up">
         {tabs.map(({ key, label, icon: Icon }) => {
           const isActive = activeTab === key
           return (
@@ -457,7 +441,7 @@ export default function StudentExamListPage() {
       ) : isFirstLoad ? (
         <SkeletonCards count={6} />
       ) : visibleExams.length > 0 ? (
-        <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 transition-opacity ${isRefreshing ? 'opacity-60' : ''}`}>
+        <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 transition-opacity ${isRefreshing ? 'opacity-60' : ''}`}>
           {visibleExams.map(exam => (
             <ExamCard key={exam.assignmentId} exam={exam} />
           ))}
@@ -494,6 +478,6 @@ export default function StudentExamListPage() {
           }
         />
       )}
-    </StudentLayout>
+    </>
   )
 }

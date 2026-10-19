@@ -18,7 +18,7 @@ import {
   assignExam, createExam, duplicateExam, getExam, getExamQuestions, publishExam, updateExam,
   type AssignExamResult, type ComposeQuestionsResult, type ExamPayload,
 } from '../../../services/examService'
-import { listGroups } from '../../../services/groupService'
+import { listOpenGroups } from '../../../services/groupService'
 import { difficultyLabels, type DifficultyLevel, type Exam, type Question } from '../../../types'
 import { formatDateTime, parseDateTime } from '../../../lib/format'
 import type { ApiError } from '../../../lib/apiClient'
@@ -268,7 +268,7 @@ export default function ExamQuestionListBuilderPage() {
     () => (examId === undefined ? Promise.resolve([]) : getExamQuestions(examId)),
     [examId ?? 0],
   )
-  const groupsQuery = useAsync(() => listGroups(), [])
+  const groupsQuery = useAsync(() => listOpenGroups(), [])
 
   const loadedExam = examQuery.data
   const savedItems = questionsQuery.data

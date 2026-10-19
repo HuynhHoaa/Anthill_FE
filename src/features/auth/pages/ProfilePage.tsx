@@ -78,7 +78,9 @@ function ProfileHeroCard({ profile, onSaved }: { profile: UserProfile; onSaved: 
               <ShieldCheck size={12} />
               {roleLabels[profile.role]}
             </span>
-            {profile.group && <span className={`${chipBase} bg-violet-50 text-violet-700`}>{profile.group}</span>}
+            {profile.groups?.map(group => (
+              <span key={group.id} className={`${chipBase} bg-violet-50 text-violet-700`}>{group.name}</span>
+            ))}
             {profile.code && <span className={`${chipBase} bg-slate-100 text-slate-600`}>{profile.code}</span>}
           </div>
 

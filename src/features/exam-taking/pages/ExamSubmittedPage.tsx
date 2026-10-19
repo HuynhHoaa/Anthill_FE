@@ -157,11 +157,11 @@ export default function ExamSubmittedPage() {
             description="Hệ thống đã ghi nhận lượt làm bài nhưng chưa có câu hỏi nào được lưu. Vui lòng liên hệ giáo viên phụ trách."
             action={
               <NavLink
-                to="/hoc-sinh/ket-qua"
+                to="/hoc-sinh/bang-diem"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
                 style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
               >
-                <Trophy size={16} /> Kết quả của tôi
+                <Trophy size={16} /> Bảng điểm
               </NavLink>
             }
           />
@@ -309,11 +309,11 @@ export default function ExamSubmittedPage() {
               </NavLink>
             ) : (
               <NavLink
-                to="/hoc-sinh/ket-qua"
+                to="/hoc-sinh/bang-diem"
                 className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
                 style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
               >
-                <Trophy size={16} /> Kết quả của tôi
+                <Trophy size={16} /> Bảng điểm
               </NavLink>
             )}
           </div>

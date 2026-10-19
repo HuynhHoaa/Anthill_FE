@@ -11,7 +11,7 @@ import type { UserRole } from '../../../types'
 const dashboardPath: Record<UserRole, string> = {
   teacher: '/giao-vien',
   student: '/hoc-sinh',
-  admin: '/quan-tri',
+  admin: '/quan-tri/nhom-lop',
 }
 
 const minPasswordLength = 4
