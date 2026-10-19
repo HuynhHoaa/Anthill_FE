@@ -4,10 +4,7 @@
  */
 import { useMemo, type ReactNode } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
-import {
-  ArrowLeft, Award, CalendarDays, ClipboardList, Eye, Hash, Lock, Mail, ShieldCheck, UsersRound,
-  type LucideIcon,
-} from 'lucide-react'
+import { ArrowLeft, CalendarDays, ClipboardList, Eye, Hash, Mail, UsersRound } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
@@ -15,11 +12,10 @@ import { StatusBadge } from '../../../components/common/Badge'
 import { SkeletonBlock, SkeletonTable } from '../../../components/common/Skeleton'
 import { useAsync } from '../../../hooks/useAsync'
 import {
-  formatDate, formatDateTime, formatScore, getInitials, getScoreTone, NO_VALUE, roundScore, STANDARD_SCORE,
-  toStandardScale,
+  formatDate, formatDateTime, formatGroupNames, formatScore, getInitials, getScoreTone, NO_VALUE,
+  STANDARD_SCORE,
 } from '../../../lib/format'
 import { openOnRowClick } from '../../../lib/rowClick'
-import { listGroups } from '../../../services/groupService'
 import { DELETION_RETENTION_DAYS, getStudent } from '../../../services/studentService'
 import { listResults } from '../../../services/resultService'
 import StudentStatusPill from '../components/StudentStatusPill'
@@ -32,28 +28,7 @@ const HISTORY_PAGE_SIZE = 50
 const headerCellClass = 'px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500'
 const chipClass =
   'inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-lg'
-const statValueClass = 'text-2xl font-bold text-slate-800 leading-none'
 const groupListLink = '/giao-vien/nhom-lop'
-
-interface StatTileProps {
-  icon: LucideIcon
-  iconBg: string
-  iconColor: string
-  label: string
-  children: ReactNode
-}
-
-function StatTile({ icon: Icon, iconBg, iconColor, label, children }: StatTileProps) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2.5 ${iconBg}`}>
-        <Icon size={17} className={iconColor} />
-      </div>
-      <div className="min-h-[28px] flex items-center">{children}</div>
-      <p className="text-xs text-slate-500 mt-1.5">{label}</p>
-    </div>
-  )
-}
 
 export default function StudentDetailPage() {
   const navigate = useNavigate()
@@ -81,51 +56,34 @@ export default function StudentDetailPage() {
     [studentId],
   )
 
-  // Lớp mà giáo viên đang dạy. Hồ sơ còn mở được với em đã chuyển sang lớp khác (vì em từng nhận đề
-  // của giáo viên này), nhưng lớp mới đó không thuộc về giáo viên — link tới nó chỉ dẫn tới trang
-  // "không tìm thấy", nên chỉ gắn link khi lớp nằm trong danh sách này.
-  const { data: taughtGroups } = useAsync(() => listGroups(), [])
-
   const historyItems = useMemo(() => results?.items ?? [], [results])
 
-  // Số liệu lấy từ chính bảng lịch sử bên dưới, không lấy từ hai trường tĩnh của học sinh,
-  // để ô số liệu không bao giờ mâu thuẫn với số dòng đang hiển thị.
-  const averageScore = useMemo(() => {
-    // Bài đã chấm nhưng bị giấu điểm không mang con số nào; tính chúng như 0 sẽ kéo trung bình
-    // xuống mà giáo viên không thấy dấu hiệu gì trên bảng bên dưới. Mỗi điểm quy về thang 10 theo điểm
-    // tối đa của đề đó: đề cũ 9 điểm và đề mới 100 điểm không cộng thô được.
-    const visibleScores = historyItems
-      .filter(result => result.status === 'graded')
-      .map(result => (result.score === null ? null : toStandardScale(result.score, result.maxScore)))
-      .filter((score): score is number => score !== null)
-
-    if (visibleScores.length === 0) return null
-    return roundScore(
-      visibleScores.reduce((total, score) => total + score, 0) / visibleScores.length,
-    )
-  }, [historyItems])
+  // Điểm trung bình do server tính trên mọi bài đã giao cho em, bài chưa làm tính 0 điểm (giống bảng điểm xuất ra Excel). Bảng lịch sử
+  // bên dưới chỉ liệt kê những bài em đã bắt đầu làm nên không đủ để tự cộng ra con số này.
+  const averageScore = student && student.assignedExams > 0 ? student.averageScore : null
 
   const summaryText = useMemo(() => {
     if (!student) return null
     // Tài khoản đã xoá mang mã giữ chỗ kiểu "deleted-12" — không phải thứ để hiện cho người đọc.
+    const groupText = formatGroupNames(student.groups, 'Chưa có lớp', 3)
     const parts = student.status === 'deleted'
-      ? [student.fullName, student.group]
-      : [student.fullName, student.code, student.group]
+      ? [student.fullName, groupText]
+      : [student.fullName, student.code, groupText]
     return parts.join(' · ')
   }, [student])
 
-  // Lối quay lại suy từ chính học sinh, nên học sinh chưa phân nhóm vẫn có đường về hợp lệ.
-  const canOpenGroup =
-    !!student && student.groupId > 0 && (taughtGroups ?? []).some(group => group.id === student.groupId)
-  const backTo = canOpenGroup && student ? `${groupListLink}/${student.groupId}` : groupListLink
-  const backLabel = canOpenGroup && student ? `Quay lại nhóm ${student.group}` : 'Quay lại danh sách nhóm'
+  // Server chỉ gửi những lớp giáo viên này dạy (hồ sơ còn mở được với em đã rời lớp vì em từng nhận đề của giáo viên, khi
+  // đó em không còn lớp nào của mình). Lối quay lại suy từ chính học sinh: đúng một lớp thì về lớp đó, không thì về danh sách.
+  const onlyGroup = student?.groups.length === 1 ? student.groups[0] : null
+  const backTo = onlyGroup ? `${groupListLink}/${onlyGroup.id}` : groupListLink
+  const backLabel = onlyGroup ? `Quay lại nhóm ${onlyGroup.name}` : 'Quay lại danh sách nhóm'
 
   const avatarTone = getAvatarTone(studentId)
   const isErased = student?.status === 'deleted'
   const showProfileSkeleton = studentLoading && student === undefined
   const showResultsSkeleton = resultsLoading && results === undefined
 
-  /** Hai ô số liệu phụ thuộc lịch sử làm bài nên có khung xương và lối thoát riêng. */
+  /** Điểm trung bình phụ thuộc lịch sử làm bài nên có khung xương và lối thoát riêng. */
   const renderResultStat = (content: ReactNode): ReactNode => {
     if (showResultsSkeleton) return <SkeletonBlock className="h-6 w-20" />
     if (resultsError) return <span className="text-sm font-semibold text-slate-400">Chưa tải được</span>
@@ -284,110 +242,89 @@ export default function StudentDetailPage() {
       {student && (
         <>
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 animate-fade-in-up">
-            <div className="flex items-start gap-4 min-w-0">
-              <div
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold flex-shrink-0 ${avatarTone.bg} ${avatarTone.text}`}
-              >
-                {getInitials(student.fullName)}
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="text-xl font-bold text-slate-800">{student.fullName}</h1>
-                  <StudentStatusPill status={student.status} deletionScheduledAt={student.deletionScheduledAt} />
+            <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
+              <div className="flex items-start gap-4 min-w-0">
+                <div
+                  className={`w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold flex-shrink-0 ${avatarTone.bg} ${avatarTone.text}`}
+                >
+                  {getInitials(student.fullName)}
                 </div>
-                {!isErased && <p className="text-sm text-slate-400 mt-1">@{student.username}</p>}
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <h1 className="text-xl font-bold text-slate-800">{student.fullName}</h1>
+                    <StudentStatusPill status={student.status} deletionScheduledAt={student.deletionScheduledAt} />
+                  </div>
+                  {!isErased && <p className="text-sm text-slate-400 mt-1">@{student.username}</p>}
 
-                <div className="flex flex-wrap items-center gap-2 mt-4">
-                  {/* Tên đăng nhập, email và mã của tài khoản đã xoá đều là chuỗi giữ chỗ do server
-                      thay vào — hiện ra như dữ liệu thật là đánh lừa người xem. */}
-                  {!isErased && (
-                    <>
+                  <div className="flex flex-wrap items-center gap-2 mt-4">
+                    {/* Tên đăng nhập, email và mã của tài khoản đã xoá đều là chuỗi giữ chỗ do server
+                        thay vào — hiện ra như dữ liệu thật là đánh lừa người xem. */}
+                    {!isErased && (
+                      <>
+                        <span className={chipClass}>
+                          <Hash size={13} /> {student.code}
+                        </span>
+                        <span className={chipClass}>
+                          <Mail size={13} /> {student.email}
+                        </span>
+                      </>
+                    )}
+                    {student.groups.length > 0 ? (
+                      student.groups.map(group => (
+                        <NavLink
+                          key={group.id}
+                          to={`${groupListLink}/${group.id}`}
+                          title={`Mở nhóm ${group.name}`}
+                          className={`${chipClass} hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-100 transition-colors`}
+                        >
+                          <UsersRound size={13} /> {group.name}
+                        </NavLink>
+                      ))
+                    ) : (
                       <span className={chipClass}>
-                        <Hash size={13} /> {student.code}
+                        <UsersRound size={13} /> Không còn trong lớp nào của bạn
                       </span>
-                      <span className={chipClass}>
-                        <Mail size={13} /> {student.email}
-                      </span>
-                    </>
-                  )}
-                  {canOpenGroup ? (
-                    <NavLink
-                      to={`${groupListLink}/${student.groupId}`}
-                      title={`Mở nhóm ${student.group}`}
-                      className={`${chipClass} hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-100 transition-colors`}
-                    >
-                      <UsersRound size={13} /> {student.group}
-                    </NavLink>
-                  ) : (
+                    )}
                     <span className={chipClass}>
-                      <UsersRound size={13} /> {student.group}
+                      <CalendarDays size={13} /> Tạo ngày {formatDate(student.createdAt)}
                     </span>
+                  </div>
+
+                  {isErased && (
+                    <p className="text-sm text-slate-500 mt-4 leading-relaxed">
+                      Dữ liệu cá nhân của học sinh này đã được xoá khỏi hệ thống. Kết quả các bài em đã làm vẫn
+                      được giữ lại bên dưới.
+                    </p>
                   )}
-                  <span className={chipClass}>
-                    <CalendarDays size={13} /> Tạo ngày {formatDate(student.createdAt)}
-                  </span>
+                  {student.status === 'pendingDeletion' && (
+                    <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800 leading-relaxed">
+                      Tài khoản đang chờ xoá: em không đăng nhập được và không nhận bài mới. Quản trị viên vẫn
+                      khôi phục được{' '}
+                      {student.deletionScheduledAt
+                        ? `tới ${formatDateTime(student.deletionScheduledAt)}`
+                        : `trong ${DELETION_RETENTION_DAYS} ngày kể từ ngày yêu cầu xoá`}
+                      .
+                    </p>
+                  )}
+
                 </div>
-
-                {isErased && (
-                  <p className="text-sm text-slate-500 mt-4 leading-relaxed">
-                    Dữ liệu cá nhân của học sinh này đã được xoá khỏi hệ thống. Kết quả các bài em đã làm vẫn
-                    được giữ lại bên dưới.
-                  </p>
-                )}
-                {student.status === 'pendingDeletion' && (
-                  <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800 leading-relaxed">
-                    Tài khoản đang chờ xoá: em không đăng nhập được và không nhận bài mới. Quản trị viên vẫn
-                    khôi phục được{' '}
-                    {student.deletionScheduledAt
-                      ? `tới ${formatDateTime(student.deletionScheduledAt)}`
-                      : `trong ${DELETION_RETENTION_DAYS} ngày kể từ ngày yêu cầu xoá`}
-                    .
-                  </p>
-                )}
-
-                <p className="inline-flex items-center gap-1.5 text-xs text-slate-400 mt-4">
-                  <Lock size={12} /> Thông tin tài khoản do quản trị viên quản lý.
-                </p>
+              </div>
+              <div className="flex-shrink-0 sm:text-right">
+                <p className="text-xs font-medium text-slate-500">Điểm trung bình</p>
+                <div className="mt-2 min-h-[28px] flex items-center sm:justify-end">
+                  {renderResultStat(
+                    averageScore === null ? (
+                      <p className="text-lg font-bold text-slate-400 leading-none">Chưa có</p>
+                    ) : (
+                      <p className={`text-3xl font-bold leading-none ${getScoreTone(averageScore).color}`}>
+                        {formatScore(averageScore)}
+                        <span className="text-sm font-semibold text-slate-400"> /{STANDARD_SCORE}</span>
+                      </p>
+                    ),
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
-            <StatTile
-              icon={ShieldCheck}
-              iconBg="bg-indigo-50"
-              iconColor="text-indigo-600"
-              label="Trạng thái tài khoản"
-            >
-              <StudentStatusPill status={student.status} deletionScheduledAt={student.deletionScheduledAt} />
-            </StatTile>
-
-            <StatTile
-              icon={ClipboardList}
-              iconBg="bg-violet-50"
-              iconColor="text-violet-600"
-              label="Số bài đã làm"
-            >
-              {renderResultStat(<p className={statValueClass}>{results?.total ?? 0}</p>)}
-            </StatTile>
-
-            <StatTile
-              icon={Award}
-              iconBg="bg-emerald-50"
-              iconColor="text-emerald-600"
-              label="Điểm trung bình"
-            >
-              {renderResultStat(
-                averageScore === null ? (
-                  <p className="text-lg font-bold text-slate-400 leading-none">Chưa có</p>
-                ) : (
-                  <p className={`text-2xl font-bold leading-none ${getScoreTone(averageScore).color}`}>
-                    {formatScore(averageScore)}
-                    <span className="text-sm font-semibold text-slate-400"> /{STANDARD_SCORE}</span>
-                  </p>
-                ),
-              )}
-            </StatTile>
           </div>
         </>
       )}

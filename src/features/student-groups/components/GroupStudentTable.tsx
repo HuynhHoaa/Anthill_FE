@@ -101,7 +101,7 @@ export default function GroupStudentTable({
                   <td data-label="Mã học sinh" className="px-5 py-4 text-sm font-medium text-slate-600">{student.code}</td>
                   <td data-label="Email" className="px-5 py-4 text-sm text-slate-500">{student.email}</td>
                   <td data-label="Điểm trung bình" className="px-5 py-4">
-                    {student.completedExams > 0 ? (
+                    {student.assignedExams > 0 ? (
                       <span
                         className={`inline-flex items-center px-2.5 py-1 rounded-lg text-sm font-bold ${scoreTone.bg} ${scoreTone.color}`}
                       >

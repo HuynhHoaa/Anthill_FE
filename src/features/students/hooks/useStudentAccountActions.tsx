@@ -10,7 +10,7 @@ import ConsequenceList from '../../../components/common/ConsequenceList'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import {
-  DELETION_REASON_MAX_LENGTH, DELETION_REASON_MIN_LENGTH, DELETION_RETENTION_DAYS, ERASED_STUDENT_NAME,
+  DELETION_RETENTION_DAYS, ERASED_STUDENT_NAME, REASON_MAX_LENGTH, REASON_MIN_LENGTH,
   requestStudentDeletion, resetStudentPassword, restoreStudent, setStudentStatus,
   type ResetPasswordResult,
 } from '../../../services/studentService'
@@ -99,6 +99,22 @@ export function useStudentAccountActions(): StudentAccountActions {
     async toggleLock(student) {
       const locking = student.status === 'active'
       const state = { failed: false }
+
+      // Khoá bắt buộc nói lý do (lưu vào lịch sử của học sinh); mở khoá thì chỉ cần xác nhận.
+      if (locking) {
+        const reason = await confirm.withInput({
+          ...lockConfirmCopy(student.fullName, true),
+          inputLabel: 'Lý do khoá tài khoản',
+          placeholder: 'Ví dụ: Em nghỉ học không báo trước từ đầu tháng',
+          inputHint: 'Lý do được lưu vào lịch sử của học sinh để người xem sau này hiểu vì sao tài khoản bị khoá.',
+          minLength: REASON_MIN_LENGTH,
+          maxLength: REASON_MAX_LENGTH,
+          onConfirm: value => recordFailure(state, () => setStudentStatus(student.id, 'locked', value)),
+        })
+        if (reason !== null) toast.success(`Đã khoá tài khoản của ${student.fullName}.`)
+        return reason !== null || state.failed
+      }
+
       const ok = await confirm({
         ...lockConfirmCopy(student.fullName, locking),
         onConfirm: () => recordFailure(state, () => setStudentStatus(student.id, locking ? 'locked' : 'active')),
@@ -131,8 +147,8 @@ export function useStudentAccountActions(): StudentAccountActions {
         inputLabel: 'Lý do xoá tài khoản',
         placeholder: 'Ví dụ: Học sinh đã chuyển trường từ ngày 01/09',
         inputHint: 'Lý do được lưu kèm tài khoản để người xem sau này hiểu vì sao em ấy bị xoá.',
-        minLength: DELETION_REASON_MIN_LENGTH,
-        maxLength: DELETION_REASON_MAX_LENGTH,
+        minLength: REASON_MIN_LENGTH,
+        maxLength: REASON_MAX_LENGTH,
         confirmLabel: 'Xoá tài khoản',
         tone: 'danger',
         onConfirm: value => recordFailure(state, () => requestStudentDeletion(student.id, value)),

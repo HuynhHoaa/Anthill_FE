@@ -1,71 +1,58 @@
 // Trang thuộc vai trò quản trị viên: admin sở hữu tài khoản học sinh.
-import { useState } from 'react'
-import { NavLink, useNavigate, useSearchParams } from 'react-router-dom'
+import { useMemo } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  FilterX, Mail, Plus, RotateCcw, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, Users, UsersRound,
+  Eye, FilterX, Pencil, Plus, RotateCcw, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, UsersRound,
 } from 'lucide-react'
 import AdminLayout from '../../../components/layout/AdminLayout'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
+import RowActionMenu, { type RowMenuItem } from '../../../components/common/RowActionMenu'
+import SearchField from '../../../components/common/SearchField'
 import { SkeletonTable } from '../../../components/common/Skeleton'
 import TableScroller from '../../../components/common/TableScroller'
 import useAsync from '../../../hooks/useAsync'
-import useDebouncedValue from '../../../hooks/useDebouncedValue'
-import { formatDate, formatDateTime, formatScore, getInitials, getScoreTone } from '../../../lib/format'
+import { useStableTableHeight } from '../../../hooks/useStableTableHeight'
+import { useUrlListState } from '../../../hooks/useUrlListState'
+import { formatDateTime, formatGroupNames, formatScore, getInitials, getScoreTone } from '../../../lib/format'
 import { openOnRowClick } from '../../../lib/rowClick'
 import { UNASSIGNED_GROUP_ID, UNASSIGNED_GROUP_NAME, listGroups } from '../../../services/groupService'
 import { isRetiredStudent, listStudents } from '../../../services/studentService'
+import ImportExcelButton from '../../imports/components/ImportExcelButton'
 import StudentStatusPill from '../components/StudentStatusPill'
 import { useStudentAccountActions } from '../hooks/useStudentAccountActions'
 import { studentStatusLabels, type StudentStatus } from '../../../types'
 
-const PAGE_SIZE = 10
+// Mười hai dòng ~52px (avatar nhỏ, tên và email) cùng thanh trang vừa một cửa sổ cao ~900px sau khi công cụ đã lên thanh
+// tiêu đề. Đổi cỡ trang hay độ cao dòng thì đo lại bằng cửa sổ 1440x900.
+const PAGE_SIZE = 12
 
 const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
+const headerCellClass = 'px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500'
+const selectClass =
+  'px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'
 
 /** Thứ tự trong ô lọc đi theo vòng đời tài khoản: đang dùng, bị khoá, chờ xoá, đã xoá. */
 const statusFilterOptions: StudentStatus[] = ['active', 'locked', 'pendingDeletion', 'deleted']
 
-const iconActionClass =
-  'w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center transition-colors'
-
 export default function StudentListPage() {
   const accountActions = useStudentAccountActions()
-
-  const [searchInput, setSearchInput] = useState('')
-  // Giữ ID chứ không giữ tên: bộ lọc phải sống sót qua việc giáo viên đổi tên nhóm lớp.
-  const [group, setGroup] = useState('all')
-  // Ô lọc trạng thái sống trên URL (?trang-thai=...) chứ không trong state: trang tổng quan dẫn thẳng
-  // tới đây bằng đường đó, và giữ trong state thì đổi bộ lọc xong URL vẫn nói điều cũ — tải lại hay
-  // bấm Back là bộ lọc cũ quay về. Chỉ nhận đúng các giá trị có trong ô lọc: một giá trị lạ mà lọt
-  // vào thì server trả 400 và cả trang thành trang lỗi.
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const requestedStatus = searchParams.get('trang-thai')
-  const status: 'all' | StudentStatus = statusFilterOptions.find(option => option === requestedStatus) ?? 'all'
-  const setStatus = (next: 'all' | StudentStatus) => {
-    setSearchParams(
-      current => {
-        const nextParams = new URLSearchParams(current)
-        if (next === 'all') nextParams.delete('trang-thai')
-        else nextParams.set('trang-thai', next)
-        return nextParams
-      },
-      { replace: true },
-    )
-  }
-  const [page, setPage] = useState(1)
 
-  // URL có thể đổi bộ lọc từ bên ngoài ô lọc — bấm "Học sinh" ở thanh bên xoá ?trang-thai. Khi đó
-  // cũng phải về trang 1 như lúc tự đổi ô lọc, nếu không người dùng rơi vào giữa một danh sách khác.
-  const [previousStatus, setPreviousStatus] = useState(status)
-  if (previousStatus !== status) {
-    setPreviousStatus(status)
-    setPage(1)
-  }
-
-  const debouncedSearch = useDebouncedValue(searchInput)
+  // Từ khoá, bộ lọc và số trang nằm trên URL: Back từ hồ sơ một em về đúng chỗ đang xem, và đường dẫn có sẵn bộ lọc
+  // (?trang-thai=...) mở được thẳng. Giữ ID nhóm chứ không giữ tên: bộ lọc phải sống sót qua việc đổi tên nhóm lớp. Chỉ nhận đúng các
+  // trạng thái có trong ô lọc: một giá trị lạ lọt vào thì server trả 400 và cả trang thành trang lỗi.
+  const { searchInput, setSearchInput, search, filters, setFilter, page, setPage, clearAll } = useUrlListState({
+    'trang-thai': { default: 'all', allowed: ['all', ...statusFilterOptions] },
+    nhom: { default: 'all' },
+  })
+  const status = filters['trang-thai'] as 'all' | StudentStatus
+  const requestedGroup = Number(filters.nhom)
+  const groupFilter =
+    filters.nhom !== 'all' && Number.isInteger(requestedGroup) && requestedGroup >= 0 ? requestedGroup : undefined
+  const trimmedSearch = search.trim()
+  const hasActiveFilters = trimmedSearch !== '' || groupFilter !== undefined || status !== 'all'
 
   const summaryQuery = useAsync(async () => {
     const [activeOnly, lockedOnly, pendingOnly, groups] = await Promise.all([
@@ -74,8 +61,7 @@ export default function StudentListPage() {
       listStudents({ status: 'pendingDeletion', page: 1, pageSize: 1 }),
       listGroups(),
     ])
-    // Cùng cách đếm với trang tổng quan: "học sinh" là em còn theo học, không gồm tài khoản chờ xoá
-    // hay đã xoá. Hai trang nói về cùng một điều thì phải ra cùng một con số.
+    // "Học sinh" là em còn theo học, không gồm tài khoản chờ xoá hay đã xoá; ô lọc trạng thái mới cho xem hai loại đó.
     return {
       totalStudents: activeOnly.total + lockedOnly.total,
       activeStudents: activeOnly.total,
@@ -86,19 +72,14 @@ export default function StudentListPage() {
   }, [])
 
   const studentsQuery = useAsync(
-    () => listStudents({
-      search: debouncedSearch,
-      groupId: group === 'all' ? undefined : Number(group),
-      status,
-      page,
-      pageSize: PAGE_SIZE,
-    }),
-    [debouncedSearch, group, status, page],
+    () => listStudents({ search: trimmedSearch, groupId: groupFilter, status, page, pageSize: PAGE_SIZE }),
+    [trimmedSearch, groupFilter, status, page],
   )
 
   const summary = summaryQuery.data
   const groupOptions = summary?.groups ?? []
   const students = studentsQuery.data?.items ?? []
+  const total = studentsQuery.data?.total ?? 0
 
   // Thao tác trên dòng cuối cùng của trang cuối — xoá một em khi đang lọc "Đang hoạt động" — làm
   // trang đó trống. Lùi về trang cuối còn dữ liệu thay vì để người dùng đứng trước "Không tìm thấy".
@@ -107,14 +88,8 @@ export default function StudentListPage() {
     const lastPage = Math.max(1, Math.ceil(loadedPage.total / loadedPage.pageSize))
     if (lastPage < page) setPage(lastPage)
   }
-  const hasActiveFilters = debouncedSearch.trim() !== '' || group !== 'all' || status !== 'all'
 
-  const clearFilters = () => {
-    setSearchInput('')
-    setGroup('all')
-    setStatus('all')
-    setPage(1)
-  }
+  const { tableRef, wrapperStyle } = useStableTableHeight(students, PAGE_SIZE, total)
 
   const reloadAll = () => {
     studentsQuery.reload()
@@ -126,94 +101,83 @@ export default function StudentListPage() {
     if (await pending) reloadAll()
   }
 
-  const summaryText = summary
+  const summaryText = useMemo(() => {
+    if (!summary) return null
     // "Đang theo học" nói rõ con số này không gồm tài khoản chờ xoá hay đã xoá — ô lọc "Tất cả trạng
     // thái" thì có, nên hai con số được phép khác nhau mà không ai tưởng một bên sai.
-    ? [
-        `${summary.totalStudents} học sinh đang theo học`,
-        `${summary.activeStudents} đang hoạt động`,
-        summary.lockedStudents > 0 ? `${summary.lockedStudents} đã khoá` : '',
-        summary.pendingDeletionStudents > 0 ? `${summary.pendingDeletionStudents} chờ xoá` : '',
-        `${summary.groups.length} nhóm lớp`,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    : null
+    return [
+      `${summary.totalStudents} đang theo học`,
+      `${summary.activeStudents} hoạt động`,
+      summary.lockedStudents > 0 ? `${summary.lockedStudents} đã khoá` : '',
+      summary.pendingDeletionStudents > 0 ? `${summary.pendingDeletionStudents} chờ xoá` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ')
+  }, [summary])
+
+  // Công cụ nằm trên thanh tiêu đề (từ cỡ lg), thay cho một thẻ riêng phía trên bảng.
+  const tools = (
+    <div className="flex flex-wrap items-center justify-end gap-2.5 w-full">
+      <div className="flex-1 min-w-[10rem] max-w-[14rem]">
+        <SearchField
+          value={searchInput}
+          onChange={setSearchInput}
+          placeholder="Tìm tên, email, mã"
+          label="Tìm kiếm học sinh"
+        />
+      </div>
+
+      <select
+        value={groupFilter === undefined ? 'all' : String(groupFilter)}
+        onChange={event => setFilter('nhom', event.target.value)}
+        aria-label="Lọc theo nhóm lớp"
+        className={`${selectClass} max-w-[9.5rem]`}
+      >
+        <option value="all">Tất cả lớp</option>
+        {groupOptions.map(item => (
+          <option key={item.id} value={item.id}>{item.name}</option>
+        ))}
+        {/* Học sinh vừa bị gỡ khỏi nhóm vẫn phải lọc ra được. */}
+        <option value={UNASSIGNED_GROUP_ID}>{UNASSIGNED_GROUP_NAME}</option>
+      </select>
+
+      <select
+        value={status}
+        onChange={event => setFilter('trang-thai', event.target.value)}
+        aria-label="Lọc theo trạng thái"
+        className={selectClass}
+      >
+        <option value="all">Mọi trạng thái</option>
+        {statusFilterOptions.map(option => (
+          <option key={option} value={option}>{studentStatusLabels[option]}</option>
+        ))}
+      </select>
+
+      <ImportExcelButton kind="school" onImported={reloadAll} />
+
+      <NavLink
+        to="/quan-tri/hoc-sinh/tao"
+        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all whitespace-nowrap"
+        style={primaryButtonStyle}
+      >
+        <Plus size={16} /> Thêm học sinh
+      </NavLink>
+    </div>
+  )
 
   return (
     <AdminLayout
       pageTitle="Học sinh"
-      pageSubtitle={summaryText ?? 'Quản lý tài khoản, nhóm lớp và trạng thái học sinh'}
+      pageSubtitle={
+        summaryText
+          ? `${summaryText}${hasActiveFilters && studentsQuery.data ? ` · ${total} khớp bộ lọc` : ''}`
+          : 'Quản lý tài khoản, nhóm lớp và trạng thái học sinh'
+      }
+      compactContent
+      headerTools={tools}
     >
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5 animate-fade-in-up">
-        <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
-          <div className="flex flex-col sm:flex-row gap-3 flex-1">
-            <div className="relative flex-1 min-w-0">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                value={searchInput}
-                onChange={event => {
-                  setSearchInput(event.target.value)
-                  setPage(1)
-                }}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"
-                placeholder="Tìm theo tên, email hoặc mã học sinh"
-                aria-label="Tìm kiếm học sinh"
-              />
-            </div>
-            <select
-              value={group}
-              onChange={event => {
-                setGroup(event.target.value)
-                setPage(1)
-              }}
-              aria-label="Lọc theo nhóm lớp"
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 bg-white"
-            >
-              <option value="all">Tất cả nhóm/lớp</option>
-              {groupOptions.map(item => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-              {/* Học sinh vừa bị gỡ khỏi nhóm vẫn phải lọc ra được. */}
-              <option value={UNASSIGNED_GROUP_ID}>{UNASSIGNED_GROUP_NAME}</option>
-            </select>
-            <select
-              value={status}
-              onChange={event => {
-                setStatus(event.target.value as 'all' | StudentStatus)
-                setPage(1)
-              }}
-              aria-label="Lọc theo trạng thái"
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 bg-white"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              {statusFilterOptions.map(option => (
-                <option key={option} value={option}>{studentStatusLabels[option]}</option>
-              ))}
-            </select>
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
-              >
-                <FilterX size={15} /> Xoá bộ lọc
-              </button>
-            )}
-          </div>
-
-          <NavLink
-            to="/quan-tri/hoc-sinh/tao"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-            style={primaryButtonStyle}
-          >
-            <Plus size={16} /> Thêm học sinh
-          </NavLink>
-        </div>
-      </div>
-
       {studentsQuery.loading && !studentsQuery.data ? (
-        <SkeletonTable rows={8} cols={6} />
+        <SkeletonTable rows={8} cols={5} />
       ) : studentsQuery.error ? (
         <ErrorState message={studentsQuery.error} onRetry={reloadAll} />
       ) : students.length === 0 ? (
@@ -225,7 +189,7 @@ export default function StudentListPage() {
             action={
               <button
                 type="button"
-                onClick={clearFilters}
+                onClick={clearAll}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
               >
                 <FilterX size={15} /> Xoá bộ lọc
@@ -255,16 +219,22 @@ export default function StudentListPage() {
               studentsQuery.loading ? 'opacity-60' : ''
             }`}
           >
-            <TableScroller>
-              <table className="stack-table w-full text-sm min-w-[920px]">
+            <TableScroller style={wrapperStyle}>
+              <table ref={tableRef} className="stack-table w-full table-fixed text-sm min-w-[860px]">
+                <colgroup>
+                  <col className="w-[34%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[12%]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/60">
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Học sinh</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Nhóm/lớp</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Ngày tạo</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Kết quả</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Thao tác</th>
+                    <th className={`${headerCellClass} text-left`}>Học sinh</th>
+                    <th className={`${headerCellClass} text-left`}>Nhóm/lớp</th>
+                    <th className={`${headerCellClass} text-left`}>Kết quả</th>
+                    <th className={`${headerCellClass} text-left`}>Trạng thái</th>
+                    <th className={`${headerCellClass} text-right`}>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -274,117 +244,102 @@ export default function StudentListPage() {
                     // Tài khoản đã rời hệ thống thì khoá, mở khoá hay xoá lần nữa đều vô nghĩa —
                     // dòng đó chỉ còn nút xem, và nút khôi phục khi còn trong hạn.
                     const isRetired = isRetiredStudent(student)
+                    const profile = `/quan-tri/hoc-sinh/${student.id}`
+
+                    const items: RowMenuItem[] = [
+                      { key: 'view', label: 'Xem hồ sơ và bài làm', icon: Eye, to: profile },
+                      ...(isRetired ? [] : [{ key: 'edit', label: 'Sửa hồ sơ', icon: Pencil, to: `${profile}/sua` }]),
+                      ...(student.status === 'pendingDeletion'
+                        ? [{
+                          key: 'restore',
+                          label: 'Khôi phục tài khoản',
+                          icon: RotateCcw,
+                          onSelect: () => void runAccountAction(accountActions.restore(student)),
+                        }]
+                        : []),
+                      ...(isRetired
+                        ? []
+                        : [
+                          {
+                            key: 'lock',
+                            label: isActive ? 'Khoá tài khoản' : 'Mở khoá tài khoản',
+                            icon: isActive ? ShieldOff : ShieldCheck,
+                            onSelect: () => void runAccountAction(accountActions.toggleLock(student)),
+                          },
+                          {
+                            key: 'delete',
+                            label: 'Xoá tài khoản',
+                            icon: Trash2,
+                            tone: 'danger' as const,
+                            onSelect: () => void runAccountAction(accountActions.requestDeletion(student)),
+                          },
+                        ]),
+                    ]
 
                     return (
                       <tr
                         key={student.id}
-                        onClick={openOnRowClick(() => navigate(`/quan-tri/hoc-sinh/${student.id}/sua`))}
+                        onClick={openOnRowClick(() => navigate(profile))}
                         className={`border-b border-slate-50 hover:bg-indigo-100/70 transition-colors cursor-pointer ${
                           isRetired ? 'text-slate-400' : ''
                         }`}
                       >
-                        <td data-card="head" className="px-5 py-4">
-                          <div className="flex items-center gap-3">
+                        <td data-card="head" className="px-4 py-2">
+                          <div className="flex items-center gap-3 min-w-0">
                             <div
-                              className={`w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0 ${
+                              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                                 isRetired ? 'bg-slate-100 text-slate-400' : 'bg-indigo-100 text-indigo-700'
                               }`}
                             >
                               {getInitials(student.fullName)}
                             </div>
                             <div className="min-w-0">
-                              <p className={`font-semibold truncate ${isRetired ? 'text-slate-500' : 'text-slate-800'}`}>
+                              <NavLink
+                                to={profile}
+                                className={`block font-semibold truncate transition-colors hover:text-indigo-600 ${
+                                  isRetired ? 'text-slate-500' : 'text-slate-800'
+                                }`}
+                              >
                                 {student.fullName}
-                              </p>
-                              <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                                <Mail size={12} className="flex-shrink-0" />
-                                <span className="truncate">{student.email}</span>
-                                <span className="text-slate-300">·</span>
-                                <span className="font-medium text-slate-500">{student.code}</span>
+                              </NavLink>
+                              <p className="text-xs text-slate-400 truncate">
+                                {student.code} · {student.email}
                               </p>
                             </div>
                           </div>
                         </td>
-                        <td data-label="Nhóm/lớp" className="px-5 py-4 text-slate-600">
-                          <span className="inline-flex items-center gap-1.5">
-                            <Users size={14} className="text-slate-400" /> {student.group}
-                          </span>
+                        <td
+                          data-label="Nhóm/lớp"
+                          className="px-4 py-2 text-slate-600 truncate"
+                          title={student.groups.map(group => group.name).join(', ')}
+                        >
+                          {formatGroupNames(student.groups, 'Chưa phân nhóm')}
                         </td>
-                        <td data-label="Ngày tạo" className="px-5 py-4 text-slate-500 whitespace-nowrap">
-                          {formatDate(student.createdAt)}
-                        </td>
-                        <td data-label="Kết quả" className="px-5 py-4">
-                          {student.completedExams > 0 ? (
+                        <td data-label="Kết quả" className="px-4 py-2 whitespace-nowrap">
+                          {student.assignedExams > 0 ? (
                             <>
-                              <p className={`font-bold ${scoreTone.color}`}>
-                                {formatScore(student.averageScore)}
-                              </p>
-                              <p className="text-xs text-slate-400">
-                                {student.completedExams} bài đã xong
-                              </p>
+                              <span className={`font-bold ${scoreTone.color}`}>{formatScore(student.averageScore)}</span>{' '}
+                              <span className="text-xs text-slate-400">· {student.completedExams} bài</span>
                             </>
                           ) : (
-                            <p className="text-xs text-slate-400">Chưa làm bài nào</p>
+                            <span className="text-xs text-slate-400">
+                              {student.hasStartedExams ? 'Đang làm bài' : 'Chưa làm bài'}
+                            </span>
                           )}
                         </td>
-                        <td data-label="Trạng thái" className="px-5 py-4">
+                        <td data-label="Trạng thái" className="px-4 py-2">
                           <StudentStatusPill status={student.status} deletionScheduledAt={student.deletionScheduledAt} />
-                          {/* Mốc xoá hẳn phải đọc được mà không cần rê chuột — điện thoại không có
-                              tooltip, và đây là trang mà lối "N tài khoản đang chờ xoá" dẫn tới. */}
+                          {/* Mốc xoá hẳn phải đọc được mà không cần rê chuột — điện thoại không có tooltip, và đây là
+                              trang mà lối "N tài khoản đang chờ xoá" dẫn tới. */}
                           {student.status === 'pendingDeletion' && student.deletionScheduledAt && (
-                            <p className="text-xs text-slate-400 mt-1 whitespace-nowrap">
+                            <p className="text-[11px] text-slate-400 mt-0.5 whitespace-nowrap">
                               Khôi phục được tới {formatDateTime(student.deletionScheduledAt)}
                             </p>
                           )}
                         </td>
-                        <td data-card="foot" className="px-5 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            {student.status === 'pendingDeletion' && (
-                              <button
-                                type="button"
-                                onClick={() => void runAccountAction(accountActions.restore(student))}
-                                aria-label={`Khôi phục tài khoản của ${student.fullName}`}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-                              >
-                                <RotateCcw size={14} /> Khôi phục
-                              </button>
-                            )}
-                            {!isRetired && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => void runAccountAction(accountActions.toggleLock(student))}
-                                  title={isActive ? 'Khoá tài khoản' : 'Mở khoá tài khoản'}
-                                  aria-label={
-                                    isActive
-                                      ? `Khoá tài khoản của ${student.fullName}`
-                                      : `Mở khoá tài khoản của ${student.fullName}`
-                                  }
-                                  className={`${iconActionClass} ${
-                                    isActive
-                                      ? 'text-slate-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200'
-                                      : 'text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200'
-                                  }`}
-                                >
-                                  {isActive ? <ShieldOff size={15} /> : <ShieldCheck size={15} />}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => void runAccountAction(accountActions.requestDeletion(student))}
-                                  title="Xoá tài khoản"
-                                  aria-label={`Xoá tài khoản của ${student.fullName}`}
-                                  className={`${iconActionClass} text-slate-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200`}
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              </>
-                            )}
-                            <NavLink
-                              to={`/quan-tri/hoc-sinh/${student.id}/sua`}
-                              className="px-3 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
-                            >
-                              {isRetired ? 'Xem' : 'Sửa'}
-                            </NavLink>
+                        <td data-card="foot" className="px-4 py-2">
+                          <div className="flex items-center justify-end">
+                            <RowActionMenu label={student.fullName} items={items} />
                           </div>
                         </td>
                       </tr>
@@ -398,7 +353,7 @@ export default function StudentListPage() {
           <Pagination
             page={studentsQuery.data?.page ?? page}
             pageSize={studentsQuery.data?.pageSize ?? PAGE_SIZE}
-            total={studentsQuery.data?.total ?? 0}
+            total={total}
             onPageChange={setPage}
           />
         </>
