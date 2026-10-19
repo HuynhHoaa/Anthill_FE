@@ -12,14 +12,18 @@
  *    server xoá dữ liệu cá nhân nhưng giữ lại kết quả.
  */
 import { apiClient } from '../lib/apiClient'
-import type { Paged, Student, StudentStatus } from '../types'
+import type { Paged, Student, AccountChange, StudentExam, StudentStatus } from '../types'
 
 export interface StudentPayload {
   fullName: string
   email: string
   username: string
   code: string
-  groupId: number
+  /**
+   * Lớp xếp em vào ngay khi tạo (0 hoặc bỏ trống là chưa chọn lớp). Khi sửa hồ sơ thì không gửi: thêm, chuyển và gỡ lớp là
+   * thao tác riêng của trang lớp, có lý do khi gỡ.
+   */
+  groupId?: number
   /** Tuỳ chọn. Bỏ trống khi sửa thì server giữ nguyên số đang có; chuỗi rỗng là xoá trắng. */
   phone?: string
   /** Bắt buộc khi tạo mới: người tạo tài khoản là người phải trao mật khẩu cho học sinh. */
@@ -99,9 +103,29 @@ export function updateStudent(id: number, payload: StudentPayload): Promise<Stud
  *
  * Khoá làm **token hiện tại của em đó chết ngay lập tức** — server xoay `SecurityStamp` chứ không
  * chờ token hết hạn. Một em bị khoá giữa giờ thi sẽ bị đẩy ra ngay, đó là chủ đích.
+ *
+ * **Khoá bắt buộc kèm lý do** (10–512 ký tự), lưu vào lịch sử của học sinh; mở khoá thì không cần.
  */
-export function setStudentStatus(id: number, status: StudentStatus): Promise<Student> {
-  return apiClient.patch<Student>(`/api/students/${id}/status`, { status })
+export function setStudentStatus(id: number, status: StudentStatus, reason?: string): Promise<Student> {
+  return apiClient.patch<Student>(`/api/students/${id}/status`, {
+    status,
+    reason: status === 'locked' ? reason?.trim() : undefined,
+  })
+}
+
+/** Lịch sử khoá, xoá, gỡ khỏi lớp, chuyển lớp của một học sinh, mới nhất trước. Chỉ quản trị viên. */
+export function listAccountChanges(id: number): Promise<AccountChange[]> {
+  return apiClient.get<AccountChange[]>(`/api/students/${id}/history`)
+}
+
+/**
+ * Mọi bài đã giao cho một học sinh, **kể cả bài em chưa làm hay đã bỏ lỡ**. Chỉ quản trị viên.
+ *
+ * Em nghỉ học mà chưa bị gỡ khỏi lớp thì các bài sau của lớp vẫn hiện ra ở đây (`assigned` hay `expired`), để người
+ * quản lý nhìn thấy em đã vắng.
+ */
+export function listStudentExams(id: number): Promise<StudentExam[]> {
+  return apiClient.get<StudentExam[]>(`/api/students/${id}/exams`)
 }
 
 /**
@@ -123,9 +147,14 @@ export function resetStudentPassword(id: number): Promise<ResetPasswordResult> {
 /** Số ngày một tài khoản nằm chờ trước khi server xoá dữ liệu cá nhân — khớp `RetentionDays` ở server. */
 export const DELETION_RETENTION_DAYS = 60
 
-/** Khớp validator ở server; giao diện chặn trước để người nhập không phải gặp một lỗi 400. */
-export const DELETION_REASON_MIN_LENGTH = 10
-export const DELETION_REASON_MAX_LENGTH = 512
+/**
+ * Bộ luật chung cho mọi lý do quản trị viên nhập (khoá, xoá, gỡ khỏi lớp, chuyển lớp); khớp `ReasonRules` ở server.
+ * Giao diện chặn trước để người nhập không phải gặp một lỗi 400.
+ */
+export const REASON_MIN_LENGTH = 10
+export const REASON_MAX_LENGTH = 512
+export const DELETION_REASON_MIN_LENGTH = REASON_MIN_LENGTH
+export const DELETION_REASON_MAX_LENGTH = REASON_MAX_LENGTH
 
 /** Tên server gán cho tài khoản đã bị xoá dữ liệu cá nhân. */
 export const ERASED_STUDENT_NAME = 'Học sinh đã xoá'

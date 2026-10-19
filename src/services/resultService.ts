@@ -6,7 +6,7 @@
  * không giấu gì cả — nó chỉ hiển thị những gì thực sự nhận được, và `null` nghĩa là *không được
  * phép xem*, khác hẳn *bằng không*.
  */
-import { apiClient } from '../lib/apiClient'
+import { apiClient, apiDownload } from '../lib/apiClient'
 import { getTopicColor } from '../lib/topicTheme'
 import type { AttemptDetail, ExamStatus, ResultSummary, StudentStatus } from '../types'
 import {
@@ -93,6 +93,14 @@ export async function listResults(params: ListResultsParams): Promise<Paged<Resu
   })
 
   return { ...response, items: response.items.map(toResultSummary) }
+}
+
+/**
+ * Bảng điểm của chính học sinh đang đăng nhập (.xlsx). Server áp đúng cổng xem điểm như trang Kết quả: bài chưa được công bố
+ * điểm ghi "Chưa công bố" và không có số nào trong file.
+ */
+export function exportMyResults(termId?: number): Promise<Blob> {
+  return apiDownload(termId === undefined ? '/api/my/results/export' : `/api/my/results/export?termId=${termId}`)
 }
 
 /** Lịch sử làm bài của chính học sinh đang đăng nhập. */

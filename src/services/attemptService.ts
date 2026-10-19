@@ -26,6 +26,8 @@ export interface ListMyExamsParams {
    * như hoạt động mà thật ra không lọc gì.
    */
   status?: string
+  /** Chỉ lấy bài được giao qua lớp này (trang một lớp). */
+  groupId?: number
 }
 
 export interface SubmitAttemptResult {
@@ -147,6 +149,7 @@ function toSession(dto: AttemptSessionDto): AttemptSession {
 export async function listMyExams(params: ListMyExamsParams = {}): Promise<StudentExamItem[]> {
   const items = await apiClient.get<StudentExamItemDto[]>('/api/my/exams', {
     status: params.status,
+    groupId: params.groupId,
   })
 
   return items.map(toStudentExamItem)

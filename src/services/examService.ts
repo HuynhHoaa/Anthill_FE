@@ -273,8 +273,20 @@ export function duplicateExam(id: number): Promise<Exam> {
 type ExamAssignmentDto = Omit<ExamAssignment, 'studentStatus'> & { studentStatus?: StudentStatus }
 
 export async function listExamAssignments(examId: number): Promise<ExamAssignment[]> {
-  const rows = await apiClient.get<ExamAssignmentDto[]>(`/api/exams/${examId}/assignments`)
+  return toExamAssignments(await apiClient.get<ExamAssignmentDto[]>(`/api/exams/${examId}/assignments`))
+}
 
+/**
+ * Từng em của một lớp làm một bài ra sao — chỉ những em được giao qua lớp đó. Khác `listExamAssignments` (bảng theo dõi của riêng
+ * giáo viên soạn đề), giáo viên đang dạy lớp đọc được cả bài do giáo viên trước của lớp soạn.
+ */
+export async function listGroupExamResults(groupId: number, examId: number): Promise<ExamAssignment[]> {
+  return toExamAssignments(
+    await apiClient.get<ExamAssignmentDto[]>(`/api/student-groups/${groupId}/exams/${examId}/results`),
+  )
+}
+
+function toExamAssignments(rows: ExamAssignmentDto[]): ExamAssignment[] {
   return rows.map(row => {
     const studentStatus = row.studentStatus ?? 'active'
     return { ...row, studentStatus, studentCode: toDisplayStudentCode(row.studentCode, studentStatus) }

@@ -124,7 +124,11 @@ export default function DashboardLayout({
           // của trang; hẹp hơn thì công cụ xuống đầu nội dung.
           tools={isDesktop ? headerTools : undefined}
         />
-        <div className={compactContent ? 'px-4 pb-4 pt-3 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8 lg:pt-4' : 'p-4 sm:p-6 lg:p-8'}>
+        {/* `key` theo đường dẫn: đổi trang (kể cả đổi mã trong cùng một kiểu trang) thì nội dung vào lại bằng hoạt ảnh. */}
+        <div
+          key={location.pathname}
+          className={`page-enter ${compactContent ? 'px-4 pb-4 pt-3 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8 lg:pt-4' : 'p-4 sm:p-6 lg:p-8'}`}
+        >
           {!isDesktop && headerTools && <div className="mb-4">{headerTools}</div>}
           {children}
         </div>

@@ -213,6 +213,47 @@ async function readError(response: Response): Promise<{ message: string; fieldEr
   return { message: getStatusMessage(response.status) }
 }
 
+/** Đổi một response lỗi thành `ApiError` và ném ra; dùng chung cho mọi đường gọi API (JSON lẫn tải file). */
+async function throwForFailure(response: Response, token: string | null): Promise<never> {
+  const { message, fieldErrors } = await readError(response)
+
+  // Chỉ đá về đăng nhập khi request CÓ mang token: 401 trên một lời gọi vốn không có token là
+  // chuyện bình thường (sai mật khẩu ở màn đăng nhập), gọi handler ở đó chỉ tạo vòng lặp. Và token đó
+  // phải còn là token đang dùng: một request treo qua lúc đăng xuất rồi đăng nhập tài khoản khác mà
+  // nhận 401 thì không được đăng xuất nhầm phiên mới.
+  if (response.status === 401 && token && token === getStoredToken()) {
+    onUnauthorized?.(message)
+  }
+
+  throw createApiError(response.status, message, fieldErrors)
+}
+
+/**
+ * Tải một file nhị phân (file mẫu Excel...). Endpoint cần token nên không dùng được thẻ `<a href>` trần: phải gọi bằng
+ * fetch có header rồi đưa blob cho trình duyệt lưu (xem `saveBlob` ở lib/download).
+ */
+export async function apiDownload(path: string, signal?: AbortSignal): Promise<Blob> {
+  const token = getStoredToken()
+
+  let response: Response
+  try {
+    response = await fetch(buildUrl(path), {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal,
+    })
+  } catch (caught) {
+    if (signal?.aborted) throw caught
+    throw createApiError(0, NETWORK_ERROR_MESSAGE)
+  }
+
+  if (!response.ok) {
+    await throwForFailure(response, token)
+  }
+
+  return response.blob()
+}
+
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { method = 'GET', body, query, signal, headers } = options
   const token = getStoredToken()
@@ -241,17 +282,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   if (!response.ok) {
-    const { message, fieldErrors } = await readError(response)
-
-    // Chỉ đá về đăng nhập khi request CÓ mang token: 401 trên một lời gọi vốn không có token là
-    // chuyện bình thường (sai mật khẩu ở màn đăng nhập), gọi handler ở đó chỉ tạo vòng lặp. Và token đó
-    // phải còn là token đang dùng: một request treo qua lúc đăng xuất rồi đăng nhập tài khoản khác mà
-    // nhận 401 thì không được đăng xuất nhầm phiên mới.
-    if (response.status === 401 && token && token === getStoredToken()) {
-      onUnauthorized?.(message)
-    }
-
-    throw createApiError(response.status, message, fieldErrors)
+    await throwForFailure(response, token)
   }
 
   if (response.status === 204) {
@@ -274,5 +305,6 @@ export const apiClient = {
     apiRequest<T>(path, { method: 'POST', body: form, signal }),
   put: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'PUT', body }),
   patch: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'PATCH', body }),
-  remove: <T>(path: string) => apiRequest<T>(path, { method: 'DELETE' }),
+  /** `body` chỉ dùng khi server đòi một thân cho thao tác xoá (ví dụ lý do gỡ học sinh khỏi lớp). */
+  remove: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'DELETE', body }),
 }

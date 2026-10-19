@@ -59,14 +59,14 @@ export default function Sidebar({
     >
       {/* Logo */}
       <div
-        className={`flex items-center py-5 ${collapsed ? 'justify-center px-3' : 'gap-2.5 px-6'}`}
+        className={`group flex items-center py-5 ${collapsed ? 'justify-center px-3' : 'gap-2.5 px-6'}`}
         style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}
       >
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
           style={{ background: 'rgba(255,255,255,0.2)' }}
         >
-          <GraduationCap size={20} className="text-white" />
+          <GraduationCap size={20} className="text-white wiggle-on-hover" />
         </div>
         {!collapsed && (
           <>

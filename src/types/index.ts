@@ -7,8 +7,11 @@
 
 export type UserRole = 'teacher' | 'student' | 'admin'
 
-/** Vai trò được xem chi tiết bài làm. Quản trị viên đứng ngoài vòng này. */
-export type ResultAudience = 'teacher' | 'student'
+/**
+ * Vai trò được xem chi tiết bài làm. Giáo viên xem bài của đề mình ra, học sinh xem bài của chính mình, quản trị viên
+ * xem được bài của mọi học sinh nhưng chỉ đọc.
+ */
+export type ResultAudience = 'teacher' | 'student' | 'admin'
 
 /**
  * `pendingDeletion` và `deleted` là hai chặng của việc xoá tài khoản, không phải một biến thể của
@@ -69,6 +72,17 @@ export interface Paged<T> {
 
 // ===== Học sinh và nhóm lớp =====
 
+/**
+ * Một lớp mà học sinh đang học. Một em học được **nhiều lớp cùng lúc**, nên học sinh mang một mảng chứ không còn một
+ * lớp duy nhất.
+ */
+export interface StudentGroupRef {
+  id: number
+  name: string
+  /** Lớp đã khoá: chỉ đọc, không giao thêm bài, không xếp thêm em. */
+  isLocked: boolean
+}
+
 export interface Student {
   id: number
   fullName: string
@@ -80,12 +94,26 @@ export interface Student {
    */
   phone?: string
   code: string
-  group: string
-  groupId: number
+  /**
+   * Các lớp em đang học, theo tên; rỗng là chưa có lớp nào. Giáo viên chỉ nhận những lớp **mình dạy** — lớp của đồng
+   * nghiệp mà em cùng học không phải chuyện giáo viên này được biết.
+   */
+  groups: StudentGroupRef[]
   status: StudentStatus
   createdAt: string
   completedExams: number
+  /**
+   * Điểm trung bình thang 10 trên mọi bài ĐÃ GIAO cho em: bài chưa làm tính 0 điểm (giống bảng điểm xuất ra Excel). Chỉ có nghĩa khi
+   * `assignedExams > 0`; chưa được giao bài nào thì hiện "chưa có" chứ không hiện 0.
+   */
   averageScore: number
+  /** Số bài đã giao cho em. */
+  assignedExams: number
+  /**
+   * Em đã bắt đầu ít nhất một bài kiểm tra (kể cả bài đang làm dở hay đã hết giờ). Dùng để hiện "Đang làm bài" cho em đã
+   * vào thi mà chưa nộp; không còn liên quan tới việc chuyển hay gỡ lớp.
+   */
+  hasStartedExams: boolean
   /** Lý do yêu cầu xoá. Chỉ có khi tài khoản đang chờ xoá hoặc đã xoá. */
   deletionReason?: string
   /** Lúc yêu cầu xoá được ghi nhận (ISO). */
@@ -97,6 +125,60 @@ export interface Student {
    * để hai bên cùng giữ một bản thì ngày đổi chính sách là ngày hai bên nói hai ngày khác nhau.
    */
   deletionScheduledAt?: string
+}
+
+/** Loại dòng trong lịch sử của một học sinh; khớp chuỗi server trả (`AccountChangeDto.kind`). */
+export type AccountChangeKind =
+  | 'locked'
+  | 'unlocked'
+  | 'deletionRequested'
+  | 'restored'
+  | 'addedToGroup'
+  | 'removedFromGroup'
+  | 'movedGroup'
+
+/**
+ * Một dòng lịch sử của học sinh: ai đã làm gì với tài khoản hay lớp của em, lúc nào, vì sao. Chỉ quản trị
+ * viên đọc được. Tên lớp là tên đúng lúc xảy ra, không phải tên hiện tại.
+ */
+export interface AccountChange {
+  id: number
+  kind: AccountChangeKind
+  /** Lý do quản trị viên nhập. Vắng với các loại không bắt buộc lý do (mở khoá, khôi phục, xếp vào lớp). */
+  reason?: string
+  fromGroup?: string
+  toGroup?: string
+  actorName?: string
+  createdAt: string
+}
+
+/**
+ * Một bài đã giao cho một học sinh, kể cả bài em chưa làm hay đã bỏ lỡ (`expired` không có `attemptId`).
+ * Quản trị viên luôn thấy điểm khi bài đã chấm, không bị chặn theo cờ hiện kết quả dành cho học sinh.
+ */
+export interface StudentExam {
+  assignmentId: number
+  examId: number
+  title: string
+  teacherName: string
+  /** Lớp đã giao bài này. Vắng với lượt giao lẻ cũ. */
+  group?: string
+  status: ExamStatus
+  openAt: string
+  closeAt: string
+  attemptId?: number
+  startedAt?: string
+  submittedAt?: string
+  score?: number
+  maxScore?: number
+  correctCount?: number
+  assignedAt: string
+}
+
+/** Kết quả gỡ khỏi lớp hay chuyển lớp: bao nhiêu bài lớp cũ bị thu hồi khỏi em, bao nhiêu bài được giữ. */
+export interface MemberChange {
+  revokedExams: number
+  keptExams: number
 }
 
 /**
@@ -112,6 +194,49 @@ export interface GroupTeacher {
   /** Chuỗi rỗng khi tài khoản chưa được gán môn. */
   subject: string
   avatarColor: string
+  /** Tài khoản đang bị khoá thì không nhận thêm lớp được. */
+  status?: 'active' | 'locked'
+}
+
+/** Loại dòng trong lịch sử của một lớp; khớp chuỗi server trả (`GroupChangeDto.kind`). */
+export type GroupChangeKind = 'created' | 'teacherChanged' | 'locked' | 'unlocked'
+
+/**
+ * Một dòng lịch sử của lớp: lớp ra đời với ai, giáo viên phụ trách đổi từ ai sang ai, lúc nào, vì sao. Chỉ quản trị viên
+ * đọc được. Tên giáo viên là tên đúng lúc xảy ra.
+ */
+export interface GroupChange {
+  id: number
+  kind: GroupChangeKind
+  /** Lý do quản trị viên nhập. Vắng khi lớp ra đời hoặc khi lớp chưa có giáo viên nào để "đổi". */
+  reason?: string
+  fromTeacher?: string
+  toTeacher?: string
+  actorName?: string
+  createdAt: string
+}
+
+/**
+ * Một bài kiểm tra đã giao cho lớp, tóm tắt theo lớp — lịch sử học của lớp cho quản trị viên.
+ * Chỉ tính những em được giao qua lớp này; đề đã đóng từ lâu vẫn có mặt.
+ */
+export interface GroupExam {
+  examId: number
+  title: string
+  /** Người soạn đề — không nhất thiết là giáo viên phụ trách lớp hiện nay. */
+  teacherName: string
+  /** Khung giờ của lớp (lịch riêng của lớp nếu có, ngược lại lịch chung của đề). */
+  openAt: string
+  closeAt: string
+  lifecycle: ExamLifecycle
+  assignedCount: number
+  startedCount: number
+  /** Đã nộp hoặc đã chấm. */
+  submittedCount: number
+  /** Vắng mặt khi chưa có bài nào được chấm. */
+  averageScore?: number
+  maxScore?: number
+  assignedAt: string
 }
 
 export interface StudentGroup {
@@ -133,6 +258,19 @@ export interface StudentGroup {
   publishedAt?: string
 
   /**
+   * Lớp đã khoá: chỉ đọc. Không xếp thêm em, không giao bài mới, không đổi giáo viên hay sửa lớp; thành viên, bài đã giao và
+   * bảng điểm giữ nguyên, và các em trong lớp vẫn học các lớp khác bình thường.
+   */
+  isLocked: boolean
+
+  /** Vắng mặt khi lớp không bị khoá. */
+  lockedAt?: string
+
+  /** Kỳ học của lớp; vắng khi chưa phân kỳ. */
+  termId?: number
+  termName?: string
+
+  /**
    * Mảng rỗng nghĩa là chưa ai phụ trách.
    *
    * Đó là tín hiệu quản trị viên phải thấy chứ không phải một danh sách trang trí: lớp không có
@@ -150,6 +288,13 @@ export interface AnswerOption {
   content: string
   imageUrl?: string
   isCorrect: boolean
+}
+
+/** Một môn học: ranh giới của ngân hàng câu hỏi dùng chung. Chỉ quản trị viên cần danh sách này. */
+export interface Subject {
+  id: number
+  name: string
+  code: string
 }
 
 export interface Question {
@@ -173,6 +318,19 @@ export interface Question {
   status: QuestionStatus
   updatedAt: string
   answers: AnswerOption[]
+  /** Môn của câu hỏi, và tên môn để hiện (rỗng nếu server chưa nạp tên). */
+  subjectId: number
+  subject: string
+  /** Họ tên người soạn và mã của họ. */
+  createdBy: string
+  createdByUserId: number
+  /** `shared`: cả tổ bộ môn dùng được; `private`: chỉ người soạn (và quản trị viên) thấy. */
+  visibility: 'shared' | 'private'
+  /**
+   * Người đang đăng nhập có sửa, ẩn, xoá được câu này không — do server tính. Giáo viên chỉ sửa được câu của mình;
+   * quản trị viên sửa được mọi câu.
+   */
+  canEdit: boolean
 }
 
 // ===== Bài kiểm tra =====
@@ -525,6 +683,78 @@ export interface StudentExamItem {
   score: number | null
   maxScore: number | null
   correctCount: number | null
+  /** Lớp mà bài này được giao qua đó (thẻ bài ghi rõ bài của lớp nào). Vắng với bài giao lẻ cũ. */
+  groupId?: number
+  groupName?: string
+}
+
+// ===== Lớp học và bảng điểm của học sinh =====
+
+/** Một lớp em đang học (kể cả lớp đã khoá), kèm số bài theo trạng thái. */
+export interface MyGroup {
+  id: number
+  name: string
+  description: string
+  /** Kỳ học của lớp; vắng khi chưa phân kỳ. */
+  termId?: number
+  termName?: string
+  teacherName: string
+  subjectName: string | null
+  studentCount: number
+  isLocked: boolean
+  assignedCount: number
+  completedCount: number
+  openCount: number
+  upcomingCount: number
+  expiredCount: number
+}
+
+/** Một kỳ học (nhãn gom lớp theo thời gian). `groupCount` chỉ có ở danh sách của quản trị viên. */
+export interface AcademicTerm {
+  id: number
+  name: string
+  /** `yyyy-MM-dd`; vắng khi chưa đặt. */
+  startsOn?: string
+  endsOn?: string
+  /** Kỳ hiện tại của nhà trường (tối đa một). */
+  isCurrent: boolean
+  /** Số lớp thuộc kỳ (admin: mọi lớp kể cả nháp; học sinh: lớp của em). */
+  groupCount: number
+}
+
+export interface TranscriptExam {
+  examId: number
+  assignmentId: number
+  title: string
+  groupId?: number
+  groupName?: string
+  status: string
+  /** Điểm thang 10; `null` khi chưa nộp hoặc chưa được xem điểm. */
+  score: number | null
+  /** Bài này có nằm trong điểm trung bình của môn không. */
+  counted: boolean
+  attemptId?: number
+  submittedAt?: string
+  closeAt: string
+}
+
+export interface TranscriptSubject {
+  subjectName: string
+  groupNames: string[]
+  /** Điểm trung bình thang 10; `null` khi chưa có bài nào để tính. */
+  average: number | null
+  countedExams: number
+  totalExams: number
+  hiddenExams: number
+  pendingExams: number
+  upcomingExams: number
+  missedExams: number
+  exams: TranscriptExam[]
+}
+
+export interface Transcript {
+  overallAverage: number | null
+  subjects: TranscriptSubject[]
 }
 
 // ===== Thông báo và hồ sơ =====
@@ -546,7 +776,8 @@ export interface UserProfile {
   email: string
   username: string
   code?: string
-  group?: string
+  /** Các lớp học sinh đang học. Chỉ có với học sinh. */
+  groups?: StudentGroupRef[]
   phone?: string
   subject?: string
   avatarColor: string
