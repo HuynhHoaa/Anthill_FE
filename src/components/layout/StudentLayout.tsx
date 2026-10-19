@@ -1,12 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
-  GraduationCap, LayoutDashboard, FileText, BarChart3, ChevronDown,
+  GraduationCap, LayoutDashboard, BarChart3, ChevronDown,
   Bell, UserCircle, LogOut, Menu, X, Lock,
 } from 'lucide-react'
 import { useDropdownMenu } from '../../hooks/useDropdownMenu'
 import { useUnreadCount } from '../../hooks/useRealtime'
 import { getInitials } from '../../lib/format'
+import { describeStudyLoad, listMyGroupsCached } from '../../services/myLearningService'
+import type { MyGroup } from '../../types'
 import { getCurrentUser, logout } from '../../services/authService'
 
 interface StudentLayoutProps {
@@ -24,18 +26,35 @@ interface StudentLayoutProps {
 
 const menu = [
   { icon: LayoutDashboard, label: 'Tổng quan', to: '/hoc-sinh', end: true },
-  { icon: FileText, label: 'Bài kiểm tra của tôi', to: '/hoc-sinh/bai-kiem-tra', end: false },
-  { icon: BarChart3, label: 'Kết quả của tôi', to: '/hoc-sinh/ket-qua', end: false },
+  // `also`: các trang con không nằm dưới đường dẫn của mục nhưng vẫn thuộc mục đó (màn giới thiệu bài, chi tiết bài làm).
+  { icon: GraduationCap, label: 'Lớp học của tôi', to: '/hoc-sinh/lop-hoc', end: false, also: ['/hoc-sinh/bai-kiem-tra'] },
+  { icon: BarChart3, label: 'Bảng điểm', to: '/hoc-sinh/bang-diem', end: false, also: ['/hoc-sinh/ket-qua'] },
 ]
 
 export default function StudentLayout({ children, examMode = false }: StudentLayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  const isInSection = (isActive: boolean, also?: string[]) =>
+    isActive || (also ?? []).some(prefix => location.pathname.startsWith(prefix))
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const currentUser = getCurrentUser()
   const userName = currentUser?.fullName ?? ''
-  const userGroup = currentUser?.group ?? 'Học sinh'
+  // Một em có thể học nhiều lớp với tên dài: dòng dưới tên ở thanh đầu trang chỉ ghi gọn (tên lớp nếu một lớp, "N môn" nếu nhiều lớp),
+  // danh sách đầy đủ nằm trong menu tài khoản. Môn của lớp là môn của giáo viên phụ trách nên lấy từ danh sách lớp của em.
+  const [myGroups, setMyGroups] = useState<MyGroup[] | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    listMyGroupsCached(currentUser?.id)
+      .then(groups => { if (!cancelled) setMyGroups(groups) })
+      .catch(() => { /* thanh đầu trang chỉ là nhãn phụ: lỗi mạng thì rơi về tên lớp trong hồ sơ */ })
+    return () => { cancelled = true }
+  }, [currentUser?.id])
+  const userGroups: Array<{ id: number; name: string; subjectName?: string | null }> = myGroups ?? currentUser?.groups ?? []
+  // Chưa nạp xong danh sách lớp thì chưa biết môn: không đoán (một nhãn "Chưa gán môn" thoáng qua là sai), chỉ ghi tên lớp nếu em có đúng một lớp.
+  const userGroup = myGroups
+    ? describeStudyLoad(myGroups)
+    : userGroups.length === 1 ? userGroups[0].name : 'Học sinh'
   const unreadBadge = useUnreadCount()
 
   // Đổi trang thì đóng menu thu gọn
@@ -95,14 +114,14 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
             )}
 
             <div className={`hidden md:flex items-center gap-1 ${examMode ? 'invisible pointer-events-none' : ''}`}>
-              {menu.map(({ label, to, end }) => (
+              {menu.map(({ label, to, end, also }) => (
                 <NavLink
                   key={to}
                   to={to}
                   end={end}
                   className={({ isActive }) =>
                     `px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                      isActive
+                      isInSection(isActive, also)
                         ? 'bg-indigo-50 text-indigo-700 font-semibold'
                         : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
                     }`
@@ -145,7 +164,7 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
                     <span className="block text-sm font-semibold text-slate-800 leading-none max-w-32 truncate">
                       {userName}
                     </span>
-                    <span className="block text-xs text-slate-400 mt-0.5">{userGroup}</span>
+                    <span className="block text-xs text-slate-400 mt-0.5 max-w-32 truncate">{userGroup}</span>
                   </span>
                   {/* Luôn hiện: ở bề hẹp nút chỉ có hai chữ cái, mũi tên là dấu hiệu duy nhất đây là menu. */}
                   <ChevronDown
@@ -161,7 +180,17 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
                   >
                     <div className="px-4 py-3 border-b border-slate-50">
                       <p className="text-sm font-semibold text-slate-800 truncate">{userName}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{userGroup}</p>
+                      {userGroups.length <= 1 ? (
+                        <p className="text-xs text-slate-400 mt-0.5 truncate">{userGroup}</p>
+                      ) : (
+                        <ul className="mt-1 space-y-0.5 max-h-32 overflow-y-auto" aria-label="Các lớp đang học">
+                          {userGroups.map(group => (
+                            <li key={group.id} className="text-xs text-slate-400 truncate" title={group.name}>
+                              {group.subjectName ? `${group.subjectName} · ${group.name}` : group.name}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     <NavLink
                       to="/hoc-sinh/ho-so"
@@ -212,14 +241,14 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
 
         {mobileOpen && !examMode && (
           <div className="md:hidden border-t border-slate-100 bg-white px-4 py-3 space-y-1">
-            {menu.map(({ icon: Icon, label, to, end }) => (
+            {menu.map(({ icon: Icon, label, to, end, also }) => (
               <NavLink
                 key={to}
                 to={to}
                 end={end}
                 className={({ isActive }) =>
                   `flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                    isActive ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-700 hover:bg-slate-100'
+                    isInSection(isActive, also) ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-700 hover:bg-slate-100'
                   }`
                 }
               >

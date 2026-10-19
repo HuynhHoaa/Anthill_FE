@@ -66,11 +66,14 @@ EduQuiz.Frontend/
 │   │   │   ├── ConfirmProvider.tsx
 │   │   │   ├── ConnectionBanner.tsx   # dải "Đang kết nối lại..." khi mất realtime quá 4 giây
 │   │   │   ├── ConsequenceList.tsx
+│   │   │   ├── HistoryTimeline.tsx    # dòng thời gian lịch sử (học sinh, giáo viên, lớp): ai làm gì, lúc nào, lý do
+│   │   │   ├── IssuedPasswordModal.tsx # mật khẩu vừa cấp, hiện đúng một lần; chỉ nút "Tôi đã chép lại" mới đóng được
 │   │   │   ├── EmptyState.tsx
 │   │   │   ├── ErrorState.tsx
+│   │   │   ├── ExportExcelButton.tsx  # nút xuất file Excel: gọi server, lưu file xuống máy, báo bằng thông báo nổi; khoá nút khi đang chờ
 │   │   │   ├── ImageUploader.tsx
 │   │   │   ├── InfoTip.tsx            # dấu chấm than đặt cuối tiêu đề, bấm mở khung giải thích (portal; Esc chỉ đóng khung, không đóng hộp thoại chứa nó)
-│   │   │   ├── Modal.tsx
+│   │   │   ├── Modal.tsx              # vẽ qua portal vào <body>: `fixed` + `z-50` không bị tổ tiên có transform / hoạt ảnh nhốt lại hay thẻ phía sau đè lên
 │   │   │   ├── Pagination.tsx
 │   │   │   ├── Skeleton.tsx
 │   │   │   ├── SlidingSegments.tsx    # thanh tab / nút chọn có vạch nền trượt sang mục mới (đo offsetLeft/offsetWidth của nút `data-tab-active`)
@@ -86,9 +89,6 @@ EduQuiz.Frontend/
 │   │       └── Header.tsx
 │   │
 │   ├── features/
-│   │   ├── admin/
-│   │   │   └── pages/AdminDashboardPage.tsx
-│   │   │
 │   │   ├── auth/
 │   │   │   ├── pages/
 │   │   │   │   ├── LoginPage.tsx
@@ -106,28 +106,57 @@ EduQuiz.Frontend/
 │   │   ├── students/
 │   │   │   ├── pages/
 │   │   │   │   ├── StudentListPage.tsx
-│   │   │   │   ├── StudentEditorPage.tsx     # tạo và sửa
-│   │   │   │   └── StudentDetailPage.tsx     # Teacher xem chỉ đọc
+│   │   │   │   ├── StudentEditorPage.tsx     # tạo và sửa hồ sơ (đổi lớp, khoá làm ở hồ sơ, không nằm trong form)
+│   │   │   │   ├── AdminStudentDetailPage.tsx # Admin: bài được giao (kể cả chưa làm) và lịch sử thay đổi
+│   │   │   │   └── StudentDetailPage.tsx     # Teacher xem chỉ đọc: thẻ hồ sơ (điểm trung bình nằm bên phải) và lịch sử làm bài
 │   │   │   ├── components/
+│   │   │   │   ├── StudentAdminActions.tsx   # sửa, khoá, xoá tài khoản (mỗi việc đều hỏi lý do) và danh sách lớp của em
+│   │   │   │   ├── StudentClassManager.tsx   # các lớp em đang học: xếp thêm, chuyển, gỡ từng lớp (lớp khoá thì mờ)
 │   │   │   │   ├── StudentStatusPill.tsx
 │   │   │   │   └── StudentTextField.tsx
 │   │   │   └── hooks/useStudentAccountActions.tsx
+│   │   │
+│   │   ├── teachers/                         # chỉ Admin: nhà trường cấp tài khoản, gán môn, khoá khi giáo viên nghỉ
+│   │   │   ├── pages/
+│   │   │   │   ├── AdminTeacherListPage.tsx  # danh sách + tìm, lọc môn và trạng thái; bấm cả dòng để mở hồ sơ
+│   │   │   │   └── AdminTeacherDetailPage.tsx # lớp đang phụ trách và lịch sử khoá
+│   │   │   ├── components/TeacherFormModal.tsx
+│   │   │   └── hooks/useTeacherAccountActions.tsx # khoá (hỏi lý do), mở khoá, cấp lại mật khẩu
+│   │   │
+│   │   ├── imports/                          # nhập từ Excel: cả trường (một file), hoặc riêng học sinh, giáo viên, lớp
+│   │   │   ├── importCopy.ts                 # câu chữ theo từng loại (school, students, teachers, groups)
+│   │   │   └── components/
+│   │   │       ├── ImportExcelButton.tsx     # nút "Nhập Excel" kèm hộp thoại, đặt vào thanh công cụ của trang
+│   │   │       ├── SchoolPreviewList.tsx     # nhập cả trường: xem trước, mỗi lớp một tab (đầu tab ghi giáo viên, thân tab là bảng học sinh cuộn, vẽ từng lượt 200 em, ô tìm trong mọi lớp)
+│   │   │       └── ImportExcelModal.tsx      # ba bước trong một hộp: chọn file → xem trước (dryRun) → nhập; mật khẩu chung của đợt. Loại "school" thêm ô môn chung, ô công bố lớp ngay và bảng đếm giáo viên / lớp / học sinh
+│   │   │
+│   │   ├── terms/                            # kỳ học (chỉ admin): danh sách, thêm / sửa / xoá; học sinh lọc lớp và bảng điểm theo kỳ
+│   │   │   ├── pages/AdminTermListPage.tsx   # bấm cả dòng để sửa; kỳ còn lớp thì khoá nút xoá
+│   │   │   └── components/TermFormModal.tsx  # ngày gõ dd/mm/yyyy (tự chèn dấu /), ô "Kỳ hiện tại"
 │   │   │
 │   │   ├── student-groups/
 │   │   │   ├── pages/
 │   │   │   │   ├── AdminGroupListPage.tsx
 │   │   │   │   ├── AdminGroupDetailPage.tsx
 │   │   │   │   ├── TeacherGroupListPage.tsx
-│   │   │   │   └── TeacherGroupDetailPage.tsx
+│   │   │   │   └── TeacherGroupDetailPage.tsx # hai tab: Học sinh | Bài kiểm tra trong lớp (bấm một bài mở GroupExamResultsModal → bấm một em xem lại bài làm); nút Xuất bảng điểm
+│   │   │   ├── hooks/useRemoveFromGroup.tsx  # hộp gỡ khỏi lớp kèm lý do, dùng chung hai trang
 │   │   │   └── components/
-│   │   │       ├── AddStudentsModal.tsx
-│   │   │       ├── AddTeachersModal.tsx
+│   │   │       ├── AddStudentsModal.tsx      # liệt kê em chưa học lớp này (kể cả em đang học lớp khác)
+│   │   │       ├── AssignToGroupModal.tsx    # xếp thêm một em vào một lớp (không cần lý do)
+│   │   │       ├── TransferStudentModal.tsx  # chuyển lớp: chọn lớp đích và nhập lý do
+│   │   │       ├── GroupStudentsPanel.tsx    # ba tab của trang quản lý lớp: Học sinh, Bài kiểm tra, Thiết lập
+│   │   │       ├── GroupExamsPanel.tsx       # các bài đã giao cho lớp, kể cả đề cũ
+│   │   │       ├── GroupExamResultsModal.tsx # kết quả từng em của một đề trong lớp (điểm, thời gian làm, giờ nộp); bấm dòng mở bài làm; dùng chung cho admin và giáo viên qua `audience`
+│   │   │       ├── GroupSettingsPanel.tsx    # giáo viên phụ trách, công bố, khoá và mở khoá, xoá lớp
+│   │   │       ├── GroupHistoryPanel.tsx     # lịch sử lớp: lập lớp, đổi giáo viên, khoá và mở khoá kèm lý do
+│   │   │       ├── ChangeTeacherModal.tsx    # đổi giáo viên phụ trách: lý do bắt buộc khi đang có người khác
 │   │   │       ├── GroupFormModal.tsx
 │   │   │       ├── GroupHealthIndicator.tsx
-│   │   │       ├── GroupStudentTable.tsx
-│   │   │       ├── GroupTeacherList.tsx
+│   │   │       ├── TeacherAvatar.tsx
 │   │   │       ├── groupHealth.ts
-│   │   │       └── groupTheme.ts
+│   │   │       ├── groupTheme.ts
+│   │   │       └── teacherOptions.ts         # nhãn giáo viên trong ô chọn (môn, trạng thái khoá)
 │   │   │
 │   │   ├── question-bank/
 │   │   │   ├── pages/
@@ -136,7 +165,9 @@ EduQuiz.Frontend/
 │   │   │   ├── components/
 │   │   │   │   ├── AnswerEditorRow.tsx
 │   │   │   │   └── QuestionPreview.tsx
-│   │   │   └── utils/questionConfirmations.ts
+│   │   │   └── utils/
+│   │   │       ├── questionConfirmations.tsx
+│   │   │       └── questionAudience.ts       # giáo viên hay quản trị viên: cùng cặp trang, khác khu vực và quyền
 │   │   │
 │   │   ├── exams/
 │   │   │   ├── pages/
@@ -176,16 +207,23 @@ EduQuiz.Frontend/
 │   │   │
 │   │   ├── exam-taking/
 │   │   │   ├── pages/
-│   │   │   │   ├── StudentExamListPage.tsx
 │   │   │   │   ├── ExamIntroPage.tsx
 │   │   │   │   ├── TakeExamPage.tsx
 │   │   │   │   └── ExamSubmittedPage.tsx
+│   │   │   ├── components/StudentExamBrowser.tsx  # các bài của MỘT lớp: lọc theo trạng thái, tìm, xem lại kết quả và đáp án
 │   │   │   ├── hooks/useCountdown.ts
 │   │   │   └── utils/examClock.ts, examProgressStorage.ts
 │   │   │
+│   │   ├── student-learning/
+│   │   │   ├── hooks/useTermSelection.ts     # kỳ đang xem, giữ trong địa chỉ ?ky= (mặc định kỳ hiện tại; ẩn khi em chỉ có một mục)
+│   │   │   ├── components/TermSelect.tsx     # ô chọn kỳ dùng chung cho Lớp học của tôi và Bảng điểm
+│   │   │   └── pages/
+│   │   │       ├── StudentGroupListPage.tsx  # "Lớp học của tôi": thẻ từng lớp kèm tiến độ, lọc theo kỳ (ở máy)
+│   │   │       ├── StudentGroupPage.tsx      # một lớp: thông tin lớp + các bài của em ở lớp đó
+│   │   │       └── StudentTranscriptPage.tsx # "Bảng điểm": môn học, điểm trung bình môn, bài làm nên điểm; lọc theo kỳ (máy chủ tính), nút xuất Excel theo kỳ đang chọn
+│   │   │
 │   │   ├── results/
 │   │   │   ├── pages/
-│   │   │   │   ├── StudentResultsPage.tsx
 │   │   │   │   └── ResultDetailPage.tsx      # dùng chung, tham số audience
 │   │   │   └── components/ScoreRing.tsx
 │   │   │
@@ -199,6 +237,10 @@ EduQuiz.Frontend/
 │   │   ├── authService.ts
 │   │   ├── studentService.ts
 │   │   ├── groupService.ts
+│   │   ├── termService.ts             # danh mục kỳ học (chỉ Admin)
+│   │   ├── myLearningService.ts       # lớp học, kỳ học và bảng điểm của học sinh
+│   │   ├── teacherService.ts          # tài khoản giáo viên (chỉ Admin)
+│   │   ├── importService.ts           # nhập Excel: tải file mẫu, kiểm tra (dryRun), nhập thật (importSchool cho file tổng hợp, kèm số đếm theo từng loại bản ghi)
 │   │   ├── questionService.ts
 │   │   ├── examService.ts
 │   │   ├── attemptService.ts
@@ -216,7 +258,8 @@ EduQuiz.Frontend/
 │   │   └── useMediaQuery.ts
 │   │
 │   ├── lib/
-│   │   ├── apiClient.ts
+│   │   ├── apiClient.ts              # có thêm apiDownload: tải file nhị phân kèm token (file mẫu Excel)
+│   │   ├── download.ts               # lưu blob xuống máy, dựng CSV mở được bằng Excel (BOM, sep=, chặn công thức)
 │   │   ├── format.ts
 │   │   ├── questionTitle.ts          # tên hiển thị của câu hỏi: tên đã đặt, hoặc phần đầu nội dung
 │   │   └── topicTheme.ts
@@ -248,12 +291,16 @@ URL dùng tiếng Việt không dấu. Mỗi nhóm route được bọc trong `R
 
 ### Admin Pages (`/quan-tri`)
 
-- Admin Dashboard — `/quan-tri`.
-- Class List — `/quan-tri/nhom-lop`.
-- Class Detail — `/quan-tri/nhom-lop/:id`: xếp Student, phân công Teacher, công bố / bỏ công bố.
-- Student List — `/quan-tri/hoc-sinh`.
+- `/quan-tri` chuyển thẳng tới danh sách lớp: Admin không có trang tổng quan riêng, con số cần theo dõi nằm ở phụ đề của từng danh sách.
+- Class List — `/quan-tri/nhom-lop`: chỉ để xem và lập lớp mới (chọn luôn giáo viên phụ trách); bấm dòng hoặc nút Quản lý để vào lớp. Nút Nhập Excel để lập nhiều lớp một lúc.
+- Class Detail — `/quan-tri/nhom-lop/:id`: ba tab Học sinh / Bài kiểm tra / Thiết lập (`?tab=bai-kiem-tra`, `?tab=thiet-lap`). Học sinh: xếp Student chưa có lớp, nhập cả danh sách bằng Excel (dòng để trống ô Lớp vào lớp này), chuyển lớp và gỡ khỏi lớp (đều kèm lý do). Bài kiểm tra: mọi đề đã giao cho lớp kể cả đề cũ, mở từng đề để xem kết quả từng em. Thiết lập: giáo viên phụ trách (đổi kèm lý do) và lịch sử lớp, công bố / bỏ công bố, sửa và xóa lớp.
+- Teacher List — `/quan-tri/giao-vien`: tìm, lọc môn và trạng thái; thêm giáo viên, nhập Excel. Teacher Detail — `/quan-tri/giao-vien/:id`: lớp đang phụ trách, lịch sử khoá, sửa, khoá kèm lý do, cấp lại mật khẩu.
+- Student List — `/quan-tri/hoc-sinh`: nút Nhập Excel để nhập cả đợt học sinh.
 - Create Student — `/quan-tri/hoc-sinh/tao`.
-- Edit Student — `/quan-tri/hoc-sinh/:id/sua`: sửa, khóa, cấp lại mật khẩu, xóa mềm, khôi phục.
+- Student Detail — `/quan-tri/hoc-sinh/:id`: thông tin, điểm, mọi bài được giao (kể cả chưa làm / hết hạn) và tab Lịch sử thay đổi (`?tab=lich-su`); các thao tác chuyển lớp, gỡ lớp, khóa, xóa ở cột bên phải.
+- Edit Student — `/quan-tri/hoc-sinh/:id/sua`: sửa hồ sơ, cấp lại mật khẩu, xóa mềm, khôi phục; đổi lớp và khóa là nút riêng có hộp lý do.
+- Result Detail (chỉ đọc) — `/quan-tri/ket-qua/:attemptId`: mở từ hồ sơ học sinh.
+- Question Bank — `/quan-tri/cau-hoi`, tạo `/quan-tri/cau-hoi/tao`, sửa `/quan-tri/cau-hoi/:id/sua`: ngân hàng của mọi môn (cột Soạn bởi, lọc theo môn khi có từ hai môn, nút xóa); dùng chung `QuestionBankPage` và `QuestionEditorPage` với giáo viên qua prop `audience`.
 
 ### Teacher Pages (`/giao-vien`)
 
@@ -288,12 +335,10 @@ URL dùng tiếng Việt không dấu. Mỗi nhóm route được bọc trong `R
 ### 5.1. Admin Sets Up a Class
 
 ```text
-Admin Dashboard
-→ Nhóm lớp
-→ Tạo lớp (lớp mới ở trạng thái nháp)
-→ Thêm Student vào lớp
-→ Phân công Teacher
-→ Công bố lớp (hộp xác nhận cảnh báo nếu lớp chưa có Student hoặc Teacher)
+Nhóm lớp
+→ Tạo lớp (chọn luôn Teacher phụ trách; lớp mới ở trạng thái nháp)
+→ Thêm Student vào lớp (từng em, hoặc nhập danh sách từ Excel)
+→ Công bố lớp (hộp xác nhận cảnh báo nếu lớp chưa có Student; lớp chưa có Teacher thì server từ chối)
 → Teacher được phân công thấy lớp trong khu vực của mình
 ```
 

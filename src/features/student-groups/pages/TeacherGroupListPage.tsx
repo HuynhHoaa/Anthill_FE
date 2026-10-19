@@ -9,6 +9,7 @@ import { useMemo } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Eye, Search, UsersRound, X } from 'lucide-react'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
+import { LockedStateBadge } from '../../../components/common/Badge'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Pagination from '../../../components/common/Pagination'
@@ -141,6 +142,11 @@ export default function TeacherGroupListPage() {
                         >
                           {group.name}
                         </NavLink>
+                        {group.isLocked && (
+                          <span className="ml-2 align-middle">
+                            <LockedStateBadge />
+                          </span>
+                        )}
                         <p
                           className="text-xs text-slate-400 mt-0.5 truncate"
                           title={group.description || undefined}

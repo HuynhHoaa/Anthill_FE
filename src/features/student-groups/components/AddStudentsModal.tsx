@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, Loader2, Search, UserPlus, Users } from 'lucide-react'
+import { Loader2, Search, UserPlus, Users } from 'lucide-react'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
 import Modal from '../../../components/common/Modal'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
-import { getInitials, normalizeText } from '../../../lib/format'
-import { UNASSIGNED_GROUP_ID, addStudentsToGroup, listAssignableStudents } from '../../../services/groupService'
+import { formatGroupNames, getInitials, normalizeText } from '../../../lib/format'
+import { addStudentsToGroup, listAssignableStudents } from '../../../services/groupService'
 import { isRetiredStudent } from '../../../services/studentService'
 import { getAvatarTone } from './groupTheme'
 
@@ -18,6 +18,9 @@ interface AddStudentsModalProps {
   /** Gọi khi đã thêm được ít nhất một học sinh, trang cha chịu trách nhiệm tải lại dữ liệu. */
   onAdded: () => void
 }
+
+/** Số dòng vẽ tối đa trong danh sách: danh sách đầy đủ có thể lên hàng chục nghìn em. */
+const RENDER_LIMIT = 200
 
 export default function AddStudentsModal({ groupId, groupName, onClose, onAdded }: AddStudentsModalProps) {
   const toast = useToast()
@@ -30,8 +33,9 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [submitting, setSubmitting] = useState(false)
 
-  // Server không còn trả tài khoản chờ xoá hay đã xoá về đây, nhưng lọc thêm vẫn rẻ: nó bảo đảm
-  // "Chọn tất cả" không bao giờ đưa một tài khoản đã ẩn danh trở lại lớp, dù server đang chạy bản nào.
+  // Mọi em chưa học lớp này, kể cả em đang học lớp khác: một học sinh học được nhiều lớp cùng lúc nên thêm vào đây không
+  // kéo em ra khỏi lớp nào. Lọc thêm tài khoản chờ xoá hay đã xoá vẫn rẻ: nó bảo đảm "Chọn tất cả" không bao giờ đưa
+  // một tài khoản đã ẩn danh trở lại lớp, dù server đang chạy bản nào.
   const candidates = useMemo(
     () => (assignableStudents ?? []).filter(student => !isRetiredStudent(student)),
     [assignableStudents],
@@ -41,22 +45,20 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
     const normalizedSearch = normalizeText(search)
     if (!normalizedSearch) return candidates
     return candidates.filter(student =>
-      normalizeText(`${student.fullName} ${student.code} ${student.email} ${student.group}`).includes(
+      normalizeText(
+        `${student.fullName} ${student.code} ${student.email} ${student.groups.map(group => group.name).join(' ')}`,
+      ).includes(
         normalizedSearch,
       ),
     )
   }, [candidates, search])
 
   const visibleIds = filteredStudents.map(student => student.id)
-  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id))
-
-  const transferredStudentCount = useMemo(
-    () =>
-      candidates.filter(
-        student => student.groupId !== UNASSIGNED_GROUP_ID && selectedIds.includes(student.id),
-      ).length,
-    [candidates, selectedIds],
-  )
+  // Tập để tra O(1): sau khi nhập cả trường có hàng chục nghìn em, tra mảng cho từng dòng thành n² phép so sánh mỗi lần vẽ.
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedSet.has(id))
+  // Chỉ vẽ một phần đầu của danh sách dài: vẽ hết cả nghìn dòng làm đơ hộp. "Chọn tất cả" vẫn chọn đủ mọi em đang khớp ô tìm.
+  const shownStudents = filteredStudents.length > RENDER_LIMIT ? filteredStudents.slice(0, RENDER_LIMIT) : filteredStudents
 
   const toggleStudent = (studentId: number) => {
     setSelectedIds(current =>
@@ -67,11 +69,11 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
   }
 
   const toggleAllVisible = () => {
-    setSelectedIds(current =>
-      allVisibleSelected
-        ? current.filter(id => !visibleIds.includes(id))
-        : Array.from(new Set([...current, ...visibleIds])),
-    )
+    setSelectedIds(current => {
+      if (!allVisibleSelected) return Array.from(new Set([...current, ...visibleIds]))
+      const visibleSet = new Set(visibleIds)
+      return current.filter(id => !visibleSet.has(id))
+    })
   }
 
   const handleSubmit = async () => {
@@ -127,7 +129,7 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
       open
       size="lg"
       title={`Thêm học sinh vào ${groupName}`}
-      description="Học sinh đang thuộc lớp khác sẽ được chuyển sang lớp này."
+      description="Hiện những học sinh chưa học lớp này. Một em học được nhiều lớp cùng lúc nên thêm vào đây không kéo em ra khỏi lớp nào."
       onClose={() => {
         if (!submitting) onClose()
       }}
@@ -175,8 +177,8 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
       {!loading && !error && !hasStudents && (
         <EmptyState
           icon={Users}
-          title="Mọi học sinh đã thuộc lớp này"
-          description="Không còn học sinh nào bên ngoài lớp để thêm vào."
+          title="Không còn học sinh nào để thêm"
+          description="Mọi học sinh đều đã học lớp này. Tạo thêm tài khoản học sinh rồi quay lại đây."
         />
       )}
 
@@ -195,6 +197,7 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-slate-400">
               {filteredStudents.length} học sinh có thể thêm · Đã chọn {selectedIds.length}
+              {filteredStudents.length > RENDER_LIMIT && ` · hiện ${RENDER_LIMIT} em đầu, gõ tên hoặc mã để thu hẹp`}
             </p>
             {filteredStudents.length > 0 && (
               <button
@@ -207,15 +210,6 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
               </button>
             )}
           </div>
-
-          {transferredStudentCount > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 flex items-center gap-2.5">
-              <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />
-              <p className="text-sm font-semibold text-amber-700">
-                {transferredStudentCount} học sinh sẽ được chuyển khỏi lớp hiện tại.
-              </p>
-            </div>
-          )}
 
           {filteredStudents.length === 0 ? (
             <div className="py-10 text-center">
@@ -233,10 +227,9 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
             </div>
           ) : (
             <div className="max-h-80 overflow-y-auto rounded-2xl border border-slate-100 divide-y divide-slate-50">
-              {filteredStudents.map(student => {
+              {shownStudents.map(student => {
                 const avatarTone = getAvatarTone(student.id)
-                const isSelected = selectedIds.includes(student.id)
-                const isInAnotherGroup = student.groupId !== UNASSIGNED_GROUP_ID
+                const isSelected = selectedSet.has(student.id)
                 return (
                   <label
                     key={student.id}
@@ -262,13 +255,14 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
                         {student.code} · {student.email}
                       </p>
                     </div>
-                    <span
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${
-                        isInAnotherGroup ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {isInAnotherGroup ? `Đang ở ${student.group}` : student.group}
-                    </span>
+                    {student.groups.length > 0 && (
+                      <span
+                        title={`Đang học: ${student.groups.map(group => group.name).join(', ')}`}
+                        className="max-w-[10rem] truncate text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 bg-slate-100 text-slate-500"
+                      >
+                        {formatGroupNames(student.groups, '', 1)}
+                      </span>
+                    )}
                   </label>
                 )
               })}

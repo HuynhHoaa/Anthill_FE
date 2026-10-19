@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Lock, Save, UserRound } from 'lucide-react'
 import { useToast } from '../../../components/common/Toast'
+import { formatGroupNames } from '../../../lib/format'
 import { updateProfile } from '../../../services/authService'
 import type { UserProfile } from '../../../types'
 
@@ -21,8 +22,10 @@ type ProfileFieldErrors = Partial<Record<keyof ProfileFormValues, string>>
 interface LockedFields {
   /** Họ tên: chỉ học sinh bị khoá. */
   name: boolean
-  /** Email và số điện thoại: giáo viên và học sinh đều bị khoá. */
-  contact: boolean
+  /** Email: mọi vai trò đều bị khoá, kể cả quản trị viên (email đổi ở trang quản lý của quản trị viên, không tự đổi). */
+  email: boolean
+  /** Số điện thoại: giáo viên và học sinh bị khoá, chỉ quản trị viên tự sửa. */
+  phone: boolean
 }
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -51,14 +54,16 @@ function validateProfileForm(values: ProfileFormValues, locked: LockedFields): P
     errors.fullName = 'Vui lòng nhập họ và tên.'
   }
 
-  if (!locked.contact) {
+  if (!locked.email) {
     const email = values.email.trim()
     if (!email) {
       errors.email = 'Vui lòng nhập email.'
     } else if (!emailPattern.test(email)) {
       errors.email = 'Email chưa đúng định dạng.'
     }
+  }
 
+  if (!locked.phone) {
     const phone = values.phone.trim()
     if (phone && !phonePattern.test(phone)) {
       errors.phone = 'Số điện thoại chỉ gồm chữ số và dài 9–15 ký tự.'
@@ -78,10 +83,10 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
   const isStudent = profile.role === 'student'
   const isAdmin = profile.role === 'admin'
 
-  // Thông tin liên hệ thuộc về nhà trường: quản trị viên sửa được tất cả, giáo viên chỉ sửa họ tên, học sinh
-  // không sửa được trường nào (server cũng chặn, đây chỉ là để giao diện không mời người ta làm việc không được).
-  const locked: LockedFields = { name: isStudent, contact: !isAdmin }
-  const hasEditableField = !locked.name || !locked.contact
+  // Thông tin liên hệ thuộc về nhà trường: quản trị viên sửa họ tên và số điện thoại (email thì không ai tự đổi), giáo viên chỉ
+  // sửa họ tên, học sinh không sửa được trường nào (server cũng chặn, đây chỉ là để giao diện không mời người ta làm việc không được).
+  const locked: LockedFields = { name: isStudent, email: true, phone: !isAdmin }
+  const hasEditableField = !locked.name || !locked.email || !locked.phone
 
   const changeValue = (field: keyof ProfileFormValues, value: string) => {
     setValues(current => ({ ...current, [field]: value }))
@@ -100,8 +105,8 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
     // giá trị khác đi.
     const payload: Partial<UserProfile> = {
       fullName: locked.name ? profile.fullName : values.fullName.trim(),
-      email: locked.contact ? profile.email : values.email.trim(),
-      phone: locked.contact ? (profile.phone ?? '') : values.phone.trim(),
+      email: locked.email ? profile.email : values.email.trim(),
+      phone: locked.phone ? (profile.phone ?? '') : values.phone.trim(),
     }
 
     setSaving(true)
@@ -144,15 +149,15 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
   const emailField = (
     <div>
       <label htmlFor="profile-email" className="block text-sm font-semibold text-slate-700 mb-1.5">
-        Email {!locked.contact && <span className="text-red-500">*</span>}
+        Email {!locked.email && <span className="text-red-500">*</span>}
       </label>
       <input
         id="profile-email"
         type="email"
-        className={locked.contact ? readOnlyClass : fieldErrors.email ? errorInputClass : inputClass}
+        className={locked.email ? readOnlyClass : fieldErrors.email ? errorInputClass : inputClass}
         placeholder="ten@truong.edu.vn"
         value={values.email}
-        readOnly={locked.contact}
+        readOnly={locked.email}
         aria-invalid={Boolean(fieldErrors.email)}
         onChange={event => changeValue('email', event.target.value)}
       />
@@ -168,10 +173,10 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
       <input
         id="profile-phone"
         type="tel"
-        className={locked.contact ? readOnlyClass : fieldErrors.phone ? errorInputClass : inputClass}
-        placeholder={locked.contact ? 'Chưa có số điện thoại' : 'Ví dụ: 0912 345 678'}
+        className={locked.phone ? readOnlyClass : fieldErrors.phone ? errorInputClass : inputClass}
+        placeholder={locked.phone ? 'Chưa có số điện thoại' : 'Ví dụ: 0912 345 678'}
         value={values.phone}
-        readOnly={locked.contact}
+        readOnly={locked.phone}
         aria-invalid={Boolean(fieldErrors.phone)}
         onChange={event => changeValue('phone', event.target.value)}
       />
@@ -208,7 +213,7 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
       <label htmlFor="profile-group" className="block text-sm font-semibold text-slate-700 mb-1.5">
         Lớp
       </label>
-      <input id="profile-group" type="text" className={readOnlyClass} value={profile.group ?? 'Chưa xếp lớp'} readOnly />
+      <input id="profile-group" type="text" className={readOnlyClass} value={formatGroupNames(profile.groups, 'Chưa xếp lớp', 6)} readOnly />
     </div>
   )
 

@@ -15,7 +15,7 @@ interface QuickLink {
 const dashboardPath: Record<UserRole, string> = {
   teacher: '/giao-vien',
   student: '/hoc-sinh',
-  admin: '/quan-tri',
+  admin: '/quan-tri/nhom-lop',
 }
 
 const dashboardLabel: Record<UserRole, string> = {
@@ -30,8 +30,8 @@ const quickLinks: Record<UserRole, QuickLink[]> = {
     { to: '/giao-vien/cau-hoi', label: 'Ngân hàng câu hỏi', icon: BookOpen },
   ],
   student: [
-    { to: '/hoc-sinh/bai-kiem-tra', label: 'Bài kiểm tra của tôi', icon: FileText },
-    { to: '/hoc-sinh/ket-qua', label: 'Kết quả của tôi', icon: BarChart3 },
+    { to: '/hoc-sinh/lop-hoc', label: 'Lớp học của tôi', icon: FileText },
+    { to: '/hoc-sinh/bang-diem', label: 'Bảng điểm', icon: BarChart3 },
     { to: '/hoc-sinh/ho-so', label: 'Hồ sơ cá nhân', icon: UserCircle },
   ],
   admin: [

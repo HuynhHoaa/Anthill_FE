@@ -104,7 +104,7 @@ export default function ExamIntroPage() {
   const openDate = assignment ? parseDateTime(assignment.openAt) : null
   // `assignment.deadline` đã là mốc đúng cho cả hai trường hợp — giờ đóng đề khi bài chưa bắt đầu,
   // giờ hết giờ của chính lượt làm khi đang dở (xem toStudentExamItem) — khớp với cách
-  // StudentExamListPage/StudentDashboardPage đọc cùng trường này. Trước đây trang này tự tính lại
+  // StudentExamBrowser/StudentDashboardPage đọc cùng trường này. Trước đây trang này tự tính lại
   // từ `assignment.closeAt`, mà chuỗi đó luôn parse được nên nhánh `?? assignment.deadline` không
   // bao giờ chạy tới trong thực tế — một bài đang làm dở bị đếm ngược nhầm sang giờ đóng đề của cả
   // lớp, dài hơn hẳn giờ hết bài thật của lượt đang chạy.
@@ -192,7 +192,7 @@ export default function ExamIntroPage() {
     const maxScore = assignment.maxScore ?? assignment.totalScore
     // Bài đã chấm vẫn có thể bị giấu điểm, nên "đã chấm" chưa đủ để kết luận là có điểm để hiện.
     const hasVisibleScore = isGraded && assignment.score !== null
-    const resultLink = assignment.attemptId ? `/hoc-sinh/ket-qua/${assignment.attemptId}` : '/hoc-sinh/ket-qua'
+    const resultLink = assignment.attemptId ? `/hoc-sinh/ket-qua/${assignment.attemptId}` : '/hoc-sinh/bang-diem'
 
     const notes: { icon: LucideIcon; text: string }[] = [
       {

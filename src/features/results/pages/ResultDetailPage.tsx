@@ -4,6 +4,7 @@ import {
   ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, CircleSlash, Clock, EyeOff,
   Hourglass, ListChecks, ShieldAlert, UserRound, XCircle,
 } from 'lucide-react'
+import AdminLayout from '../../../components/layout/AdminLayout'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import StudentLayout from '../../../components/layout/StudentLayout'
 import EmptyState from '../../../components/common/EmptyState'
@@ -38,8 +39,8 @@ const examTitleClass = 'text-2xl font-bold text-slate-800 leading-snug'
 const inlineLinkClass = 'font-semibold text-slate-600 hover:text-indigo-600 hover:underline transition-colors'
 
 /**
- * Khung trang. Giáo viên có thanh tiêu đề nhận công cụ nên nút quay lại lên đó; khung của học sinh không có chỗ đó
- * nên nút vẫn đứng đầu nội dung.
+ * Khung trang. Giáo viên và quản trị viên có thanh tiêu đề nhận công cụ nên nút quay lại lên đó; khung của học sinh
+ * không có chỗ đó nên nút vẫn đứng đầu nội dung.
  */
 function DetailShell({
   audience, pageSubtitle, backLink, children,
@@ -49,6 +50,18 @@ function DetailShell({
   backLink: ReactNode
   children: ReactNode
 }) {
+  if (audience === 'admin') {
+    return (
+      <AdminLayout
+        pageTitle="Chi tiết bài làm"
+        pageSubtitle={pageSubtitle}
+        compactContent
+        headerTools={<div className="flex w-full justify-start lg:justify-end">{backLink}</div>}
+      >
+        {children}
+      </AdminLayout>
+    )
+  }
   if (audience === 'teacher') {
     return (
       <TeacherLayout
@@ -79,6 +92,9 @@ function SummaryRow({ label, value }: { label: ReactNode; value: ReactNode }) {
 }
 
 export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
+  // Giáo viên và quản trị viên cùng xem bài làm của học sinh, với đủ đáp án; quản trị viên chỉ đọc và đi về hồ sơ học sinh
+  // của khu quản trị, không có lối sang trang đề của giáo viên.
+  const isStaffView = audience !== 'student'
   const { attemptId } = useParams()
   const attemptIdNumber = Number(attemptId)
   const [questionFilter, setQuestionFilter] = useState<QuestionFilter>('all')
@@ -102,9 +118,9 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
   const location = useLocation()
   const goBack = () => {
     if (location.key !== 'default') navigate(-1)
-    else navigate('/giao-vien/nhom-lop')
+    else navigate(isStaffView ? (audience === 'admin' ? '/quan-tri/nhom-lop' : '/giao-vien/nhom-lop') : '/hoc-sinh/bang-diem')
   }
-  const selectedLabel = audience === 'teacher' ? 'Học sinh đã chọn' : 'Bạn đã chọn'
+  const selectedLabel = isStaffView ? 'Học sinh đã chọn' : 'Bạn đã chọn'
 
   const numberedQuestions = useMemo<NumberedQuestion[]>(
     () => (detail?.questions ?? []).map((question, index) => ({ question, number: index + 1 })),
@@ -129,16 +145,16 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
   )
 
   const backLinkClass =
-    audience === 'teacher'
+    isStaffView
       ? 'inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap'
       : 'inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors'
-  const backLink = audience === 'teacher' ? (
+  const backLink = isStaffView ? (
     <button type="button" onClick={goBack} className={backLinkClass}>
       <ArrowLeft size={16} /> Quay lại
     </button>
   ) : (
-    <NavLink to="/hoc-sinh/ket-qua" className={backLinkClass}>
-      <ArrowLeft size={16} /> Quay lại danh sách kết quả
+    <NavLink to="/hoc-sinh/bang-diem" className={backLinkClass}>
+      <ArrowLeft size={16} /> Quay lại bảng điểm
     </NavLink>
   )
 
@@ -162,7 +178,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
       <DetailShell audience={audience} backLink={backLink}>
         <ErrorState message={error ?? 'Không tìm thấy bài làm này.'} onRetry={reload} />
         <div className="mt-4 flex justify-center">
-          {audience === 'teacher' ? (
+          {isStaffView ? (
             <button
               type="button"
               onClick={goBack}
@@ -172,10 +188,10 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
             </button>
           ) : (
             <NavLink
-              to="/hoc-sinh/ket-qua"
+              to="/hoc-sinh/bang-diem"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
             >
-              <ArrowLeft size={16} /> Quay lại danh sách kết quả
+              <ArrowLeft size={16} /> Quay lại bảng điểm
             </NavLink>
           )}
         </div>
@@ -194,10 +210,10 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
           description="Bạn chỉ xem được kết quả của những bài kiểm tra do chính mình thực hiện."
           action={
             <NavLink
-              to="/hoc-sinh/ket-qua"
+              to="/hoc-sinh/bang-diem"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
             >
-              <ArrowLeft size={16} /> Về kết quả của tôi
+              <ArrowLeft size={16} /> Về bảng điểm
             </NavLink>
           }
         />
@@ -210,9 +226,9 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
   const isInProgress = detail.status === 'inprogress'
   // Chỉ giáo viên mới đi ngược về được các trang quản lý; học sinh giữ nguyên text thuần.
   const examDetailLink = `/giao-vien/bai-kiem-tra/${detail.examId}`
-  const studentDetailLink = `/giao-vien/hoc-sinh/${detail.studentId}`
-  // Giáo viên luôn xem được đáp án học sinh đã chọn; học sinh chỉ xem khi bài đã chấm và được cho phép.
-  const canSeeAnswers = audience === 'teacher' || (isGraded && detail.showAnswers)
+  const studentDetailLink = audience === 'admin' ? `/quan-tri/hoc-sinh/${detail.studentId}` : `/giao-vien/hoc-sinh/${detail.studentId}`
+  // Giáo viên và quản trị viên luôn xem được đáp án học sinh đã chọn; học sinh chỉ xem khi bài đã chấm và được cho phép.
+  const canSeeAnswers = isStaffView || (isGraded && detail.showAnswers)
   const correctPercent = counts.total > 0 ? (counts.correct / counts.total) * 100 : 0
   const wrongPercent = counts.total > 0 ? (counts.wrong / counts.total) * 100 : 0
   const blankPercent = counts.total > 0 ? (counts.blank / counts.total) * 100 : 0
@@ -459,7 +475,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
 
                   {isBlank && (
                     <p className="mt-3 text-xs text-slate-400">
-                      {audience === 'teacher' ? 'Học sinh không chọn đáp án nào cho câu này.' : 'Bạn đã bỏ trống câu này.'}
+                      {isStaffView ? 'Học sinh không chọn đáp án nào cho câu này.' : 'Bạn đã bỏ trống câu này.'}
                     </p>
                   )}
 
@@ -500,7 +516,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
               ) : (
                 <h1 className={examTitleClass}>{detail.examTitle}</h1>
               )}
-              {audience === 'teacher' ? (
+              {isStaffView ? (
                 <p className="text-sm text-slate-500 mt-1.5">
                   <NavLink
                     to={studentDetailLink}
@@ -635,7 +651,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
             </div>
           </div>
 
-          {audience === 'teacher' && (
+          {isStaffView && (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 animate-fade-in-up">
               <h2 className="text-base font-bold text-slate-800 mb-4">Học sinh</h2>
               <div className="flex items-center gap-3">

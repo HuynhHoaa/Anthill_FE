@@ -343,7 +343,7 @@ export default function NotificationsPage({ audience }: NotificationsPageProps) 
                     {group.items.length}
                   </span>
                 </div>
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="stagger-in bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                   {group.items.map(notification => (
                     <NotificationRow
                       key={notification.id}

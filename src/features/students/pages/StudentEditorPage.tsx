@@ -2,47 +2,28 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import {
-  AlertCircle, ArrowLeft, AtSign, CheckCircle2, Copy, Hash, KeyRound, Loader2, Lock, Mail,
-  Phone, RotateCcw, Save, ShieldAlert, Trash2, User,
+  ArrowLeft, AtSign, Copy, Eye, Hash, KeyRound, Loader2, Lock, Mail,
+  Phone, RotateCcw, Save, ShieldAlert, ShieldCheck, ShieldOff, Trash2, User,
 } from 'lucide-react'
 import AdminLayout from '../../../components/layout/AdminLayout'
 import ErrorState from '../../../components/common/ErrorState'
-import ConsequenceList from '../../../components/common/ConsequenceList'
 import Modal from '../../../components/common/Modal'
 import { SkeletonBlock } from '../../../components/common/Skeleton'
-import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import useAsync from '../../../hooks/useAsync'
 import { useUnsavedChangesGuard } from '../../../hooks/useUnsavedChangesGuard'
-import { formatDate, formatDateTime, getInitials } from '../../../lib/format'
+import { formatDate, formatDateTime, formatGroupNames, getInitials } from '../../../lib/format'
 import { UNASSIGNED_GROUP_ID, UNASSIGNED_GROUP_NAME, listGroups } from '../../../services/groupService'
 import {
   DELETION_RETENTION_DAYS, ERASED_STUDENT_NAME,
-  createStudent, getStudent, isRetiredStudent, listStudents, setStudentStatus, updateStudent,
+  createStudent, getStudent, isRetiredStudent, listStudents, updateStudent,
   type ResetPasswordResult, type StudentPayload,
 } from '../../../services/studentService'
 import StudentStatusPill from '../components/StudentStatusPill'
 import StudentTextField from '../components/StudentTextField'
-import { lockConfirmCopy, lockConsequences, useStudentAccountActions } from '../hooks/useStudentAccountActions'
-import { studentStatusLabels, type Student, type StudentStatus } from '../../../types'
-
-/**
- * Hệ quả của việc đổi lớp khi sửa hồ sơ. Đây là cùng một việc với "Gỡ khỏi lớp" ở trang lớp, nên
- * phải nói cùng những điều: em rời lớp nào, đi đâu, và điều gì KHÔNG mất. Tên em đã nằm ở câu dẫn
- * của hộp, nên từng dòng không nhắc lại.
- */
-function groupChangeConsequences(fromGroup: string, toGroup: string | null): string[] {
-  return toGroup === null
-    ? [
-        `Rời lớp ${fromGroup} và chuyển về trạng thái chưa phân lớp.`,
-        'Giáo viên của lớp cũ không giao được bài mới cho em nữa. Bài đã giao, bài đã nộp và điểm vẫn giữ nguyên.',
-      ]
-    : [
-        `Chuyển từ lớp ${fromGroup} sang lớp ${toGroup}. Từ giờ em nhận những bài được giao cho lớp mới.`,
-        `Bài lớp ${toGroup} đã giao trước khi em chuyển sang không tự đến với em — giáo viên cần giao thêm nếu muốn em làm.`,
-        `Bài lớp ${fromGroup} đã giao cho em, bài đã nộp và điểm cũ vẫn giữ nguyên.`,
-      ]
-}
+import { useStudentAccountActions } from '../hooks/useStudentAccountActions'
+import StudentClassManager from '../components/StudentClassManager'
+import type { Student, StudentStatus } from '../../../types'
 
 /** Số bản ghi tải về để kiểm tra trùng mã, email và tên đăng nhập ngay trên giao diện. */
 const DIRECTORY_PAGE_SIZE = 500
@@ -152,7 +133,6 @@ export default function StudentEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
-  const confirm = useConfirm()
   const accountActions = useStudentAccountActions()
 
   const studentId = id === undefined ? null : Number(id)
@@ -219,7 +199,7 @@ export default function StudentEditorPage() {
       phone: loadedStudent.phone ?? '',
       username: loadedStudent.username,
       code: loadedStudent.code,
-      groupId: loadedStudent.groupId,
+      groupId: UNASSIGNED_GROUP_ID,
       status: loadedStudent.status,
       password: '',
     })
@@ -245,7 +225,7 @@ export default function StudentEditorPage() {
       phone: syncedStudent.phone ?? '',
       username: syncedStudent.username,
       code: syncedStudent.code,
-      groupId: syncedStudent.groupId,
+      groupId: UNASSIGNED_GROUP_ID,
       status: syncedStudent.status,
       password: '',
     }
@@ -257,8 +237,11 @@ export default function StudentEditorPage() {
     { id: UNASSIGNED_GROUP_ID, name: UNASSIGNED_GROUP_NAME },
     ...groups.map(group => ({ id: group.id, name: group.name })),
   ]
-  const selectedGroupName =
-    groupChoices.find(choice => choice.id === values.groupId)?.name ?? UNASSIGNED_GROUP_NAME
+  // Đang sửa thì các lớp là những lớp đã lưu của em (xếp thêm, chuyển và gỡ đi qua nút riêng và có hiệu lực ngay, không
+  // nằm trong form); tạo mới thì là lớp đang chọn.
+  const selectedGroupName = loadedStudent
+    ? formatGroupNames(loadedStudent.groups, UNASSIGNED_GROUP_NAME, 3)
+    : (groupChoices.find(choice => choice.id === values.groupId)?.name ?? UNASSIGNED_GROUP_NAME)
 
   const updateValues = (patch: Partial<StudentFormValues>) => {
     setValues(current => ({ ...current, ...patch }))
@@ -287,73 +270,22 @@ export default function StudentEditorPage() {
       phone: values.phone.trim(),
       username: values.username.trim(),
       code: values.code.trim(),
-      groupId: values.groupId,
+      // Sửa hồ sơ không đụng tới lớp của em. Tạo mới thì xếp em vào lớp đã chọn.
+      groupId: loadedStudent ? undefined : values.groupId,
     }
 
     // Server đòi mật khẩu khi tạo tài khoản — người tạo là người trao mật khẩu đầu tiên cho học
     // sinh. Ở chế độ sửa thì không gửi: đổi mật khẩu đi qua chức năng đặt lại riêng.
     if (!isEditMode) payload.password = values.password
 
-    // Khoá/mở khoá tài khoản đi qua một endpoint riêng chứ không nằm trong hồ sơ, nên sau khi
-    // lưu còn phải đối chiếu trạng thái trong phản hồi và chỉnh thêm nếu ô chọn khác.
-    const save = async () => {
-      if (studentId === null) {
-        const created = await createStudent(payload)
-        if (created.status !== values.status) await setStudentStatus(created.id, values.status)
-      } else {
-        const saved = await updateStudent(studentId, payload)
-        if (saved.status !== values.status) await setStudentStatus(saved.id, values.status)
-      }
-    }
-
-    // Đổi ô trạng thái của một tài khoản đang có rồi bấm Lưu là khoá hoặc mở khoá thật, nên phải
-    // hỏi lại y như nút khoá ở danh sách. Tạo mới thì chưa ai dùng tài khoản đó, không cần hỏi.
-    const lockChanging = loadedStudent !== null && values.status !== loadedStudent.status
-    // Đổi lớp ở đây cũng là gỡ em khỏi lớp cũ — đúng việc mà trang lớp hỏi lại trước khi làm — nên
-    // phải hỏi y như vậy. Xếp một em chưa có lớp vào lớp thì không ai mất gì, không hỏi.
-    const leavingGroup =
-      loadedStudent !== null
-      && loadedStudent.groupId !== UNASSIGNED_GROUP_ID
-      && values.groupId !== loadedStudent.groupId
-
-    if (lockChanging || leavingGroup) {
-      const locking = values.status === 'locked'
-      const movingTo = values.groupId === UNASSIGNED_GROUP_ID ? null : selectedGroupName
-      const groupItems =
-        leavingGroup && loadedStudent ? groupChangeConsequences(loadedStudent.group, movingTo) : []
-
-      // Đổi cả hai thì gộp vào MỘT hộp: hai hộp liền nhau là mời người dùng bấm "Đồng ý" lần thứ
-      // hai mà không đọc.
-      const copy = !leavingGroup
-        ? {
-            ...lockConfirmCopy(payload.fullName, locking),
-            confirmLabel: locking ? 'Lưu và khoá tài khoản' : 'Lưu và mở khoá',
-          }
-        : {
-            title: lockChanging ? 'Lưu thay đổi tài khoản' : movingTo ? 'Chuyển lớp cho học sinh' : 'Gỡ học sinh khỏi lớp',
-            message: `Các thay đổi sau với tài khoản của ${payload.fullName} có hiệu lực ngay khi lưu:`,
-            details: (
-              <ConsequenceList
-                items={lockChanging ? [...groupItems, ...lockConsequences(payload.fullName, locking)] : groupItems}
-              />
-            ),
-            confirmLabel: lockChanging ? 'Lưu thay đổi' : movingTo ? 'Lưu và chuyển lớp' : 'Lưu và gỡ khỏi lớp',
-            // Chuyển lớp là việc thường ngày và làm lại được, nên không tô đỏ. Gỡ khỏi lớp hay khoá
-            // tài khoản thì em mất quyền nhận bài — giữ màu cảnh báo như ở trang lớp.
-            tone: (lockChanging && locking) || !movingTo ? ('danger' as const) : ('primary' as const),
-          }
-
-      const saved = await confirm({ ...copy, onConfirm: save })
-      if (!saved) return
-    } else {
-      setSubmitting(true)
-      try {
-        await save()
-      } catch (caught) {
-        toast.error(caught instanceof Error ? caught.message : 'Không lưu được thông tin học sinh.')
-        setSubmitting(false)
-        return
-      }
+    setSubmitting(true)
+    try {
+      if (studentId === null) await createStudent(payload)
+      else await updateStudent(studentId, payload)
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : 'Không lưu được thông tin học sinh.')
+      setSubmitting(false)
+      return
     }
 
     toast.success(isEditMode ? `Đã lưu thay đổi cho ${payload.fullName}.` : `Đã thêm học sinh ${payload.fullName}.`)
@@ -381,16 +313,6 @@ export default function StudentEditorPage() {
     }
   }
 
-  const checklist: Array<{ label: string; done: boolean }> = [
-    { label: 'Họ và tên', done: !errors.fullName },
-    { label: 'Email', done: !errors.email },
-    { label: 'Tên đăng nhập', done: !errors.username },
-    { label: 'Mã học sinh', done: !errors.code },
-  ]
-  if (!isEditMode) {
-    checklist.push({ label: 'Mật khẩu', done: !errors.password })
-  }
-
   const pageTitle = isReadOnly ? 'Thông tin học sinh' : isEditMode ? 'Sửa thông tin học sinh' : 'Thêm học sinh'
   // Mốc xoá vĩnh viễn do server tính. Không có thì nói mốc tương đối chứ không tự cộng ngày.
   const restoreDeadline = loadedStudent?.deletionScheduledAt
@@ -408,7 +330,15 @@ export default function StudentEditorPage() {
 
   // Nút quay lại nằm trên thanh tiêu đề (hẹp hơn thì đứng đầu nội dung), không chiếm một hàng riêng trong trang.
   const backLink = (
-    <div className="flex w-full justify-start lg:justify-end">
+    <div className="flex w-full flex-wrap items-center justify-start lg:justify-end gap-2.5">
+      {loadedStudent && (
+        <NavLink
+          to={`/quan-tri/hoc-sinh/${loadedStudent.id}`}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors whitespace-nowrap"
+        >
+          <Eye size={16} /> Xem bài làm
+        </NavLink>
+      )}
       <NavLink
         to="/quan-tri/hoc-sinh"
         className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap"
@@ -533,6 +463,26 @@ export default function StudentEditorPage() {
                     hint="Không bắt buộc. Học sinh không tự đổi được số này."
                     autoComplete="off"
                   />
+                  {!loadedStudent && (
+                    <div>
+                      <label htmlFor="student-group" className="block text-sm font-semibold text-slate-700 mb-2">
+                        Nhóm/lớp
+                      </label>
+                      <select
+                        id="student-group"
+                        value={values.groupId}
+                        onChange={event => updateValues({ groupId: Number(event.target.value) })}
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 bg-white"
+                      >
+                        {groupChoices.map(choice => (
+                          <option key={choice.id} value={choice.id}>{choice.name}</option>
+                        ))}
+                      </select>
+                      <p className="mt-1.5 text-xs text-slate-400">
+                        Học sinh nhận bài kiểm tra giao cho lớp này. Một em học được nhiều lớp: sau khi tạo, xếp thêm lớp ở hồ sơ của em.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </section>
 
@@ -545,7 +495,7 @@ export default function StudentEditorPage() {
                       : 'Hãy gửi tên đăng nhập và mật khẩu ban đầu cho học sinh sau khi tạo tài khoản.'}
                   </p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`grid grid-cols-1 gap-4 ${isEditMode ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
                   <StudentTextField
                     label="Tên đăng nhập"
                     icon={AtSign}
@@ -585,54 +535,42 @@ export default function StudentEditorPage() {
                 </div>
               </section>
 
-              <section className="space-y-4 pt-6 border-t border-slate-100">
-                <h2 className="text-base font-bold text-slate-800">Nhóm lớp và trạng thái</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {loadedStudent ? (
+                <section className="space-y-4 pt-6 border-t border-slate-100">
                   <div>
-                    <label htmlFor="student-group" className="block text-sm font-semibold text-slate-700 mb-2">
-                      Nhóm/lớp
-                    </label>
-                    <select
-                      id="student-group"
-                      value={values.groupId}
-                      onChange={event => updateValues({ groupId: Number(event.target.value) })}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 bg-white"
-                    >
-                      {groupChoices.map(choice => (
-                        <option key={choice.id} value={choice.id}>{choice.name}</option>
-                      ))}
-                    </select>
-                    <p className="mt-1.5 text-xs text-slate-400">
-                      Học sinh sẽ nhận bài kiểm tra được giao cho nhóm này.
+                    <h2 className="text-base font-bold text-slate-800">Lớp và trạng thái tài khoản</h2>
+                    <p className="text-sm text-slate-500 mt-1">
+                      Xếp thêm lớp, chuyển lớp, gỡ khỏi lớp và khoá tài khoản có hiệu lực ngay, không cần bấm Lưu; gỡ, chuyển và khoá phải ghi lý do.
                     </p>
                   </div>
-                  <div>
-                    <label htmlFor="student-status" className="block text-sm font-semibold text-slate-700 mb-2">
-                      Trạng thái tài khoản
-                    </label>
-                    {isReadOnly ? (
-                      // Ô chọn chỉ có hai lựa chọn khoá/mở khoá; chờ xoá và đã xoá không phải thứ
-                      // chọn được ở đây, nên hiện nhãn thay vì một ô chọn mang giá trị lạ.
-                      <div id="student-status" className="py-2">
-                        <StudentStatusPill status={values.status} deletionScheduledAt={loadedStudent?.deletionScheduledAt} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="rounded-2xl border border-slate-100 p-4">
+                      <StudentClassManager student={loadedStudent} onChanged={editorQuery.reload} />
+                    </div>
+                    <div className="rounded-2xl border border-slate-100 p-4">
+                      <p className="text-sm font-semibold text-slate-700">Trạng thái tài khoản</p>
+                      <div className="mt-1.5">
+                        <StudentStatusPill status={loadedStudent.status} deletionScheduledAt={loadedStudent.deletionScheduledAt} />
                       </div>
-                    ) : (
-                      <select
-                        id="student-status"
-                        value={values.status}
-                        onChange={event => updateValues({ status: event.target.value as StudentStatus })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 bg-white"
-                      >
-                        <option value="active">{studentStatusLabels.active}</option>
-                        <option value="locked">{studentStatusLabels.locked}</option>
-                      </select>
-                    )}
-                    <p className="mt-1.5 text-xs text-slate-400">
-                      Tài khoản bị khoá sẽ không thể đăng nhập và làm bài.
-                    </p>
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          onClick={() => void runAccountAction(accountActions.toggleLock(loadedStudent))}
+                          disabled={isReadOnly}
+                          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            loadedStudent.status === 'active'
+                              ? 'text-slate-600 bg-slate-100 hover:bg-red-50 hover:text-red-500'
+                              : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                          }`}
+                        >
+                          {loadedStudent.status === 'active' ? <ShieldOff size={14} /> : <ShieldCheck size={14} />}
+                          {loadedStudent.status === 'active' ? 'Khoá tài khoản' : 'Mở khoá'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </section>
+                </section>
+              ) : null}
             </fieldset>
           </div>
 
@@ -684,28 +622,6 @@ export default function StudentEditorPage() {
                 </dl>
               </div>
             </div>
-
-            {!isReadOnly && (
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                <h2 className="text-base font-bold text-slate-800 mb-3">Kiểm tra nhanh</h2>
-                <div className="space-y-2.5 text-sm">
-                  {checklist.map(item => (
-                    <div key={item.label} className="flex items-center justify-between gap-3">
-                      <span className="text-slate-500">{item.label}</span>
-                      {item.done ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
-                          <CheckCircle2 size={14} /> Hợp lệ
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-red-500 font-semibold">
-                          <AlertCircle size={14} /> Chưa xong
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {loadedStudent && !isReadOnly && (
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
@@ -805,6 +721,7 @@ export default function StudentEditorPage() {
           )}
         </div>
       </Modal>
+
     </AdminLayout>
   )
 }

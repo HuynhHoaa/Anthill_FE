@@ -2,8 +2,11 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Loader2 } from 'lucide-react'
 import Modal from '../../../components/common/Modal'
 import { useToast } from '../../../components/common/Toast'
-import { createGroup, updateGroup } from '../../../services/groupService'
+import { useAsync } from '../../../hooks/useAsync'
+import { createGroup, listAssignableTeachers, updateGroup } from '../../../services/groupService'
+import { listTerms } from '../../../services/termService'
 import type { StudentGroup } from '../../../types'
+import { teacherOptionLabel } from './teacherOptions'
 
 /** Chỉ dùng ở khu quản trị: giáo viên không lập và không sửa lớp. */
 interface GroupFormModalProps {
@@ -27,17 +30,37 @@ export default function GroupFormModal({ open, group, onClose, onSaved }: GroupF
   const editingGroup = group
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [teacherId, setTeacherId] = useState('')
+  const [termId, setTermId] = useState('')
   const [nameError, setNameError] = useState<string | undefined>(undefined)
+  const [teacherError, setTeacherError] = useState<string | undefined>(undefined)
   const [saving, setSaving] = useState(false)
+
+  // Giáo viên chỉ chọn lúc lập lớp; đổi người sau này làm ở phần Thiết lập của lớp.
+  const teachersState = useAsync(() => (open && !editingGroup ? listAssignableTeachers() : Promise.resolve([])), [open, editingGroup])
+  const teachers = teachersState.data ?? []
+  const activeTeachers = teachers.filter(teacher => teacher.status !== 'locked')
+
+  // Kỳ học (không bắt buộc): lớp chưa phân kỳ vẫn hoạt động, học sinh thấy ở mục "Chưa phân kỳ".
+  const termsState = useAsync(() => (open ? listTerms() : Promise.resolve([])), [open])
+  const terms = termsState.data ?? []
 
   // Nạp lại giá trị mỗi lần mở để không giữ nội dung của lần thao tác trước
   useEffect(() => {
     if (!open) return
     setName(editingGroup?.name ?? '')
     setDescription(editingGroup?.description ?? '')
+    setTeacherId('')
+    setTermId(editingGroup?.termId ? String(editingGroup.termId) : '')
     setNameError(undefined)
+    setTeacherError(undefined)
     setSaving(false)
   }, [open, editingGroup])
+
+  // Chỉ có một giáo viên dùng được thì chọn sẵn, đỡ một cú bấm vô nghĩa.
+  useEffect(() => {
+    if (!editingGroup && teacherId === '' && activeTeachers.length === 1) setTeacherId(String(activeTeachers[0].id))
+  }, [editingGroup, teacherId, activeTeachers])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -53,13 +76,19 @@ export default function GroupFormModal({ open, group, onClose, onSaved }: GroupF
       return
     }
 
+    if (!editingGroup && teacherId === '') {
+      setTeacherError('Hãy chọn giáo viên phụ trách lớp.')
+      return
+    }
+
     setNameError(undefined)
+    setTeacherError(undefined)
     setSaving(true)
     try {
-      const payload = { name: trimmedName, description: description.trim() }
+      const payload = { name: trimmedName, description: description.trim(), termId: termId === '' ? null : Number(termId) }
       const saved = editingGroup
         ? await updateGroup(editingGroup.id, payload)
-        : await createGroup(payload)
+        : await createGroup({ ...payload, teacherId: Number(teacherId) })
       toast.success(
         editingGroup
           ? `Đã cập nhật lớp ${saved.name}.`
@@ -82,7 +111,7 @@ export default function GroupFormModal({ open, group, onClose, onSaved }: GroupF
       description={
         editingGroup
           ? 'Đổi tên hoặc mô tả lớp. Học sinh đang thuộc lớp sẽ được cập nhật theo tên mới.'
-          : 'Lớp mới được lưu ở dạng bản nháp — chỉ quản trị viên thấy cho tới khi bạn công bố. Xếp học sinh và phân công giáo viên ở trang chi tiết lớp.'
+          : 'Lớp mới được lưu ở dạng bản nháp — chỉ quản trị viên thấy cho tới khi bạn công bố. Xếp học sinh ở trang chi tiết lớp.'
       }
       onClose={() => {
         if (!saving) onClose()
@@ -129,6 +158,62 @@ export default function GroupFormModal({ open, group, onClose, onSaved }: GroupF
             }`}
           />
           {nameError && <p className="text-xs text-red-500 mt-1.5">{nameError}</p>}
+        </div>
+
+        {!editingGroup && (
+          <div>
+            <label className={fieldLabelClass} htmlFor="group-teacher">
+              Giáo viên phụ trách <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="group-teacher"
+              value={teacherId}
+              onChange={event => {
+                setTeacherId(event.target.value)
+                if (teacherError) setTeacherError(undefined)
+              }}
+              disabled={saving || teachersState.loading}
+              className={`${fieldBaseClass} bg-white ${
+                teacherError ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-indigo-400'
+              }`}
+            >
+              <option value="">{teachersState.loading ? 'Đang tải danh sách giáo viên…' : 'Chọn giáo viên'}</option>
+              {teachers.map(teacher => (
+                <option key={teacher.id} value={teacher.id} disabled={teacher.status === 'locked'}>
+                  {teacherOptionLabel(teacher)}
+                </option>
+              ))}
+            </select>
+            {teacherError && <p className="text-xs text-red-500 mt-1.5">{teacherError}</p>}
+            {teachersState.error && <p className="text-xs text-red-500 mt-1.5">{teachersState.error}</p>}
+            {!teachersState.loading && !teachersState.error && activeTeachers.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1.5">Chưa có giáo viên nào dùng được để phụ trách lớp.</p>
+            )}
+            <p className="text-xs text-slate-400 mt-1.5">
+              Mỗi lớp có đúng một giáo viên. Đổi giáo viên giữa chừng phải ghi lý do và được lưu vào lịch sử của lớp.
+            </p>
+          </div>
+        )}
+
+        <div>
+          <label className={fieldLabelClass} htmlFor="group-term">
+            Kỳ học <span className="font-normal text-slate-400">(không bắt buộc)</span>
+          </label>
+          <select
+            id="group-term"
+            value={termId}
+            onChange={event => setTermId(event.target.value)}
+            disabled={saving || termsState.loading}
+            className={`${fieldBaseClass} bg-white border-slate-200 focus:border-indigo-400`}
+          >
+            <option value="">{termsState.loading ? 'Đang tải danh sách kỳ…' : 'Chưa phân kỳ'}</option>
+            {terms.map(term => (
+              <option key={term.id} value={term.id}>{term.isCurrent ? `${term.name} (kỳ hiện tại)` : term.name}</option>
+            ))}
+          </select>
+          <p className="text-xs text-slate-400 mt-1.5">
+            Thêm hoặc sửa kỳ ở mục Kỳ học trên menu.
+          </p>
         </div>
 
         <div>

@@ -208,3 +208,13 @@ export function roundScore(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.round(value * 100) / 100
 }
+
+/**
+ * Tên các lớp của một học sinh trên một dòng: "10A1", "10A1, Anh 10", hoặc "10A1, Anh 10 +2" khi nhiều hơn `max`. Một em học
+ * được nhiều lớp cùng lúc nên chỗ nào chỉ có một ô chữ thì cần cách gọn này; chỗ có đủ chỗ thì vẽ từng lớp riêng.
+ */
+export function formatGroupNames(groups: ReadonlyArray<{ name: string }> | undefined, emptyLabel: string, max = 2): string {
+  if (!groups || groups.length === 0) return emptyLabel
+  const shown = groups.slice(0, max).map(group => group.name).join(', ')
+  return groups.length > max ? `${shown} +${groups.length - max}` : shown
+}

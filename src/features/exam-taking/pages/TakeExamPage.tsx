@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { NavLink, useNavigate, useParams } from 'react-router-dom'
+import { NavLink, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
   Clock, FileText, Flag, LayoutGrid, Loader2, Save, Send,
@@ -602,6 +602,33 @@ export default function TakeExamPage() {
     const timer = window.setTimeout(() => setSaveErrorPersistent(true), DRAFT_SAVE_ERROR_BANNER_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [saveState])
+
+  // Đang trong giờ làm bài thì không rời khỏi trang bằng nút Back của trình duyệt hay bằng liên kết: chỉ nộp bài (hoặc hết giờ tự nộp)
+  // mới đi tiếp được. Bài vẫn chạy ở server nên rời đi không mất gì, nhưng làm bài là một phiên liền mạch. Đóng tab hay tải lại không
+  // chặn được từ trang web, chỉ hỏi lại bằng hộp của trình duyệt (beforeunload bên dưới). Điều hướng sau khi nộp đi qua vì
+  // hasSubmittedRef đã bật trước khi chuyển trang.
+  const leaveBlockedRef = useRef(false)
+  useEffect(() => {
+    // Chặn từ lúc vào trang (kể cả lúc còn đang nạp phiên: bài đã bắt đầu tính giờ ở server), trừ khi nạp hỏng: lúc đó trang cần
+    // cho học sinh rời đi.
+    leaveBlockedRef.current = Boolean(session) || (loading && !error)
+  }, [session, loading, error])
+
+  // Trừ trang đăng nhập: phiên chết giữa giờ thi (tài khoản bị khoá, cấp lại mật khẩu) thì trình xử lý 401 xoá token rồi đưa về /dang-nhap,
+  // chặn bước đó là nhốt học sinh ở một trang không còn gọi được server nữa.
+  const leaveBlocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      leaveBlockedRef.current
+      && !hasSubmittedRef.current
+      && currentLocation.pathname !== nextLocation.pathname
+      && nextLocation.pathname !== '/dang-nhap',
+  )
+
+  useEffect(() => {
+    if (leaveBlocker.state !== 'blocked') return
+    leaveBlocker.reset()
+    toast.info('Đang trong giờ làm bài. Hãy nộp bài rồi mới rời khỏi trang được.')
+  }, [leaveBlocker, toast])
 
   // Cảnh báo khi học sinh tải lại hoặc đóng tab giữa chừng.
   useEffect(() => {

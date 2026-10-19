@@ -6,7 +6,7 @@ import { getCurrentUser, getMustChangePassword } from '../services/authService'
 const dashboardPath: Record<UserRole, string> = {
   teacher: '/giao-vien',
   student: '/hoc-sinh',
-  admin: '/quan-tri',
+  admin: '/quan-tri/nhom-lop',
 }
 
 /**

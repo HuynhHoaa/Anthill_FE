@@ -11,7 +11,7 @@ interface RequireRoleProps {
 const dashboardPath: Record<UserRole, string> = {
   teacher: '/giao-vien',
   student: '/hoc-sinh',
-  admin: '/quan-tri',
+  admin: '/quan-tri/nhom-lop',
 }
 
 export default function RequireRole({ role, children }: RequireRoleProps) {

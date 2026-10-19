@@ -77,6 +77,8 @@ export interface StudentExamItemDto {
   maxScore?: number
   correctCount?: number
   assignedAt: string
+  groupId?: number
+  groupName?: string
 }
 
 /**
@@ -192,5 +194,7 @@ export function toStudentExamItem(dto: StudentExamItemDto): StudentExamItem {
     score: dto.score ?? null,
     maxScore: dto.maxScore ?? null,
     correctCount: dto.correctCount ?? null,
+    groupId: dto.groupId,
+    groupName: dto.groupName,
   }
 }

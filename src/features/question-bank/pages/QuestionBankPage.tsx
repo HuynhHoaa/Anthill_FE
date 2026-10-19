@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   CheckCircle2, Eye, EyeOff, FilterX, Library, ListChecks,
-  Pencil, Plus, SearchX, Target,
+  Pencil, Plus, SearchX, Target, Trash2,
 } from 'lucide-react'
+import AdminLayout from '../../../components/layout/AdminLayout'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import Modal from '../../../components/common/Modal'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
@@ -25,14 +26,15 @@ import { openOnRowClick } from '../../../lib/rowClick'
 import { hasQuestionTitle, questionDisplayTitle } from '../../../lib/questionTitle'
 import { getCurrentUser } from '../../../services/authService'
 import {
-  getQuestionBankSummary, listQuestions, setQuestionStatus,
+  deleteQuestion, getQuestionBankSummary, listQuestions, listSubjects, setQuestionStatus,
   type QuestionBankSummary,
 } from '../../../services/questionService'
 import {
   difficultyLabels, questionStatusLabels,
-  type DifficultyLevel, type Paged, type Question, type QuestionStatus,
+  type DifficultyLevel, type Paged, type Question, type QuestionStatus, type Subject,
 } from '../../../types'
-import { questionStatusConfirmCopy } from '../utils/questionConfirmations'
+import { questionDeleteConfirmCopy, questionStatusConfirmCopy } from '../utils/questionConfirmations'
+import { questionBankPath, type QuestionAudience } from '../utils/questionAudience'
 
 const PAGE_SIZE = 10
 const answerLabels = ['A', 'B', 'C', 'D', 'E', 'F']
@@ -59,6 +61,8 @@ const selectClass =
   'max-w-[11rem] px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'
 const iconButtonClass =
   'w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 flex items-center justify-center transition-colors'
+const dangerIconButtonClass =
+  'w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 flex items-center justify-center transition-colors'
 const primaryButtonClass =
   'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all'
 /** Nút tạo mới trên thanh tiêu đề: thấp bằng ô tìm kiếm cạnh nó. */
@@ -70,8 +74,12 @@ const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6
 
 interface QuestionRowProps {
   question: Question
+  audience: QuestionAudience
+  /** Ghi tên môn dưới chủ đề: chỉ khi ngân hàng có từ hai môn trở lên, còn một môn thì dòng đó lặp lại ở mọi hàng. */
+  showSubject: boolean
   onPreview: (question: Question) => void
   onToggleStatus: (question: Question) => void
+  onDelete: (question: Question) => void
 }
 
 /**
@@ -95,20 +103,23 @@ function QuestionHeading({ question }: { question: Question }) {
 }
 
 /**
- * Hai nút thao tác chung của dòng bảng (desktop) và của thẻ (màn hình hẹp): sửa và ẩn/hiện.
+ * Nút thao tác chung của dòng bảng (desktop) và của thẻ (màn hình hẹp): sửa và ẩn/hiện, thêm xoá cho quản trị viên.
  *
- * Không có nút xoá: ẩn câu hỏi đã là cách gỡ nó khỏi ngân hàng mà vẫn giữ được đề và bài đã làm, hai nút xoá và ẩn
- * làm cùng một việc nên bỏ nút xoá. Xem trước mở bằng cách bấm vào chỗ nào của dòng (bảng) hay của thẻ cũng được
- * (xem openOnRowClick); bấm vào hai nút này thì chỉ làm việc của nút.
+ * Giáo viên không có nút xoá: ẩn câu hỏi đã là cách gỡ nó khỏi ngân hàng mà vẫn giữ được đề và bài đã làm, hai nút xoá và ẩn
+ * làm cùng một việc. Quản trị viên có thêm nút xoá để dọn hẳn câu sai hay trùng; server chỉ cho xoá câu chưa nằm trong bài
+ * kiểm tra nào. Xem trước mở bằng cách bấm vào chỗ nào của dòng (bảng) hay của thẻ cũng được (xem openOnRowClick); bấm vào các
+ * nút này thì chỉ làm việc của nút.
  */
-function QuestionActionButtons({ question, onToggleStatus }: Omit<QuestionRowProps, 'onPreview'>) {
+function QuestionActionButtons({
+  question, audience, onToggleStatus, onDelete,
+}: Omit<QuestionRowProps, 'onPreview' | 'showSubject'>) {
   const isActive = question.status === 'active'
   const toggleLabel = isActive ? 'Ẩn câu hỏi khỏi ngân hàng' : 'Đưa câu hỏi trở lại ngân hàng'
 
   return (
     <>
       <NavLink
-        to={`/giao-vien/cau-hoi/${question.id}/sua`}
+        to={`${questionBankPath[audience]}/${question.id}/sua`}
         title="Sửa câu hỏi"
         aria-label="Sửa câu hỏi"
         className={iconButtonClass}
@@ -124,12 +135,22 @@ function QuestionActionButtons({ question, onToggleStatus }: Omit<QuestionRowPro
       >
         {isActive ? <EyeOff size={15} /> : <Eye size={15} />}
       </button>
-
+      {audience === 'admin' && (
+        <button
+          type="button"
+          onClick={() => onDelete(question)}
+          title="Xoá câu hỏi"
+          aria-label="Xoá câu hỏi"
+          className={dangerIconButtonClass}
+        >
+          <Trash2 size={15} />
+        </button>
+      )}
     </>
   )
 }
 
-function QuestionRow({ question, onPreview, onToggleStatus }: QuestionRowProps) {
+function QuestionRow({ question, audience, showSubject, onPreview, onToggleStatus, onDelete }: QuestionRowProps) {
   const openPreview = openOnRowClick(() => onPreview(question))
 
   return (
@@ -161,6 +182,9 @@ function QuestionRow({ question, onPreview, onToggleStatus }: QuestionRowProps) 
         <span className={`${chipClass} bg-indigo-50 text-indigo-700`} title={question.topic}>
           <span className="truncate">{question.topic}</span>
         </span>
+        {showSubject && (
+          <p className="mt-1 truncate text-xs text-slate-400" title={question.subject}>{question.subject}</p>
+        )}
       </td>
 
       <td className="px-5 py-2.5">
@@ -183,11 +207,23 @@ function QuestionRow({ question, onPreview, onToggleStatus }: QuestionRowProps) 
         </span>
       </td>
 
-      <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">{formatDate(question.updatedAt)}</td>
+      {audience === 'admin' ? (
+        <td className="px-5 py-2.5">
+          <p className="truncate font-medium text-slate-700" title={question.createdBy}>{question.createdBy || '—'}</p>
+          <p className="mt-0.5 whitespace-nowrap text-xs text-slate-400">{formatDate(question.updatedAt)}</p>
+        </td>
+      ) : (
+        <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">{formatDate(question.updatedAt)}</td>
+      )}
 
       <td className="px-5 py-2.5">
         <div className="flex items-center justify-end gap-2">
-          <QuestionActionButtons question={question} onToggleStatus={onToggleStatus} />
+          <QuestionActionButtons
+            question={question}
+            audience={audience}
+            onToggleStatus={onToggleStatus}
+            onDelete={onDelete}
+          />
         </div>
       </td>
     </tr>
@@ -195,7 +231,7 @@ function QuestionRow({ question, onPreview, onToggleStatus }: QuestionRowProps) 
 }
 
 /** Dòng dạng thẻ cho màn hình hẹp, nơi bảng bảy cột phải cuộn ngang mới thấy hết. */
-function QuestionCard({ question, onPreview, onToggleStatus }: QuestionRowProps) {
+function QuestionCard({ question, audience, showSubject, onPreview, onToggleStatus, onDelete }: QuestionRowProps) {
   const openPreview = openOnRowClick(() => onPreview(question))
 
   return (
@@ -227,6 +263,8 @@ function QuestionCard({ question, onPreview, onToggleStatus }: QuestionRowProps)
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-2">
+              {audience === 'admin' && question.createdBy ? `${question.createdBy} · ` : ''}
+              {showSubject && question.subject ? `${question.subject} · ` : ''}
               {question.answers.length} đáp án · Cập nhật {formatDate(question.updatedAt)}
             </p>
           </div>
@@ -240,7 +278,12 @@ function QuestionCard({ question, onPreview, onToggleStatus }: QuestionRowProps)
           >
             <Eye size={15} /> Xem trước
           </button>
-          <QuestionActionButtons question={question} onToggleStatus={onToggleStatus} />
+          <QuestionActionButtons
+            question={question}
+            audience={audience}
+            onToggleStatus={onToggleStatus}
+            onDelete={onDelete}
+          />
         </div>
       </div>
     </div>
@@ -328,22 +371,42 @@ function QuestionPreviewDetail({ question }: { question: Question }) {
   )
 }
 
-export default function QuestionBankPage() {
+interface QuestionBankPageProps {
+  /** Giáo viên: ngân hàng của môn mình. Quản trị viên: ngân hàng của mọi môn, thêm cột người soạn và nút xoá. */
+  audience: QuestionAudience
+}
+
+export default function QuestionBankPage({ audience }: QuestionBankPageProps) {
   const toast = useToast()
   const confirm = useConfirm()
+  const isAdmin = audience === 'admin'
+  const basePath = questionBankPath[audience]
+  const Layout = isAdmin ? AdminLayout : TeacherLayout
+  const currentUserId = getCurrentUser()?.id
 
-  // Từ khoá, ba bộ lọc và trang nằm trên URL: sửa một câu rồi Back về đúng bộ lọc và đúng trang đang xem.
+  // Từ khoá, các bộ lọc và trang nằm trên URL: sửa một câu rồi Back về đúng bộ lọc và đúng trang đang xem.
   const { searchInput, setSearchInput, search, filters, setFilter, page, setPage, clearAll } = useUrlListState(
     {
       'chu-de': { default: 'all' },
       'do-kho': { default: 'all', allowed: ['all', 'easy', 'medium', 'hard'] },
       'trang-thai': { default: 'all', allowed: ['all', 'active', 'hidden'] },
+      mon: { default: 'all' },
     },
     { debounceMs: 350 },
   )
   const topicFilter = filters['chu-de']
   const difficultyFilter = filters['do-kho'] as 'all' | DifficultyLevel
   const statusFilter = filters['trang-thai'] as 'all' | QuestionStatus
+  const subjectFilter = filters.mon
+
+  // Các môn chỉ quản trị viên cần. Chỉ có một môn thì ô lọc và dòng tên môn đều thừa nên ẩn đi.
+  const subjectsState = useAsync<Subject[]>(() => (isAdmin ? listSubjects() : Promise.resolve([])), [isAdmin])
+  const subjects = useMemo(() => subjectsState.data ?? [], [subjectsState.data])
+  const hasManySubjects = subjects.length > 1
+  // Mã môn trên URL chỉ có nghĩa với quản trị viên và khi là số nguyên dương; ngoài ra coi như "tất cả môn".
+  const parsedSubjectId = Number(subjectFilter)
+  const subjectId =
+    isAdmin && Number.isInteger(parsedSubjectId) && parsedSubjectId > 0 ? parsedSubjectId : undefined
 
   const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null)
   const syncedResponseRef = useRef<Paged<Question> | undefined>(undefined)
@@ -351,7 +414,7 @@ export default function QuestionBankPage() {
 
   // Một lời gọi trả về cả tổng số, số đang dùng và danh sách chủ đề — trước đây phải ghép ba
   // request rời để dựng đúng dòng phụ đề này.
-  const summaryState = useAsync<QuestionBankSummary>(() => getQuestionBankSummary(), [])
+  const summaryState = useAsync<QuestionBankSummary>(() => getQuestionBankSummary(undefined, subjectId), [subjectId])
 
   const listState = useAsync(
     () =>
@@ -360,10 +423,11 @@ export default function QuestionBankPage() {
         topic: topicFilter === 'all' ? undefined : topicFilter,
         difficulty: difficultyFilter,
         status: statusFilter,
+        subjectId,
         page,
         pageSize: PAGE_SIZE,
       }),
-    [search, topicFilter, difficultyFilter, statusFilter, page],
+    [search, topicFilter, difficultyFilter, statusFilter, subjectId, page],
   )
 
   // Bảng cần 1100px, cộng thanh bên dạng dải icon (76px) và lề trang (64px) là ~1240px: dưới cỡ xl thì
@@ -376,21 +440,32 @@ export default function QuestionBankPage() {
   const { tableRef, wrapperStyle } = useStableTableHeight(questions, PAGE_SIZE, pagedQuestions?.total ?? 0)
   const summary = summaryState.data
   // Tên môn đứng đầu để nói rõ cả ngân hàng thuộc đúng một môn, tránh nhầm dropdown chủ đề
-  // thành bộ chọn môn. Hồ sơ chưa có môn thì phụ đề tự lược bớt phần đó.
+  // thành bộ chọn môn. Hồ sơ chưa có môn thì phụ đề tự lược bớt phần đó. Quản trị viên không thuộc môn nào: ghi môn đang
+  // lọc, hoặc số môn khi xem tất cả.
   const summaryText = useMemo(() => {
     if (!summary) return null
-    const teachingSubject = getCurrentUser()?.subject?.trim()
     const parts: string[] = []
-    if (teachingSubject) parts.push(teachingSubject)
+    if (isAdmin) {
+      const filteredName = subjectId === undefined ? undefined : subjects.find(subject => subject.id === subjectId)?.name
+      if (filteredName) parts.push(filteredName)
+      else if (hasManySubjects) parts.push(`${subjects.length} môn`)
+    } else {
+      const teachingSubject = getCurrentUser()?.subject?.trim()
+      if (teachingSubject) parts.push(teachingSubject)
+    }
     // `total` tính cả câu đang ẩn, `active` chỉ tính câu đang dùng — hai con số cố ý khác nhau.
     parts.push(`${summary.total} câu hỏi`)
     parts.push(`${summary.topics.length} chủ đề`)
     parts.push(`${summary.active} đang dùng`)
     return parts.join(' · ')
-  }, [summary])
+  }, [summary, isAdmin, subjectId, subjects, hasManySubjects])
   // So khớp với từ khoá đã gửi cho service, không phải từ khoá đang gõ, để nhãn không lệch với kết quả
   const isFiltering =
-    search.trim() !== '' || topicFilter !== 'all' || difficultyFilter !== 'all' || statusFilter !== 'all'
+    search.trim() !== '' ||
+    topicFilter !== 'all' ||
+    difficultyFilter !== 'all' ||
+    statusFilter !== 'all' ||
+    subjectId !== undefined
 
   const filteredText =
     isFiltering && pagedQuestions && !listState.error ? `${pagedQuestions.total} câu hỏi khớp bộ lọc` : null
@@ -421,11 +496,30 @@ export default function QuestionBankPage() {
   const handleTopicChange = (value: string) => setFilter('chu-de', value)
   const handleDifficultyChange = (value: 'all' | DifficultyLevel) => setFilter('do-kho', value)
   const handleStatusChange = (value: 'all' | QuestionStatus) => setFilter('trang-thai', value)
+  // Đổi môn thì chủ đề đang lọc có thể không còn thuộc môn mới, nên bỏ luôn bộ lọc chủ đề thay vì để ra danh sách rỗng khó hiểu.
+  const handleSubjectChange = (value: string) => {
+    setFilter('mon', value)
+    setFilter('chu-de', 'all')
+  }
   const handleClearFilters = clearAll
+
+  // Quản trị viên ẩn hay xoá câu của người khác thì hộp xác nhận nói rõ câu của ai; câu của chính mình thì không cần.
+  const otherAuthorOf = (question: Question) =>
+    isAdmin && question.createdByUserId !== currentUserId ? question.createdBy || undefined : undefined
+
+  async function handleDelete(question: Question) {
+    const deleted = await confirm({
+      ...questionDeleteConfirmCopy(question, otherAuthorOf(question)),
+      onConfirm: () => deleteQuestion(question.id),
+    })
+    if (!deleted) return
+    toast.success('Đã xoá câu hỏi khỏi ngân hàng.')
+    reloadAll()
+  }
 
   async function handleToggleStatus(question: Question) {
     const nextStatus: QuestionStatus = question.status === 'active' ? 'hidden' : 'active'
-    const copy = questionStatusConfirmCopy(question, nextStatus)
+    const copy = questionStatusConfirmCopy(question, nextStatus, otherAuthorOf(question))
     if (copy) {
       const changed = await confirm({
         ...copy,
@@ -475,7 +569,7 @@ export default function QuestionBankPage() {
         title="Ngân hàng câu hỏi đang trống"
         description="Tạo câu hỏi đầu tiên, rồi dựng đề kiểm tra từ ngân hàng này."
         action={
-          <NavLink to="/giao-vien/cau-hoi/tao" className={primaryButtonClass} style={primaryButtonStyle}>
+          <NavLink to={`${basePath}/tao`} className={primaryButtonClass} style={primaryButtonStyle}>
             <Plus size={16} /> Tạo câu hỏi
           </NavLink>
         }
@@ -496,12 +590,12 @@ export default function QuestionBankPage() {
               <table ref={tableRef} className="w-full table-fixed text-sm min-w-[1100px]">
                 <colgroup>
                   <col />
-                  <col className="w-40" />
+                  <col className={isAdmin ? 'w-36' : 'w-40'} />
                   <col className="w-32" />
-                  <col className="w-28" />
+                  <col className={isAdmin ? 'w-24' : 'w-28'} />
                   <col className="w-32" />
-                  <col className="w-32" />
-                  <col className="w-44" />
+                  <col className={isAdmin ? 'w-40' : 'w-32'} />
+                  <col className={isAdmin ? 'w-40' : 'w-44'} />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/60">
@@ -510,7 +604,7 @@ export default function QuestionBankPage() {
                     <th className={headCellClass}>Độ khó</th>
                     <th className={headCellClass}>Điểm</th>
                     <th className={headCellClass}>Trạng thái</th>
-                    <th className={headCellClass}>Cập nhật</th>
+                    <th className={headCellClass}>{isAdmin ? 'Soạn bởi' : 'Cập nhật'}</th>
                     <th className={`${headCellClass} text-right`}>Thao tác</th>
                   </tr>
                 </thead>
@@ -519,8 +613,11 @@ export default function QuestionBankPage() {
                     <QuestionRow
                       key={question.id}
                       question={question}
+                      audience={audience}
+                      showSubject={isAdmin && hasManySubjects}
                       onPreview={setPreviewQuestion}
                       onToggleStatus={target => void handleToggleStatus(target)}
+                      onDelete={target => void handleDelete(target)}
                     />
                   ))}
                 </tbody>
@@ -537,8 +634,11 @@ export default function QuestionBankPage() {
               <QuestionCard
                 key={question.id}
                 question={question}
+                audience={audience}
+                showSubject={isAdmin && hasManySubjects}
                 onPreview={setPreviewQuestion}
                 onToggleStatus={target => void handleToggleStatus(target)}
+                onDelete={target => void handleDelete(target)}
               />
             ))}
           </div>
@@ -555,7 +655,9 @@ export default function QuestionBankPage() {
     )
   }
 
-  // Ô tìm kiếm, ba ô lọc và nút tạo mới nằm trên thanh tiêu đề (từ cỡ lg), thay cho thẻ và hàng lọc riêng phía trên bảng.
+  // Ô tìm kiếm, các ô lọc và nút tạo mới nằm trên thanh tiêu đề (từ cỡ lg), thay cho thẻ và hàng lọc riêng phía trên bảng.
+  // Thêm ô lọc môn thì các ô còn lại hẹp bớt để cả hàng vẫn nằm trên một dòng.
+  const toolSelectClass = isAdmin && hasManySubjects ? selectClass.replace('max-w-[11rem]', 'max-w-[9rem]') : selectClass
   const tools = (
     <div className="flex flex-wrap items-center justify-end gap-2.5 w-full">
       <div className="flex-1 min-w-[9rem] max-w-xs">
@@ -567,11 +669,27 @@ export default function QuestionBankPage() {
         />
       </div>
 
+      {isAdmin && hasManySubjects && (
+        <select
+          value={subjectId === undefined ? 'all' : String(subjectId)}
+          onChange={event => handleSubjectChange(event.target.value)}
+          aria-label="Lọc theo môn"
+          className={toolSelectClass}
+        >
+          <option value="all">Tất cả môn</option>
+          {subjects.map(subject => (
+            <option key={subject.id} value={subject.id}>
+              {subject.name}
+            </option>
+          ))}
+        </select>
+      )}
+
       <select
         value={topicFilter}
         onChange={event => handleTopicChange(event.target.value)}
         aria-label="Lọc theo chủ đề"
-        className={selectClass}
+        className={toolSelectClass}
       >
         <option value="all">Tất cả chủ đề</option>
         {topicOptions.map(topic => (
@@ -585,7 +703,7 @@ export default function QuestionBankPage() {
         value={difficultyFilter}
         onChange={event => handleDifficultyChange(event.target.value as 'all' | DifficultyLevel)}
         aria-label="Lọc theo độ khó"
-        className={selectClass}
+        className={toolSelectClass}
       >
         {difficultyOptions.map(option => (
           <option key={option.value} value={option.value}>
@@ -598,7 +716,7 @@ export default function QuestionBankPage() {
         value={statusFilter}
         onChange={event => handleStatusChange(event.target.value as 'all' | QuestionStatus)}
         aria-label="Lọc theo trạng thái"
-        className={selectClass}
+        className={toolSelectClass}
       >
         {statusOptions.map(option => (
           <option key={option.value} value={option.value}>
@@ -617,14 +735,14 @@ export default function QuestionBankPage() {
         </button>
       )}
 
-      <NavLink to="/giao-vien/cau-hoi/tao" className={headerButtonClass} style={primaryButtonStyle}>
+      <NavLink to={`${basePath}/tao`} className={headerButtonClass} style={primaryButtonStyle}>
         <Plus size={16} /> Tạo câu hỏi
       </NavLink>
     </div>
   )
 
   return (
-    <TeacherLayout
+    <Layout
       pageTitle="Ngân hàng câu hỏi"
       pageSubtitle={filteredText ?? summaryText ?? 'Quản lý câu hỏi theo chủ đề và độ khó'}
       compactContent
@@ -645,7 +763,7 @@ export default function QuestionBankPage() {
         footer={
           previewQuestion && (
             <NavLink
-              to={`/giao-vien/cau-hoi/${previewQuestion.id}/sua`}
+              to={`${basePath}/${previewQuestion.id}/sua`}
               className={primaryButtonClass}
               style={primaryButtonStyle}
             >
@@ -656,6 +774,6 @@ export default function QuestionBankPage() {
       >
         {previewQuestion && <QuestionPreviewDetail question={previewQuestion} />}
       </Modal>
-    </TeacherLayout>
+    </Layout>
   )
 }

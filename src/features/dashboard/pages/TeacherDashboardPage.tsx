@@ -327,11 +327,16 @@ export default function TeacherDashboardPage() {
                 Chưa có hoạt động nào được ghi nhận. Khi học sinh làm bài, mọi diễn biến sẽ hiện ngay tại đây.
               </p>
             ) : (
-              <div className="space-y-4">
+              <div className="stagger-in space-y-4">
                 {activities.map((activity, index) => (
                   <div key={activity.id} className="flex gap-3">
                     <div className="flex flex-col items-center">
-                      <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${activityToneClass[activity.tone]}`} />
+                      <div className="relative mt-1.5 flex-shrink-0">
+                        {index === 0 && (
+                          <span aria-hidden="true" className={`absolute inset-0 rounded-full opacity-60 animate-ping motion-reduce:animate-none ${activityToneClass[activity.tone]}`} />
+                        )}
+                        <div className={`relative w-2.5 h-2.5 rounded-full ${activityToneClass[activity.tone]}`} />
+                      </div>
                       {index < activities.length - 1 && <div className="w-px flex-1 bg-slate-100 mt-1" />}
                     </div>
                     <div className="pb-4 min-w-0">

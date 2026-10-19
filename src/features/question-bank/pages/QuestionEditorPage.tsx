@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Info, Loader2, Plus, Save } from 'lucide-react'
+import AdminLayout from '../../../components/layout/AdminLayout'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
 import ComboboxInput from '../../../components/common/ComboboxInput'
 import ErrorState from '../../../components/common/ErrorState'
@@ -11,9 +12,11 @@ import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
 import { useAsync } from '../../../hooks/useAsync'
 import { useUnsavedChangesGuard } from '../../../hooks/useUnsavedChangesGuard'
+import { getCurrentUser } from '../../../services/authService'
 import {
   createQuestion,
   getQuestion,
+  listSubjects,
   listTopics,
   setQuestionStatus,
   updateQuestion,
@@ -26,11 +29,13 @@ import {
   type DifficultyLevel,
   type Question,
   type QuestionStatus,
+  type Subject,
 } from '../../../types'
 import AnswerEditorRow from '../components/AnswerEditorRow'
 import QuestionPreview from '../components/QuestionPreview'
 import SaveQuestionDialog from '../components/SaveQuestionDialog'
 import { questionStatusConfirmCopy } from '../utils/questionConfirmations'
+import { questionBankPath, type QuestionAudience } from '../utils/questionAudience'
 
 const MIN_ANSWERS = 2
 const MAX_ANSWERS = 6
@@ -53,6 +58,7 @@ const editorTabs: { id: EditorTab; label: string; shortLabel: string }[] = [
 
 /** Mục kiểm nào thuộc tab nào: bấm vào một mục chưa đạt thì nhảy tới đúng tab cần sửa. */
 const CHECK_TAB: Record<string, EditorTab> = {
+  subject: 'noi-dung',
   title: 'noi-dung',
   content: 'noi-dung',
   topic: 'noi-dung',
@@ -121,24 +127,33 @@ function readReturnExamId(rawValue: string | null): number | undefined {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
 }
 
-export default function QuestionEditorPage() {
+interface QuestionEditorPageProps {
+  /** Giáo viên soạn trong môn của mình. Quản trị viên phải chọn môn khi tạo và sửa được câu của bất kỳ ai. */
+  audience: QuestionAudience
+}
+
+export default function QuestionEditorPage({ audience }: QuestionEditorPageProps) {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
   const confirm = useConfirm()
   const [searchParams] = useSearchParams()
+  const isAdmin = audience === 'admin'
+  const basePath = questionBankPath[audience]
+  const Layout = isAdmin ? AdminLayout : TeacherLayout
 
   const questionId = Number(id)
   const isEdit = Boolean(id)
   const hasValidQuestionId = Number.isInteger(questionId) && questionId > 0
 
-  // Giáo viên đang soạn đề mà thiếu câu thì đi vòng qua đây, xong phải được trả về đúng chỗ cũ.
-  const isReturningToExamBuilder = searchParams.get('quay-lai') === 'de'
+  // Giáo viên đang soạn đề mà thiếu câu thì đi vòng qua đây, xong phải được trả về đúng chỗ cũ. Quản trị viên không soạn đề nên
+  // không có đường vòng này.
+  const isReturningToExamBuilder = !isAdmin && searchParams.get('quay-lai') === 'de'
   const returnExamId = readReturnExamId(searchParams.get('de'))
   const examBuilderPath = returnExamId === undefined
     ? '/giao-vien/bai-kiem-tra/tao'
     : `/giao-vien/bai-kiem-tra/${returnExamId}/sua`
-  const backPath = isReturningToExamBuilder ? examBuilderPath : '/giao-vien/cau-hoi'
+  const backPath = isReturningToExamBuilder ? examBuilderPath : basePath
 
   // Đường dẫn sửa với mã không hợp lệ phải báo lỗi rõ ràng thay vì âm thầm mở form tạo mới.
   const loadQuestion = (): Promise<Question | undefined> => {
@@ -154,7 +169,23 @@ export default function QuestionEditorPage() {
     reload: reloadQuestion,
   } = useAsync(loadQuestion, [isEdit, questionId])
 
-  const { data: topicSuggestions } = useAsync(() => listTopics(), [])
+  // Môn của câu hỏi. Giáo viên không chọn (server lấy từ tài khoản). Quản trị viên chọn khi tạo; khi sửa thì môn đã cố định. Chỉ
+  // có một môn thì chọn sẵn.
+  const subjectsState = useAsync<Subject[]>(() => (isAdmin ? listSubjects() : Promise.resolve([])), [isAdmin])
+  const subjects = subjectsState.data ?? []
+  const [subjectChoice, setSubjectChoice] = useState('')
+  const subjectId: number | undefined = !isAdmin
+    ? undefined
+    : isEdit
+      ? existingQuestion?.subjectId
+      : subjectChoice !== ''
+        ? Number(subjectChoice)
+        : subjects.length === 1
+          ? subjects[0].id
+          : undefined
+
+  // Gợi ý chủ đề theo môn đang soạn: quản trị viên đọc cả ngân hàng nên không thu hẹp thì sẽ thấy chủ đề của môn khác.
+  const { data: topicSuggestions } = useAsync(() => listTopics(isAdmin ? subjectId : undefined), [isAdmin, subjectId])
 
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -243,6 +274,13 @@ export default function QuestionEditorPage() {
 
     return [
       {
+        key: 'subject',
+        label: 'Môn học',
+        // Chỉ quản trị viên khi tạo mới phải chọn: giáo viên lấy môn từ tài khoản, còn sửa thì môn đã có sẵn.
+        passed: !isAdmin || isEdit || subjectId !== undefined,
+        hint: subjectId !== undefined ? 'Đã chọn môn' : 'Chưa chọn môn học',
+      },
+      {
         key: 'title',
         label: 'Tên câu hỏi',
         passed: title.trim().length > 0,
@@ -303,7 +341,7 @@ export default function QuestionEditorPage() {
     ]
   }, [
     allowMultiple, answers.length, content, correctAnswerCount, correctAnswerIndex, correctLetters, defaultPoint,
-    emptyAnswerLetters, title, topic,
+    emptyAnswerLetters, isAdmin, isEdit, subjectId, title, topic,
   ])
 
   const failedChecks = checks.filter(check => !check.passed)
@@ -318,6 +356,7 @@ export default function QuestionEditorPage() {
 
   // Ô nào còn thiếu thì sáng lên ngay trên form (thay cho hộp liệt kê "còn N mục cần hoàn thiện" ở bên phải).
   const isFailed = (key: string) => failedChecks.some(check => check.key === key)
+  const subjectMissing = isFailed('subject')
   const titleMissing = isFailed('title')
   const contentMissing = isFailed('content')
   const topicMissing = isFailed('topic')
@@ -419,6 +458,8 @@ export default function QuestionEditorPage() {
     allowMultiple,
     defaultPoint,
     answers: answers.map(answer => ({ ...answer, content: answer.content.trim() })),
+    // Chỉ quản trị viên gửi môn, và chỉ khi tạo: sửa thì câu hỏi không chuyển môn giữa chừng.
+    subjectId: isAdmin && !isEdit ? subjectId : undefined,
   })
 
   // Giữ lại chủ đề, độ khó và điểm vì giáo viên thường nhập liền một mạch nhiều câu cùng dạng.
@@ -453,9 +494,13 @@ export default function QuestionEditorPage() {
       // Đổi ô trạng thái rồi bấm Lưu là ẩn hoặc hiện câu hỏi thật, nên hỏi lại đúng như nút ẩn ở
       // ngân hàng câu hỏi — hai lối vào cùng một việc thì không được một lối hỏi, một lối không.
       // Hiện lại thì cả hai lối đều không hỏi — quy tắc đó nằm trong questionStatusConfirmCopy.
+      const otherAuthor =
+        isAdmin && existingQuestion && existingQuestion.createdByUserId !== getCurrentUser()?.id
+          ? existingQuestion.createdBy || undefined
+          : undefined
       const statusCopy =
         existingQuestion && existingQuestion.status !== status
-          ? questionStatusConfirmCopy({ title, content, difficulty }, status)
+          ? questionStatusConfirmCopy({ title, content, difficulty }, status, otherAuthor)
           : null
       if (statusCopy) {
         const saved = await confirm({
@@ -527,11 +572,16 @@ export default function QuestionEditorPage() {
   )
 
   const pageTitle = isEdit ? 'Sửa câu hỏi' : 'Tạo câu hỏi'
-  const pageSubtitle = 'Câu hỏi trắc nghiệm một hoặc nhiều đáp án đúng'
+  const pageSubtitle =
+    isAdmin && isEdit && existingQuestion
+      ? `Câu hỏi của ${existingQuestion.createdBy || 'giáo viên'} · ${existingQuestion.subject || 'môn chưa rõ'}`
+      : isAdmin
+        ? 'Câu hỏi thuộc môn đã chọn; giáo viên của môn đó dùng được'
+        : 'Câu hỏi trắc nghiệm một hoặc nhiều đáp án đúng'
 
   if (isEdit && loadingQuestion) {
     return (
-      <TeacherLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle} compactContent headerTools={backLink}>
+      <Layout pageTitle={pageTitle} pageSubtitle={pageSubtitle} compactContent headerTools={backLink}>
         <div>
           <div className="space-y-3">
             <SkeletonBlock className="h-10 w-72 rounded-2xl" />
@@ -547,15 +597,15 @@ export default function QuestionEditorPage() {
             </div>
           </div>
         </div>
-      </TeacherLayout>
+      </Layout>
     )
   }
 
   if (isEdit && questionError) {
     return (
-      <TeacherLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle} compactContent headerTools={backLink}>
+      <Layout pageTitle={pageTitle} pageSubtitle={pageSubtitle} compactContent headerTools={backLink}>
         <ErrorState message={questionError} onRetry={reloadQuestion} />
-      </TeacherLayout>
+      </Layout>
     )
   }
 
@@ -575,7 +625,7 @@ export default function QuestionEditorPage() {
   )
 
   return (
-    <TeacherLayout pageTitle={pageTitle} pageSubtitle={pageSubtitle} compactContent headerTools={backLink}>
+    <Layout pageTitle={pageTitle} pageSubtitle={pageSubtitle} compactContent headerTools={backLink}>
       {examBuilderNotice}
 
       <div className="min-w-0 animate-fade-in-up">
@@ -684,7 +734,49 @@ export default function QuestionEditorPage() {
               onUploadingChange={uploading => setImageUploading('question', uploading)}
             />
 
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)]">
+            <div
+              className={`grid grid-cols-2 gap-3 ${
+                isAdmin
+                  ? 'md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)]'
+                  : 'md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)]'
+              }`}
+            >
+              {isAdmin && (
+                <div className="col-span-2 md:col-span-1">
+                  <label htmlFor="question-subject" className={labelClass}>
+                    Môn học {!isEdit && <span className="text-red-500">*</span>}
+                  </label>
+                  {isEdit ? (
+                    <p
+                      id="question-subject"
+                      title="Câu hỏi không chuyển sang môn khác được"
+                      className="truncate px-3 py-2 rounded-xl border border-slate-100 bg-slate-50 text-sm text-slate-600"
+                    >
+                      {existingQuestion?.subject || '—'}
+                    </p>
+                  ) : (
+                    <select
+                      id="question-subject"
+                      value={subjectId === undefined ? '' : String(subjectId)}
+                      onChange={event => setSubjectChoice(event.target.value)}
+                      disabled={subjects.length === 1}
+                      aria-required="true"
+                      data-attention={subjectMissing ? 'true' : undefined}
+                      className={subjectMissing ? attentionClass : selectClass}
+                    >
+                      <option value="">Chọn môn</option>
+                      {subjects.map(subject => (
+                        <option key={subject.id} value={subject.id}>
+                          {subject.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {subjectsState.error && !isEdit && (
+                    <p className="mt-1 text-xs text-red-600">Không tải được danh sách môn. Tải lại trang để thử lại.</p>
+                  )}
+                </div>
+              )}
               <div className="col-span-2 md:col-span-1">
                 <label htmlFor="question-topic" className={labelClass}>
                   Chủ đề <span className="text-red-500">*</span>
@@ -878,6 +970,6 @@ export default function QuestionEditorPage() {
           void handleSave(keepCreating)
         }}
       />
-    </TeacherLayout>
+    </Layout>
   )
 }

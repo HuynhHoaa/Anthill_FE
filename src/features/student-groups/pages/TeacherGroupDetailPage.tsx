@@ -5,18 +5,24 @@
  * lớp là quyết định của tổ chức, nên mọi nút thay đổi đều nằm ở khu quản trị. Danh sách giáo viên
  * cùng phụ trách lớp không hiện ở đây — xem ở trang tương ứng bên khu quản trị.
  */
-import { useMemo } from 'react'
-import { NavLink, useParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { NavLink, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, CalendarDays, Eye, Users, UsersRound } from 'lucide-react'
 import { memberCountLabel } from '../components/groupTheme'
 import TeacherLayout from '../../../components/layout/TeacherLayout'
+import { LockedStateBadge } from '../../../components/common/Badge'
 import EmptyState from '../../../components/common/EmptyState'
 import ErrorState from '../../../components/common/ErrorState'
+import ExportExcelButton from '../../../components/common/ExportExcelButton'
 import { SkeletonTable } from '../../../components/common/Skeleton'
+import SlidingSegments from '../../../components/common/SlidingSegments'
 import { useAsync } from '../../../hooks/useAsync'
 import { formatDate, formatScore, roundScore } from '../../../lib/format'
-import { getGroup, listGroupStudents } from '../../../services/groupService'
-import type { Student, StudentGroup } from '../../../types'
+import { dateStamp, fileSlug } from '../../../lib/download'
+import { exportGroupGradeSheet, getGroup, listGroupExams, listGroupStudents } from '../../../services/groupService'
+import type { GroupExam, Student, StudentGroup } from '../../../types'
+import GroupExamResultsModal from '../components/GroupExamResultsModal'
+import GroupExamsPanel from '../components/GroupExamsPanel'
 import GroupStudentTable from '../components/GroupStudentTable'
 
 const groupListLink = '/giao-vien/nhom-lop'
@@ -25,10 +31,33 @@ const chipClass =
 
 const studentProfileLink = (studentId: number) => `/giao-vien/hoc-sinh/${studentId}`
 
+type DetailTab = 'hoc-sinh' | 'bai-kiem-tra'
+
+function parseTab(raw: string | null): DetailTab {
+  return raw === 'bai-kiem-tra' ? raw : 'hoc-sinh'
+}
+
 export default function TeacherGroupDetailPage() {
   const { id } = useParams<{ id: string }>()
   const groupId = Number(id)
   const isValidGroupId = Number.isInteger(groupId) && groupId > 0
+
+  // Tab nằm trên URL: Back từ hồ sơ một em hay từ trang khác về đúng tab đang xem.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = parseTab(searchParams.get('tab'))
+  const setTab = (next: DetailTab) => {
+    setSearchParams(
+      current => {
+        const nextParams = new URLSearchParams(current)
+        if (next === 'hoc-sinh') nextParams.delete('tab')
+        else nextParams.set('tab', next)
+        return nextParams
+      },
+      { replace: true },
+    )
+  }
+  const [examPage, setExamPage] = useState(1)
+  const [openedExam, setOpenedExam] = useState<GroupExam | null>(null)
 
   const {
     data: group, loading: groupLoading, error: groupError, reload: reloadGroup,
@@ -50,10 +79,20 @@ export default function TeacherGroupDetailPage() {
     [groupId],
   )
 
+  const {
+    data: exams, loading: examsLoading, error: examsError, reload: reloadExams,
+  } = useAsync(
+    () =>
+      isValidGroupId
+        ? listGroupExams(groupId)
+        : Promise.reject<GroupExam[]>(new Error('Đường dẫn lớp không hợp lệ.')),
+    [groupId],
+  )
+
   const summaryText = useMemo(() => {
     if (!group) return null
     const parts = [group.name, `${group.studentCount} học sinh`]
-    const scoredMembers = (students ?? []).filter(member => member.completedExams > 0)
+    const scoredMembers = (students ?? []).filter(member => member.assignedExams > 0)
     if (scoredMembers.length > 0) {
       const averageScore = roundScore(
         scoredMembers.reduce((sum, member) => sum + member.averageScore, 0) / scoredMembers.length,
@@ -62,6 +101,11 @@ export default function TeacherGroupDetailPage() {
     }
     return parts.join(' · ')
   }, [group, students])
+
+  const tabs: { id: DetailTab; label: string }[] = [
+    { id: 'hoc-sinh', label: `Học sinh${students ? ` (${memberCountLabel(students)})` : ''}` },
+    { id: 'bai-kiem-tra', label: `Bài kiểm tra trong lớp${exams ? ` (${exams.length})` : ''}` },
+  ]
 
   const showHeaderSkeleton = groupLoading && group === undefined
 
@@ -80,15 +124,24 @@ export default function TeacherGroupDetailPage() {
               {group.description || 'Chưa có mô tả cho lớp này.'}
             </p>
           </div>
-          <div className="hidden xl:flex items-center gap-2 flex-shrink-0">
+          <div className="hidden 2xl:flex items-center gap-2 flex-shrink-0">
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
               <UsersRound size={13} /> {group.studentCount} học sinh
             </span>
             <span className={chipClass}>
               <CalendarDays size={13} /> Tạo ngày {formatDate(group.createdAt)}
             </span>
+            {group.isLocked && <LockedStateBadge />}
           </div>
         </div>
+      )}
+      {group && (
+        <ExportExcelButton
+          label="Xuất bảng điểm"
+          fileName={`bang-diem-lop-${fileSlug(group.name)}-${dateStamp()}.xlsx`}
+          request={() => exportGroupGradeSheet(group.id)}
+          successMessage={`Đã xuất bảng điểm lớp ${group.name}.`}
+        />
       )}
       <NavLink
         to={groupListLink}
@@ -122,37 +175,78 @@ export default function TeacherGroupDetailPage() {
 
       {group && (
         <>
-          <div className="mb-3">
-            <h2 className="text-base font-bold text-slate-800">
-              Học sinh trong lớp
-              {students && <span className="text-slate-400 font-semibold"> ({memberCountLabel(students)})</span>}
-            </h2>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Danh sách lớp do quản trị viên xếp. Cần thêm hoặc chuyển học sinh, hãy liên hệ quản trị viên.
-            </p>
+          <div className="mb-4">
+            <SlidingSegments activeKey={tab} className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 w-fit">
+              {tabs.map(item => {
+                const isActive = tab === item.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setTab(item.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    data-tab-active={isActive}
+                    className={`relative z-10 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                      isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                )
+              })}
+            </SlidingSegments>
           </div>
 
-          {studentsLoading && students === undefined && <SkeletonTable rows={5} cols={7} />}
+          {tab === 'hoc-sinh' && (
+            <>
+              {studentsLoading && students === undefined && <SkeletonTable rows={5} cols={7} />}
 
-          {!studentsLoading && studentsError && (
-            <ErrorState message={studentsError} onRetry={reloadStudents} />
+              {!studentsLoading && studentsError && (
+                <ErrorState message={studentsError} onRetry={reloadStudents} />
+              )}
+
+              {!studentsError && students && students.length === 0 && (
+                <EmptyState
+                  icon={UsersRound}
+                  title="Lớp chưa có học sinh nào"
+                  description="Quản trị viên chưa xếp học sinh vào lớp này, nên bài kiểm tra giao cho lớp sẽ chưa tới được ai."
+                />
+              )}
+
+              {!studentsError && students && students.length > 0 && (
+                <GroupStudentTable
+                  students={students}
+                  dimmed={studentsLoading}
+                  buildStudentLink={studentProfileLink}
+                  studentLinkLabel="Xem"
+                  studentLinkIcon={Eye}
+                />
+              )}
+            </>
           )}
 
-          {!studentsError && students && students.length === 0 && (
-            <EmptyState
-              icon={UsersRound}
-              title="Lớp chưa có học sinh nào"
-              description="Quản trị viên chưa xếp học sinh vào lớp này, nên bài kiểm tra giao cho lớp sẽ chưa tới được ai."
-            />
+          {tab === 'bai-kiem-tra' && (
+            <>
+              {examsLoading && exams === undefined && <SkeletonTable rows={5} cols={5} />}
+              {!examsLoading && examsError && <ErrorState message={examsError} onRetry={reloadExams} />}
+              {!examsError && exams && (
+                <GroupExamsPanel
+                  exams={exams}
+                  page={examPage}
+                  onPageChange={setExamPage}
+                  onOpen={setOpenedExam}
+                  emptyDescription="Bài kiểm tra bạn giao cho lớp từ phần Bài kiểm tra sẽ hiện ở đây, cùng số em đã nộp và điểm trung bình."
+                />
+              )}
+            </>
           )}
 
-          {!studentsError && students && students.length > 0 && (
-            <GroupStudentTable
-              students={students}
-              dimmed={studentsLoading}
-              buildStudentLink={studentProfileLink}
-              studentLinkLabel="Xem"
-              studentLinkIcon={Eye}
+          {openedExam && (
+            <GroupExamResultsModal
+              exam={openedExam}
+              groupId={group.id}
+              audience="teacher"
+              onClose={() => setOpenedExam(null)}
             />
           )}
         </>

@@ -74,6 +74,42 @@ body {
   font-weight: 600;
 }
 
+/* Biểu tượng của mục nhích lên một chút khi rê chuột; mũi tên cuối dòng trượt sang phải. */
+.sidebar-item > svg:first-child {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.sidebar-item:hover > svg:first-child {
+  transform: scale(1.15) rotate(-6deg);
+}
+.sidebar-item > svg:last-child:not(:first-child) {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.sidebar-item:hover > svg:last-child:not(:first-child) {
+  transform: translateX(3px);
+  opacity: 0.9 !important;
+}
+
+/* Vạch trắng mảnh bên trái mục đang mở, mọc từ giữa ra mỗi khi vào trang. */
+.sidebar-item {
+  position: relative;
+}
+.sidebar-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0.3rem;
+  top: 50%;
+  width: 3px;
+  height: 52%;
+  border-radius: 9999px;
+  background: #fff;
+  transform: translateY(-50%);
+  animation: navBar 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+@keyframes navBar {
+  from { transform: translateY(-50%) scaleY(0); opacity: 0; }
+  to   { transform: translateY(-50%) scaleY(1); opacity: 1; }
+}
+
 /* Lớp phủ tối khi sidebar mở dạng drawer trên tablet */
 .sidebar-overlay {
   position: fixed;
@@ -463,6 +499,40 @@ a[role='button']:active {
   scale: 0.96;
 }
 
+/* ===== Hoạt ảnh vui mắt cho phía học sinh ===== */
+
+/* Huy hiệu / vòng điểm bật ra có độ nảy, như một con tem vừa được đóng. */
+@keyframes popIn {
+  0%   { opacity: 0; transform: scale(0.6); }
+  60%  { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.animate-pop-in {
+  animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+/* Biểu tượng lắc nhẹ khi rê chuột vào thẻ chứa nó (thẻ phải có lớp `group`). */
+@keyframes wiggle {
+  0%, 100% { rotate: 0deg; }
+  25%      { rotate: -10deg; }
+  75%      { rotate: 10deg; }
+}
+
+.group:hover .wiggle-on-hover {
+  animation: wiggle 0.55s ease-in-out;
+}
+
+/* Ngôi sao lấp lánh quanh điểm cao. */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.7) rotate(0deg); }
+  50%      { opacity: 1;   transform: scale(1.15) rotate(15deg); }
+}
+
+.animate-twinkle {
+  animation: twinkle 1.8s ease-in-out infinite;
+}
+
 /* Thẻ bấm được nổi lên khi rê chuột. */
 .hover-lift {
   transition: translate 0.2s ease, box-shadow 0.2s ease;
@@ -471,6 +541,40 @@ a[role='button']:active {
 .hover-lift:hover {
   translate: 0 -3px;
   box-shadow: 0 12px 28px -10px rgba(99, 102, 241, 0.28);
+}
+
+/* ===== Chuyển động của khung quản trị và giáo viên ===== */
+
+/*
+ * Nội dung của trang trượt nhẹ lên mỗi lần vào trang (khung bọc có `key` theo đường dẫn nên đổi trang là chạy lại). Cũng là fill-mode
+ * `backwards`: xong rồi không còn animation nào giữ transform trên khung bọc, nên phần tử `position: fixed` hay menu thả bên trong
+ * không bị nhốt.
+ */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: pageIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* Tên trang trên thanh tiêu đề trượt vào từ trái. */
+@keyframes titleIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.title-enter {
+  animation: titleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* Hàng bảng bấm được: rê chuột vào thì ô đầu có vạch màu chạy ra ở mép trái, báo "bấm vào đây mở chi tiết". */
+.stack-table tbody tr.cursor-pointer > td:first-child,
+.table-scroller tbody tr.cursor-pointer > td:first-child {
+  transition: box-shadow 0.2s ease;
+}
+.stack-table tbody tr.cursor-pointer:hover > td:first-child,
+.table-scroller tbody tr.cursor-pointer:hover > td:first-child {
+  box-shadow: inset 3px 0 0 #6366f1;
 }
 
 /* ===== Skeleton ===== */
@@ -496,6 +600,12 @@ a[role='button']:active {
   .animate-tab-in,
   .animate-flash,
   .animate-float,
+  .animate-pop-in,
+  .animate-twinkle,
+  .page-enter,
+  .title-enter,
+  .sidebar-item.active::before,
+  .group:hover .wiggle-on-hover,
   .stagger-in > *,
   .table-scroller tbody tr,
   .stack-table tbody tr,
@@ -505,6 +615,11 @@ a[role='button']:active {
   .slide-exit-to-right,
   .skeleton {
     animation: none;
+  }
+
+  .sidebar-item:hover > svg:first-child,
+  .sidebar-item:hover > svg:last-child:not(:first-child) {
+    transform: none;
   }
 
   /* Ngăn cũ của SlideSwap chỉ mờ đi nhờ animation; tắt animation thì phải ẩn hẳn, không thì chữ cũ lộ ra

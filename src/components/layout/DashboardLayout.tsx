@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Sidebar, { type SidebarMenuItem } from './Sidebar'
 import Header from './Header'
@@ -40,6 +41,23 @@ export default function DashboardLayout({
   const isCollapsed = isDesktop && canHover
   const isPeeking = isCollapsed && peeking
   const unreadCount = useUnreadCount()
+
+  // Công cụ của trang (nút nhập Excel, ô tìm kiếm...) chỉ dựng MỘT lần, vào một phần tử riêng; phần tử đó được dời giữa thanh tiêu đề
+  // (từ lg) và đầu nội dung (hẹp hơn). Dựng công cụ ở hai chỗ khác cha theo cỡ cửa sổ thì React huỷ rồi dựng lại mỗi lần cửa sổ băng
+  // qua ngưỡng 1024px, và trạng thái bên trong mất theo: hộp nhập Excel đang mở, mật khẩu chung của cả đợt vừa cấp...
+  const [toolsSlot] = useState(() => {
+    const element = document.createElement('div')
+    element.style.display = 'contents'
+    return element
+  })
+  const headerToolsHost = useRef<HTMLDivElement>(null)
+  const contentToolsHost = useRef<HTMLDivElement>(null)
+  const hasTools = Boolean(headerTools)
+
+  useLayoutEffect(() => {
+    const host = isDesktop ? headerToolsHost.current : contentToolsHost.current
+    if (host && toolsSlot.parentElement !== host) host.appendChild(toolsSlot)
+  }, [isDesktop, hasTools, toolsSlot])
 
   const handlePeekChange = (next: boolean) => {
     if (!isCollapsed) return
@@ -122,12 +140,17 @@ export default function DashboardLayout({
           onLogout={handleLogout}
           // Từ cỡ lg thanh bên luôn hiện và cụm tài khoản đã rời thanh tiêu đề, nên chỗ đó dành cho công cụ
           // của trang; hẹp hơn thì công cụ xuống đầu nội dung.
-          tools={isDesktop ? headerTools : undefined}
+          tools={isDesktop && hasTools ? <div ref={headerToolsHost} className="contents" /> : undefined}
         />
         <div className={compactContent ? 'px-4 pb-4 pt-3 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8 lg:pt-4' : 'p-4 sm:p-6 lg:p-8'}>
-          {!isDesktop && headerTools && <div className="mb-4">{headerTools}</div>}
-          {children}
+          {!isDesktop && hasTools && <div ref={contentToolsHost} className="mb-4" />}
+          {/* `key` theo đường dẫn: đổi trang (kể cả đổi mã trong cùng một kiểu trang) thì nội dung vào lại bằng hoạt ảnh. Khung công cụ
+              ở trên nằm ngoài khung này nên không bị dựng lại khi đổi trang trong cùng một trang chứa. */}
+          <div key={location.pathname} className="page-enter">
+            {children}
+          </div>
         </div>
+        {headerTools ? createPortal(headerTools, toolsSlot) : null}
       </main>
     </div>
   )

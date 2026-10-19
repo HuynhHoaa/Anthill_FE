@@ -15,6 +15,9 @@ import type { StudentGroup } from '../../../types'
  * quy trình chứ không phải đang hỏng.
  */
 export function getGroupIssues(group: StudentGroup): string[] {
+  // Lớp đã khoá là lớp đã khép lại một cách có chủ ý: không có giáo viên mới hay học sinh mới nào cần được nhắc.
+  if (group.isLocked) return []
+
   const issues: string[] = []
   if (group.teachers.length === 0) issues.push('chưa phân công giáo viên nào')
   if (group.studentCount === 0) issues.push('chưa có học sinh nào')

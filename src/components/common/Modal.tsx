@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 interface ModalProps {
@@ -123,7 +124,10 @@ export default function Modal({
 
   if (!open) return null
 
-  return (
+  // Vẽ thẳng vào <body> chứ không vẽ tại chỗ: một tổ tiên có `transform`, `filter` hay hoạt ảnh làm `fixed` chỉ phủ vừa khung của
+  // tổ tiên đó (hộp bị nhốt trong một thẻ, tràn ra ngoài) và làm `z-50` chỉ có nghĩa trong khối đó, nên thẻ nằm sau trong trang
+  // đè lên hộp — nhất là trên điện thoại, nơi các cột xếp chồng nhau.
+  return createPortal(
     <div
       role="presentation"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in"
@@ -175,6 +179,7 @@ export default function Modal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

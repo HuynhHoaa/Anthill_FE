@@ -40,7 +40,7 @@ export default function Header({
         >
           <Menu size={18} />
         </button>
-        <div className="min-w-0">
+        <div key={title} className="min-w-0 title-enter">
           <h1 className="text-lg sm:text-xl font-bold text-slate-800 truncate">{title}</h1>
           <p className="text-sm text-slate-400 mt-0.5 truncate" title={subtitle}>
             {subtitle ?? today}
