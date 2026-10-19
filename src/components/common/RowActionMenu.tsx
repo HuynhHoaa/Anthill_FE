@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink } from 'react-router-dom'
 import { MoreVertical, type LucideIcon } from 'lucide-react'
@@ -56,7 +56,17 @@ export default function RowActionMenu({ label, items }: RowActionMenuProps) {
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  // Mở bằng bàn phím thì tiêu điểm vào mục đầu (hoặc cuối) ngay khi menu được vẽ; mở bằng chuột thì tiêu điểm ở lại nút.
+  const pendingFocusRef = useRef<'first' | 'last' | null>(null)
   const open = anchor !== null
+
+  const focusableItems = () =>
+    Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [])
+
+  const closeMenu = (restoreFocus = false) => {
+    setAnchor(null)
+    if (restoreFocus) triggerRef.current?.focus()
+  }
 
   const openMenu = () => {
     const trigger = triggerRef.current
@@ -75,14 +85,18 @@ export default function RowActionMenu({ label, items }: RowActionMenuProps) {
     if (!open) return
 
     const close = () => setAnchor(null)
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: globalThis.MouseEvent) => {
       const target = event.target as Node
       if (triggerRef.current?.contains(target)) return
       if (menuRef.current?.contains(target)) return
       close()
     }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close()
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      // Tiêu điểm đang trong menu thì trả về nút ⋮, để người dùng bàn phím không rơi xuống đầu trang.
+      const insideMenu = !!menuRef.current?.contains(document.activeElement)
+      close()
+      if (insideMenu) triggerRef.current?.focus()
     }
 
     document.addEventListener('mousedown', handlePointerDown)
@@ -97,15 +111,64 @@ export default function RowActionMenu({ label, items }: RowActionMenuProps) {
     }
   }, [open])
 
+  // Menu vừa mở bằng bàn phím: đưa tiêu điểm vào mục đầu/cuối sau khi nó đã được vẽ.
+  useEffect(() => {
+    if (!open || pendingFocusRef.current === null) return
+    const items = focusableItems()
+    const target = pendingFocusRef.current === 'last' ? items[items.length - 1] : items[0]
+    pendingFocusRef.current = null
+    target?.focus()
+  }, [open])
+
+  const handleTriggerClick = (event: MouseEvent<HTMLButtonElement>) => {
+    if (open) {
+      closeMenu()
+      return
+    }
+    // Enter và Space trên một nút sinh ra click có `detail` bằng 0; chuột thật thì từ 1 trở lên.
+    if (event.detail === 0) pendingFocusRef.current = 'first'
+    openMenu()
+  }
+
+  const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    event.preventDefault()
+    if (open) {
+      const items = focusableItems()
+      ;(event.key === 'ArrowUp' ? items[items.length - 1] : items[0])?.focus()
+      return
+    }
+    pendingFocusRef.current = event.key === 'ArrowUp' ? 'last' : 'first'
+    openMenu()
+  }
+
+  // ↑ ↓ Home End chạy giữa các mục; Tab rời menu thì đóng lại (menu nằm cuối body nên Tab tiếp sẽ rơi khỏi hàng).
+  const handleMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const items = focusableItems()
+    const index = items.indexOf(document.activeElement as HTMLElement)
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      if (items.length === 0) return
+      const next =
+        event.key === 'Home' ? 0
+        : event.key === 'End' ? items.length - 1
+        : event.key === 'ArrowDown' ? (index + 1) % items.length
+        : (index <= 0 ? items.length - 1 : index - 1)
+      items[next]?.focus()
+      return
+    }
+
+    if (event.key === 'Tab') closeMenu(true)
+  }
+
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => {
-          if (open) setAnchor(null)
-          else openMenu()
-        }}
+        onClick={handleTriggerClick}
+        onKeyDown={handleTriggerKeyDown}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Thao tác khác cho ${label}`}
@@ -124,6 +187,7 @@ export default function RowActionMenu({ label, items }: RowActionMenuProps) {
           <div
             ref={menuRef}
             role="menu"
+            onKeyDown={handleMenuKeyDown}
             onClick={event => event.stopPropagation()}
             style={{ top: anchor.top, left: anchor.left, width: MENU_WIDTH }}
             className="fixed z-40 bg-white rounded-2xl border border-slate-100 shadow-lg p-1.5 animate-fade-in"

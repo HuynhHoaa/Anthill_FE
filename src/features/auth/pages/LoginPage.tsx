@@ -55,8 +55,11 @@ function validateLoginForm(username: string, password: string): LoginFieldErrors
  */
 function resolveReturnPath(returnTo: string | undefined, home: string): string {
   if (!returnTo) return home
-  const insideHome = returnTo === home || returnTo.startsWith(`${home}/`) || returnTo.startsWith(`${home}?`)
-  return insideHome ? returnTo : home
+  // Khu vực là đoạn đầu của đường dẫn, không phải cả trang chủ: trang chủ của quản trị viên là /quan-tri/nhom-lop nhưng họ quay về
+  // được mọi trang dưới /quan-tri.
+  const area = `/${home.split('/')[1]}`
+  const insideArea = returnTo === area || returnTo.startsWith(`${area}/`) || returnTo.startsWith(`${area}?`)
+  return insideArea ? returnTo : home
 }
 
 const baseInputClass =

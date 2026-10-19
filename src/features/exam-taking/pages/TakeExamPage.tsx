@@ -614,9 +614,14 @@ export default function TakeExamPage() {
     leaveBlockedRef.current = Boolean(session) || (loading && !error)
   }, [session, loading, error])
 
+  // Trừ trang đăng nhập: phiên chết giữa giờ thi (tài khoản bị khoá, cấp lại mật khẩu) thì trình xử lý 401 xoá token rồi đưa về /dang-nhap,
+  // chặn bước đó là nhốt học sinh ở một trang không còn gọi được server nữa.
   const leaveBlocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      leaveBlockedRef.current && !hasSubmittedRef.current && currentLocation.pathname !== nextLocation.pathname,
+      leaveBlockedRef.current
+      && !hasSubmittedRef.current
+      && currentLocation.pathname !== nextLocation.pathname
+      && nextLocation.pathname !== '/dang-nhap',
   )
 
   useEffect(() => {

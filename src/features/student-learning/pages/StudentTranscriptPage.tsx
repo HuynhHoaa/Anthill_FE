@@ -161,10 +161,12 @@ export default function StudentTranscriptPage() {
   const selectedTermName = termId === undefined ? undefined : termsQuery.data?.find(term => term.id === termId)?.name
 
   // Chờ biết kỳ đang chọn rồi mới tải, để không tải bảng điểm "tất cả" rồi tải lại theo kỳ.
-  const { data: transcript, loading, error, reload, refresh } = useAsync(
-    () => (selection === undefined ? Promise.resolve(undefined) : getMyTranscript(termId)),
+  // Kết quả ghi kèm kỳ nó thuộc về: đổi kỳ thì dữ liệu của kỳ cũ không được hiện dưới tên kỳ mới trong lúc chờ.
+  const { data: loaded, loading, error, reload, refresh } = useAsync(
+    () => (selection === undefined ? Promise.resolve(undefined) : getMyTranscript(termId).then(result => ({ selection, result }))),
     [selection],
   )
+  const transcript = loaded !== undefined && loaded.selection === selection ? loaded.result : undefined
   const overall = useCountUp(transcript?.overallAverage ?? null, 900)
   useRealtimeRefresh(['ExamAssigned', 'ExamUpdated', 'AutoSubmitted'], refresh)
 

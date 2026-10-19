@@ -4,7 +4,7 @@
  * Gom về một chỗ vì danh sách giáo viên và hồ sơ giáo viên cùng làm hai việc này. Khoá bắt buộc nhập lý do (lưu vào lịch sử
  * của tài khoản); mở khoá thì không.
  */
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import ConsequenceList from '../../../components/common/ConsequenceList'
 import { useConfirm } from '../../../components/common/ConfirmProvider'
 import { useToast } from '../../../components/common/Toast'
@@ -24,6 +24,13 @@ export interface TeacherAccountActions {
 export function useTeacherAccountActions(): TeacherAccountActions {
   const confirm = useConfirm()
   const toast = useToast()
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   return useMemo<TeacherAccountActions>(() => ({
     async toggleLock(teacher) {
@@ -103,7 +110,14 @@ export function useTeacherAccountActions(): TeacherAccountActions {
         },
       })
 
-      return ok && holder.result ? holder.result : null
+      if (!ok || !holder.result) return null
+      if (!mountedRef.current) {
+        toast.error(
+          `Mật khẩu của ${teacher.fullName} đã được đổi, nhưng bạn rời trang trước khi mật khẩu mới kịp hiện ra. Hãy mở lại hồ sơ và cấp mật khẩu mới lần nữa.`,
+        )
+        return null
+      }
+      return holder.result
     },
   }), [confirm, toast])
 }

@@ -19,6 +19,9 @@ interface AddStudentsModalProps {
   onAdded: () => void
 }
 
+/** Số dòng vẽ tối đa trong danh sách: danh sách đầy đủ có thể lên hàng chục nghìn em. */
+const RENDER_LIMIT = 200
+
 export default function AddStudentsModal({ groupId, groupName, onClose, onAdded }: AddStudentsModalProps) {
   const toast = useToast()
   const { data: assignableStudents, loading, error, reload } = useAsync(
@@ -51,7 +54,11 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
   }, [candidates, search])
 
   const visibleIds = filteredStudents.map(student => student.id)
-  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id))
+  // Tập để tra O(1): sau khi nhập cả trường có hàng chục nghìn em, tra mảng cho từng dòng thành n² phép so sánh mỗi lần vẽ.
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedSet.has(id))
+  // Chỉ vẽ một phần đầu của danh sách dài: vẽ hết cả nghìn dòng làm đơ hộp. "Chọn tất cả" vẫn chọn đủ mọi em đang khớp ô tìm.
+  const shownStudents = filteredStudents.length > RENDER_LIMIT ? filteredStudents.slice(0, RENDER_LIMIT) : filteredStudents
 
   const toggleStudent = (studentId: number) => {
     setSelectedIds(current =>
@@ -62,11 +69,11 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
   }
 
   const toggleAllVisible = () => {
-    setSelectedIds(current =>
-      allVisibleSelected
-        ? current.filter(id => !visibleIds.includes(id))
-        : Array.from(new Set([...current, ...visibleIds])),
-    )
+    setSelectedIds(current => {
+      if (!allVisibleSelected) return Array.from(new Set([...current, ...visibleIds]))
+      const visibleSet = new Set(visibleIds)
+      return current.filter(id => !visibleSet.has(id))
+    })
   }
 
   const handleSubmit = async () => {
@@ -190,6 +197,7 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-slate-400">
               {filteredStudents.length} học sinh có thể thêm · Đã chọn {selectedIds.length}
+              {filteredStudents.length > RENDER_LIMIT && ` · hiện ${RENDER_LIMIT} em đầu, gõ tên hoặc mã để thu hẹp`}
             </p>
             {filteredStudents.length > 0 && (
               <button
@@ -219,9 +227,9 @@ export default function AddStudentsModal({ groupId, groupName, onClose, onAdded 
             </div>
           ) : (
             <div className="max-h-80 overflow-y-auto rounded-2xl border border-slate-100 divide-y divide-slate-50">
-              {filteredStudents.map(student => {
+              {shownStudents.map(student => {
                 const avatarTone = getAvatarTone(student.id)
-                const isSelected = selectedIds.includes(student.id)
+                const isSelected = selectedSet.has(student.id)
                 return (
                   <label
                     key={student.id}

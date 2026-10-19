@@ -87,7 +87,3 @@ export async function listMyGroupsCached(userId: number | undefined): Promise<My
   return data
 }
 
-/** Xoá bộ nhớ đệm (đổi người đăng nhập, hoặc vừa có thay đổi lớp). */
-export function clearMyGroupsCache(): void {
-  groupsCache = null
-}

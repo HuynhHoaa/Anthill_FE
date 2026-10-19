@@ -8,7 +8,8 @@ const PARAM = 'ky'
 const ALL_VALUE = 'tat-ca'
 
 /**
- * Kỳ đang xem ở "Lớp học của tôi" và "Bảng điểm", giữ trong địa chỉ (`?ky=`) nên tải lại hay chuyển qua lại giữa hai trang vẫn giữ kỳ.
+ * Kỳ đang xem ở "Lớp học của tôi" và "Bảng điểm", giữ trong địa chỉ (`?ky=`) nên tải lại trang vẫn giữ kỳ (các liên kết trên menu không mang
+ * tham số này, nên sang trang kia thì mở lại kỳ hiện tại).
  *
  * Chưa chọn gì thì mở sẵn kỳ hiện tại của nhà trường (nếu em có lớp trong đó), không thì kỳ mới nhất em có lớp. Em chỉ có một kỳ (hoặc
  * chưa kỳ nào) thì không có gì để lọc: `visible = false` và luôn là "mọi kỳ". `selection` là `undefined` khi danh sách kỳ còn đang nạp.
