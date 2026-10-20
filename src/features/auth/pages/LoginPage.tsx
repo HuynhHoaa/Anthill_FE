@@ -1,11 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, Lock, User, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle } from 'lucide-react'
 import Modal from '../../../components/common/Modal'
+import AnthillBadge from '../../../components/brand/AnthillBadge'
 import { getCurrentUser, login } from '../../../services/authService'
 import type { UserRole } from '../../../types'
-import LoginStage from '../components/LoginStage'
-import { useApiStatus } from '../hooks/useApiStatus'
+import { AntMascotHead, AntMascotPaws } from '../components/AntMascot'
+import AntTrail from '../components/AntTrail'
+import { useApiStatus, type ApiStatus } from '../hooks/useApiStatus'
 import '../login.css'
 
 const dashboardPath: Record<UserRole, string> = {
@@ -62,21 +64,14 @@ function resolveReturnPath(returnTo: string | undefined, home: string): string {
   return insideArea ? returnTo : home
 }
 
-const baseInputClass =
-  'h-12 w-full rounded-xl border bg-white pl-11 text-sm font-medium text-slate-800 outline-none transition-all placeholder:font-normal placeholder:text-slate-400'
-
-function fieldToneClass(hasError: boolean): string {
-  return hasError
-    ? 'border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-50'
-    : 'border-slate-200 hover:border-slate-300 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100'
-}
+const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value))
+const sleep = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms))
 
 /**
  * Cho người dùng biết máy chủ miễn phí đang ngủ. Không nói gì khi nó trả lời nhanh: chỉ lên tiếng khi phải chờ lâu,
- * và báo lại một lần khi đã dậy.
+ * và báo lại một lần khi đã dậy. Đàn kiến ở chân trang chạy nhanh hơn trong lúc này (xem `AntTrail`).
  */
-function ServerStatusPill() {
-  const status = useApiStatus()
+function ServerStatusPill({ status }: { status: ApiStatus }) {
   const [sawWaking, setSawWaking] = useState(false)
   const [readyVisible, setReadyVisible] = useState(false)
 
@@ -93,18 +88,18 @@ function ServerStatusPill() {
 
   const tone =
     status === 'waking'
-      ? { box: 'border-amber-200 bg-amber-50 text-amber-800', dot: 'bg-amber-400 animate-pulse', text: 'Máy chủ miễn phí đang thức dậy, lần đầu có thể mất tới một phút.' }
+      ? { key: 'waking', text: 'Máy chủ miễn phí đang thức dậy, lần đầu có thể mất tới một phút.' }
       : status === 'unreachable'
-        ? { box: 'border-red-200 bg-red-50 text-red-700', dot: 'bg-red-400', text: 'Chưa kết nối được máy chủ. Bạn thử tải lại trang sau ít phút.' }
+        ? { key: 'error', text: 'Chưa kết nối được máy chủ. Bạn thử tải lại trang sau ít phút.' }
         : status === 'ready' && readyVisible
-          ? { box: 'border-emerald-200 bg-emerald-50 text-emerald-700', dot: 'bg-emerald-400', text: 'Máy chủ đã sẵn sàng.' }
+          ? { key: 'ready', text: 'Máy chủ đã sẵn sàng.' }
           : null
 
   return (
-    <div role="status" aria-live="polite" className={tone ? 'mb-5 lg:absolute lg:right-8 lg:top-7 lg:mb-0 lg:max-w-xs' : undefined}>
+    <div role="status" aria-live="polite" className="login-status">
       {tone && (
-        <div className={`animate-fade-in flex items-center gap-2.5 rounded-full border px-3.5 py-2 text-xs font-medium ${tone.box}`}>
-          <span className={`h-2 w-2 flex-shrink-0 rounded-full ${tone.dot}`} />
+        <div className="status-pill login-mono animate-fade-in" data-tone={tone.key}>
+          <span className="status-pill-dot" />
           {tone.text}
         </div>
       )}
@@ -134,6 +129,44 @@ export default function LoginPage() {
   const [serverError, setServerError] = useState<string | undefined>(undefined)
   const [forgotOpen, setForgotOpen] = useState(false)
 
+  // Chú kiến gác cổng: tư thế theo ô đang gõ, tâm trạng theo kết quả đăng nhập, ánh mắt theo con trỏ.
+  const apiStatus = useApiStatus()
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const typingRef = useRef(false)
+  const moodTimerRef = useRef<number | undefined>(undefined)
+  const [focused, setFocused] = useState<'username' | 'password' | null>(null)
+  const [mood, setMood] = useState<'idle' | 'error'>('idle')
+  const [succeeded, setSucceeded] = useState(false)
+
+  const pose = succeeded ? 'cheer' : focused === 'password' ? (showPassword ? 'peek' : 'cover') : 'idle'
+
+  const lookAt = (x: number, y: number) => {
+    wrapRef.current?.style.setProperty('--lx', String(x))
+    wrapRef.current?.style.setProperty('--ly', String(y))
+  }
+
+  // Đang gõ tên đăng nhập thì kiến nhìn xuống ô nhập và đưa mắt theo độ dài chữ; còn lại nhìn theo con trỏ.
+  useEffect(() => {
+    const onMove = (event: PointerEvent) => {
+      const wrap = wrapRef.current
+      if (!wrap || typingRef.current) return
+      const box = wrap.getBoundingClientRect()
+      const dx = event.clientX - (box.left + box.width / 2)
+      const dy = event.clientY - (box.top - 24)
+      lookAt(clamp((dx / 240) * 5, -5, 5), clamp((dy / 280) * 4, -3, 4))
+    }
+    window.addEventListener('pointermove', onMove)
+    return () => window.removeEventListener('pointermove', onMove)
+  }, [])
+
+  useEffect(() => () => window.clearTimeout(moodTimerRef.current), [])
+
+  const flashError = () => {
+    window.clearTimeout(moodTimerRef.current)
+    setMood('error')
+    moodTimerRef.current = window.setTimeout(() => setMood('idle'), 1800)
+  }
+
   // Còn phiên đăng nhập thì vào thẳng khu vực tương ứng, không bắt đăng nhập lại
   useEffect(() => {
     const currentUser = getCurrentUser()
@@ -142,170 +175,187 @@ export default function LoginPage() {
     }
   }, [navigate])
 
-  const signIn = async (username: string, password: string) => {
-    setLoading(true)
-    try {
-      const profile = await login({ username: username.trim(), password })
-
-      navigate(resolveReturnPath(returnTo, dashboardPath[profile.role]), { replace: true })
-    } catch (caught) {
-      setServerError(caught instanceof Error ? caught.message : 'Đăng nhập không thành công. Vui lòng thử lại.')
-      setLoading(false)
-    }
-  }
-
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault()
     const nextErrors = validateLoginForm(form.username, form.password)
     setFieldErrors(nextErrors)
     setServerError(undefined)
-    if (nextErrors.username || nextErrors.password) return
+    if (nextErrors.username || nextErrors.password) {
+      flashError()
+      return
+    }
 
-    await signIn(form.username, form.password)
+    setLoading(true)
+    try {
+      const profile = await login({ username: form.username.trim(), password: form.password })
+
+      // Kiến mừng một cái rồi mới chuyển trang; người chọn giảm chuyển động thì vào luôn.
+      setSucceeded(true)
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) await sleep(650)
+      navigate(resolveReturnPath(returnTo, dashboardPath[profile.role]), { replace: true })
+    } catch (caught) {
+      setServerError(caught instanceof Error ? caught.message : 'Đăng nhập không thành công. Vui lòng thử lại.')
+      setLoading(false)
+      flashError()
+    }
   }
 
+  const busy = loading || apiStatus === 'waking'
+
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row">
-      <LoginStage />
+    <div className="login-page">
+      <div className="login-bgword" aria-hidden="true">anthill</div>
+      <AntTrail busy={busy} />
 
-      <main className="login-form-surface relative z-10 -mt-6 flex flex-1 items-start justify-center rounded-t-[1.75rem] px-5 pb-10 pt-8 shadow-[0_-12px_30px_-12px_rgba(30,27,75,0.35)] sm:px-8 lg:mt-0 lg:items-center lg:rounded-none lg:px-10 lg:py-12 lg:shadow-none">
-        <div className="w-full max-w-[26rem]">
-          <ServerStatusPill />
+      <div className="login-brand">
+        <AnthillBadge size={46} className="login-brand-badge" />
+        <span className="login-brand-name">Anthill</span>
+      </div>
+      <ServerStatusPill status={apiStatus} />
 
-          <div className="stagger-in space-y-6">
-            <div>
-              <h1 className="font-display text-[2rem] font-extrabold leading-tight text-slate-900">Đăng nhập</h1>
-              <p className="mt-2 text-[0.95rem] leading-relaxed text-slate-500">
-                Dùng email hoặc mã học sinh nhà trường đã cấp.
-              </p>
-            </div>
+      <main className="login-main">
+        <div ref={wrapRef} className="sheet-wrap" data-pose={pose} data-mood={mood}>
+          <AntMascotHead />
 
-            {/*
-              Phiên chết giữa chừng — tài khoản bị khoá, hoặc mật khẩu vừa được đổi ở nơi khác nên
-              backend đã xoay SecurityStamp. Không nói gì thì người dùng chỉ thấy mình đột nhiên bị
-              văng ra và tưởng hệ thống lỗi. Nhường chỗ cho serverError khi có lỗi đăng nhập mới,
-              vì lúc đó thông điệp kia mới là thứ đang cần đọc.
-            */}
-            {passwordChanged && !serverError && (
-              <div
-                role="status"
-                className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 animate-fade-in"
-              >
-                <AlertCircle size={17} className="mt-0.5 flex-shrink-0 text-emerald-500" />
-                <p className="text-sm leading-relaxed text-emerald-700">
-                  Đổi mật khẩu thành công. Hãy đăng nhập lại bằng mật khẩu mới.
-                </p>
-              </div>
-            )}
+          <section className="sheet" aria-labelledby="login-title">
+            <span className="sheet-hole" style={{ top: '16%' }} aria-hidden="true" />
+            <span className="sheet-hole" style={{ top: '48%' }} aria-hidden="true" />
+            <span className="sheet-hole" style={{ top: '80%' }} aria-hidden="true" />
+            <span className="sheet-tab login-mono">Phiếu đăng nhập</span>
 
-            {sessionExpired && !serverError && !passwordChanged && (
-              <div
-                role="status"
-                className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 animate-fade-in"
-              >
-                <AlertCircle size={17} className="mt-0.5 flex-shrink-0 text-amber-500" />
-                <p className="text-sm leading-relaxed text-amber-700">
-                  {sessionReason ??
-                    'Phiên đăng nhập đã kết thúc. Việc này xảy ra khi tài khoản bị khoá hoặc mật khẩu vừa được đổi. Hãy đăng nhập lại để tiếp tục.'}
-                </p>
-              </div>
-            )}
-
-            {serverError && (
-              <div
-                role="alert"
-                className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 animate-fade-in"
-              >
-                <AlertCircle size={17} className="mt-0.5 flex-shrink-0 text-red-500" />
-                <p className="text-sm leading-relaxed text-red-600">{serverError}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleLogin} className="space-y-5" noValidate>
+            <div className="stagger-in space-y-5">
               <div>
-                <label htmlFor="login-username" className="mb-1.5 block text-sm font-semibold text-slate-700">
-                  Email hoặc tên đăng nhập
-                </label>
-                <div className="relative">
-                  <User size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <h1 id="login-title" className="sheet-title">
+                  Hệ thống kiểm tra
+                  <br />
+                  trực tuyến <span className="marker">thông minh</span>
+                </h1>
+                <p className="sheet-sub mt-3 text-[0.92rem] leading-relaxed text-[#5f5646]">
+                  Tạo bài kiểm tra, quản lý học sinh và theo dõi kết quả — tất cả trong một nơi.
+                </p>
+              </div>
+
+              {/*
+                Phiên chết giữa chừng — tài khoản bị khoá, hoặc mật khẩu vừa được đổi ở nơi khác nên
+                backend đã xoay SecurityStamp. Không nói gì thì người dùng chỉ thấy mình đột nhiên bị
+                văng ra và tưởng hệ thống lỗi. Nhường chỗ cho serverError khi có lỗi đăng nhập mới,
+                vì lúc đó thông điệp kia mới là thứ đang cần đọc.
+              */}
+              {passwordChanged && !serverError && (
+                <div role="status" className="sheet-note sheet-note--ok animate-fade-in">
+                  <AlertCircle size={17} className="mt-0.5 flex-shrink-0" />
+                  <p>Đổi mật khẩu thành công. Hãy đăng nhập lại bằng mật khẩu mới.</p>
+                </div>
+              )}
+
+              {sessionExpired && !serverError && !passwordChanged && (
+                <div role="status" className="sheet-note sheet-note--warn animate-fade-in">
+                  <AlertCircle size={17} className="mt-0.5 flex-shrink-0" />
+                  <p>
+                    {sessionReason ??
+                      'Phiên đăng nhập đã kết thúc. Việc này xảy ra khi tài khoản bị khoá hoặc mật khẩu vừa được đổi. Hãy đăng nhập lại để tiếp tục.'}
+                  </p>
+                </div>
+              )}
+
+              {serverError && (
+                <div role="alert" className="sheet-note sheet-note--error animate-fade-in">
+                  <AlertCircle size={17} className="mt-0.5 flex-shrink-0" />
+                  <p>{serverError}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleLogin} className="space-y-4" noValidate aria-label="Đăng nhập">
+                <div>
+                  <label htmlFor="login-username" className="sheet-label login-mono">
+                    Email hoặc tên đăng nhập
+                  </label>
                   <input
                     id="login-username"
                     type="text"
                     autoComplete="username"
                     aria-invalid={Boolean(fieldErrors.username)}
-                    className={`${baseInputClass} pr-4 ${fieldToneClass(Boolean(fieldErrors.username))}`}
-                    placeholder="giaovien@truong.edu.vn hoặc mã học sinh"
+                    className="sheet-input"
+                    placeholder="Email hoặc mã học sinh"
                     value={form.username}
+                    onFocus={() => {
+                      setFocused('username')
+                      typingRef.current = true
+                      lookAt(clamp(-4 + (form.username.length / 24) * 8, -4, 4), 3.5)
+                    }}
+                    onBlur={() => {
+                      setFocused(null)
+                      typingRef.current = false
+                    }}
                     onChange={event => {
                       setForm({ ...form, username: event.target.value })
+                      lookAt(clamp(-4 + (event.target.value.length / 24) * 8, -4, 4), 3.5)
                       if (fieldErrors.username) setFieldErrors({ ...fieldErrors, username: undefined })
                     }}
                   />
+                  {fieldErrors.username && <p className="mt-1.5 text-xs font-semibold text-[#d93a2b]">{fieldErrors.username}</p>}
                 </div>
-                {fieldErrors.username && <p className="mt-1.5 text-xs text-red-500">{fieldErrors.username}</p>}
-              </div>
 
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <label htmlFor="login-password" className="block text-sm font-semibold text-slate-700">
-                    Mật khẩu
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setForgotOpen(true)}
-                    className="text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-800"
-                  >
-                    Quên mật khẩu?
-                  </button>
+                <div>
+                  <div className="mb-1.5 flex items-end justify-between">
+                    <label htmlFor="login-password" className="sheet-label login-mono !mb-0">
+                      Mật khẩu
+                    </label>
+                    <button type="button" onClick={() => setForgotOpen(true)} className="sheet-link">
+                      Quên mật khẩu?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="login-password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      aria-invalid={Boolean(fieldErrors.password)}
+                      className="sheet-input !pr-12"
+                      placeholder="Nhập mật khẩu"
+                      value={form.password}
+                      onFocus={() => setFocused('password')}
+                      onBlur={() => setFocused(null)}
+                      onChange={event => {
+                        setForm({ ...form, password: event.target.value })
+                        if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: undefined })
+                      }}
+                    />
+                    <button
+                      type="button"
+                      aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-[#5f5646] transition-colors hover:text-[#2d2a24]"
+                      // Giữ tiêu điểm ở ô mật khẩu khi bấm con mắt, để kiến hé mắt nhìn chứ không bỏ tay xuống.
+                      onMouseDown={event => event.preventDefault()}
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {fieldErrors.password && <p className="mt-1.5 text-xs font-semibold text-[#d93a2b]">{fieldErrors.password}</p>}
                 </div>
-                <div className="relative">
-                  <Lock size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    id="login-password"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    aria-invalid={Boolean(fieldErrors.password)}
-                    className={`${baseInputClass} pr-12 ${fieldToneClass(Boolean(fieldErrors.password))}`}
-                    placeholder="Nhập mật khẩu"
-                    value={form.password}
-                    onChange={event => {
-                      setForm({ ...form, password: event.target.value })
-                      if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: undefined })
-                    }}
-                  />
-                  <button
-                    type="button"
-                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {fieldErrors.password && <p className="mt-1.5 text-xs text-red-500">{fieldErrors.password}</p>}
-              </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-xl text-base font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-80 disabled:hover:translate-y-0"
-                style={{ background: 'linear-gradient(135deg, #4F46E5, #7C3AED)' }}
-              >
-                {loading ? (
-                  <>
-                    <span className="ant-dots" aria-hidden="true">
-                      <span />
-                      <span />
-                      <span />
-                    </span>
-                    Đang đăng nhập
-                  </>
-                ) : 'Đăng nhập'}
-              </button>
-            </form>
+                <button type="submit" disabled={loading} className="sheet-button !mt-5">
+                  {loading ? (
+                    <>
+                      <span className="ant-dots" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                      Đang đăng nhập
+                    </>
+                  ) : 'Đăng nhập'}
+                </button>
+              </form>
 
-            <p className="text-xs text-slate-400">© {new Date().getFullYear()} Anthill</p>
-          </div>
+              <p className="sheet-foot login-mono">
+                © {new Date().getFullYear()} Anthill — Đồng hành cùng thầy cô và học sinh.
+              </p>
+            </div>
+          </section>
+
+          <AntMascotPaws />
         </div>
       </main>
 

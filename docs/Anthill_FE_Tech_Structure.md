@@ -58,7 +58,8 @@ EduQuiz.Frontend/
 │   │
 │   ├── components/
 │   │   ├── brand/
-│   │   │   └── AnthillMark.tsx        # dấu hiệu Anthill: chữ A dựng như ngọn đồi, thanh ngang là ba chú kiến; cùng hình với public/favicon.svg
+│   │   │   ├── AnthillMark.tsx        # dấu hiệu nét mảnh (chữ A dựng như ngọn đồi, thanh ngang là ba chú kiến) cho thanh bên
+│   │   │   └── AnthillBadge.tsx       # huy hiệu đặc nền mực bóng cam cho trang đăng nhập; hình rút gọn của nó là public/favicon.svg
 │   │   ├── common/
 │   │   │   ├── Badge.tsx
 │   │   │   ├── CountUp.tsx            # con số chạy từ 0 / giá trị cũ tới giá trị mới (tổng quan); giảm chuyển động thì hiện thẳng
@@ -97,12 +98,13 @@ EduQuiz.Frontend/
 │   │   │   │   └── ProfilePage.tsx
 │   │   │   ├── components/
 │   │   │   │   ├── ChangePasswordForm.tsx
-│   │   │   │   ├── LoginStage.tsx             # tấm "tổ kiến" bên trái trang đăng nhập: ba tầng đồi = ba vai trò, đàn kiến bò bằng SVG animateMotion (đứng yên khi chọn giảm chuyển động)
+│   │   │   │   ├── AntMascot.tsx              # chú kiến gác cổng ló qua mép phiếu: che mắt khi gõ mật khẩu, hé mắt khi hiện mật khẩu, nhíu mày khi lỗi, giơ tay mừng khi vào được
+│   │   │   │   ├── AntTrail.tsx               # tổ kiến và đàn kiến ở chân trang (SVG animateMotion); chạy nhanh hơn khi máy chủ đang dậy hoặc đang đăng nhập
 │   │   │   │   ├── ProfileInfoForm.tsx
 │   │   │   │   └── StudentScoreSummary.tsx
 │   │   │   ├── hooks/
 │   │   │   │   └── useApiStatus.ts            # hỏi /health/live một lần để báo "máy chủ đang thức dậy" (máy chủ miễn phí ngủ sau 15 phút)
-│   │   │   └── login.css                      # kiểu và hoạt ảnh riêng của trang đăng nhập (chữ hiệu Bricolage Grotesque, vòng ping, ba chấm kiến chạy)
+│   │   │   └── login.css                      # kiểu riêng của trang đăng nhập: phiếu thi trên bàn giấy kem, màu và chữ lấy từ portfolio (Be Vietnam Pro, Space Mono)
 │   │   │
 │   │   ├── dashboard/
 │   │   │   └── pages/
