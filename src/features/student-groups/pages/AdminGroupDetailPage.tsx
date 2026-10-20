@@ -41,7 +41,7 @@ import { memberCountLabel } from '../components/groupTheme'
 import { useRemoveFromGroup } from '../hooks/useRemoveFromGroup'
 
 const groupListLink = '/quan-tri/nhom-lop'
-const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
+const primaryButtonStyle = { background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }
 
 type DetailTab = 'hoc-sinh' | 'bai-kiem-tra' | 'thiet-lap'
 

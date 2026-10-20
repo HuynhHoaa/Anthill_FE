@@ -64,7 +64,7 @@ const quickActions: { label: string; description: string; to: string; icon: Luci
     description: 'Sinh đề tự động',
     to: '/giao-vien/bai-kiem-tra/tao',
     icon: FileText,
-    gradient: 'linear-gradient(135deg,#8B5CF6,#6366F1)',
+    gradient: 'linear-gradient(135deg,#FFA01F,#FF8400)',
   },
   {
     label: 'Bài kiểm tra',
@@ -164,7 +164,7 @@ export default function TeacherDashboardPage() {
             <Link
               to="/giao-vien/bai-kiem-tra/tao"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white shadow-sm hover:shadow-md transition-all"
-              style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}
+              style={{ background: 'linear-gradient(135deg, #FF8400, #FFA01F)' }}
             >
               <Plus size={14} /> Tạo mới
             </Link>
@@ -181,7 +181,7 @@ export default function TeacherDashboardPage() {
                 <Link
                   to="/giao-vien/bai-kiem-tra/tao"
                   className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-                  style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                  style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
                 >
                   <Plus size={15} /> Tạo bài kiểm tra
                 </Link>

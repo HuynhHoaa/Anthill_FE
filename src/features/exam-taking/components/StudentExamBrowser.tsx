@@ -235,7 +235,7 @@ function ExamCard({ exam }: { exam: StudentExamItem }) {
                   ? '#EF4444'
                   : isInProgress
                     ? 'linear-gradient(135deg,#F59E0B,#EA580C)'
-                    : 'linear-gradient(135deg,#6366F1,#8B5CF6)',
+                    : 'linear-gradient(135deg,#FF8400,#FFA01F)',
               }}
             >
               <PlayCircle size={13} /> {isInProgress ? 'Tiếp tục làm bài' : 'Vào làm bài'}
@@ -417,7 +417,7 @@ export default function StudentExamBrowser({ groupId }: { groupId: number }) {
               onClick={() => setActiveTab(key)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${
                 isActive
-                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                  ? 'bg-brand text-ink shadow-sm shadow-indigo-200'
                   : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-200 hover:text-indigo-600'
               }`}
             >

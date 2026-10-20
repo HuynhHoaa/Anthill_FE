@@ -193,7 +193,7 @@ export default function ComposeQuestionsDialog({
               className={`group relative inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white overflow-hidden shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed motion-reduce:transition-none ${
                 canSubmit ? 'hover:shadow-lg hover:shadow-indigo-200 hover:-translate-y-px active:translate-y-0' : ''
               }`}
-              style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+              style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
             >
               {canSubmit && !submitting && (
                 <span
@@ -390,7 +390,7 @@ export default function ComposeQuestionsDialog({
                     <span
                       aria-hidden="true"
                       className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors duration-200 ${
-                        checked ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-400'
+                        checked ? 'bg-brand text-ink' : 'bg-slate-100 text-slate-400'
                       }`}
                     >
                       {checked ? <Check key="on" size={12} strokeWidth={3} className="animate-pop" /> : <Users size={11} />}

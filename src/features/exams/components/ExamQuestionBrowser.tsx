@@ -95,7 +95,7 @@ export default function ExamQuestionBrowser({ questions, revealed, onToggleRevea
                 onClick={() => setLevel(tab.key)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
                   level === tab.key
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-brand text-ink'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >

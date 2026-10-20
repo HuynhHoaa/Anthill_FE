@@ -44,7 +44,7 @@ export default function StudentGroupPage() {
         <>
           <section className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4 mb-5 animate-fade-in-up">
             <div className="flex items-start gap-4">
-              <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white animate-pop-in" style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}>
+              <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white animate-pop-in" style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}>
                 <GraduationCap size={24} />
               </span>
               <div className="min-w-0 flex-1">

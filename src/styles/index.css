@@ -1,19 +1,85 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700;800;900&family=Space+Mono:wght@400;700&display=swap');
 @import "tailwindcss";
+
+/*
+ * Bảng màu của Anthill: cam #ff8400 của thương hiệu trên giấy kem và mực ấm, cùng bảng với portfolio của chủ dự án.
+ *
+ * Cả ứng dụng viết màu chủ đạo bằng lớp `indigo-*` (và `violet-*`, `purple-*` cho màu phụ). Thay vì sửa từng lớp ở hàng
+ * trăm chỗ, ghi đè các thang này ở đây: mọi `bg-indigo-50`, `text-indigo-600`, `ring-indigo-100`... tự thành cam. Tên lớp giữ
+ * nguyên cho đỡ lệch với code cũ; muốn dùng đúng cam thương hiệu thì dùng `bg-brand` + `text-ink`.
+ *
+ * Quy ước chữ: cam thương hiệu cho chữ trắng chỉ 2,46:1 (trượt AA) còn chữ mực #2d2a24 trên nền cam được 5,8:1, nên mọi
+ * nền cam đặc (`bg-brand`, gradient cam) đi với chữ mực. Chữ cam trên nền trắng hoặc nền nhạt dùng bậc 600 trở lên.
+ * Thang `slate` được thay bằng thang xám ấm cho hợp nền giấy.
+ */
+@theme {
+  --color-brand: #ff8400;
+  --color-brand-hover: #ff9420;
+  --color-ink: #2d2a24;
+
+  --color-indigo-50: #fff6ec;
+  --color-indigo-100: #ffe9d1;
+  --color-indigo-200: #ffd2a6;
+  --color-indigo-300: #ffb470;
+  --color-indigo-400: #ff9638;
+  --color-indigo-500: #e86a00;
+  --color-indigo-600: #b35200;
+  --color-indigo-700: #8f4200;
+  --color-indigo-800: #703400;
+  --color-indigo-900: #522700;
+  --color-indigo-950: #331700;
+
+  --color-violet-50: #fff3ee;
+  --color-violet-100: #ffe3d8;
+  --color-violet-200: #ffc7b0;
+  --color-violet-300: #ffa386;
+  --color-violet-400: #f5764f;
+  --color-violet-500: #e0522b;
+  --color-violet-600: #be3f1b;
+  --color-violet-700: #9a3316;
+  --color-violet-800: #772811;
+  --color-violet-900: #591e0d;
+  --color-violet-950: #330f06;
+
+  --color-purple-50: #fffaeb;
+  --color-purple-100: #fef0c7;
+  --color-purple-200: #fde08a;
+  --color-purple-300: #fbcb4d;
+  --color-purple-400: #f5b220;
+  --color-purple-500: #d99510;
+  --color-purple-600: #b3740a;
+  --color-purple-700: #8f5a0c;
+  --color-purple-800: #6f450f;
+  --color-purple-900: #52340f;
+  --color-purple-950: #2e1c06;
+
+  --color-slate-50: #faf8f4;
+  --color-slate-100: #f4f0e8;
+  --color-slate-200: #e8e1d4;
+  --color-slate-300: #d6ccbb;
+  --color-slate-400: #a8a094;
+  --color-slate-500: #766e62;
+  --color-slate-600: #5a5348;
+  --color-slate-700: #423d34;
+  --color-slate-800: #2d2a24;
+  --color-slate-900: #1f1d19;
+  --color-slate-950: #100f0c;
+}
 
 /* ===== CSS Custom Properties ===== */
 :root {
-  --color-primary: #6366F1;
-  --color-primary-dark: #4F46E5;
+  --color-primary: #FF8400;
+  --color-primary-dark: #E86A00;
   --color-secondary: #F59E0B;
   --color-success: #10B981;
   --color-danger: #EF4444;
   --color-info: #3B82F6;
-  --color-bg: #F8FAFC;
+  --color-bg: #FAF6EF;
   --color-surface: #FFFFFF;
-  --color-text: #1E293B;
-  --color-text-muted: #64748B;
-  --color-border: #E2E8F0;
+  --color-text: #2D2A24;
+  --color-text-muted: #766E62;
+  --color-border: #E8E1D4;
   --sidebar-width: 260px;
   --sidebar-width-collapsed: 76px;
 }
@@ -40,7 +106,7 @@ body {
   display: flex;
   flex-direction: column;
   z-index: 30;
-  background: linear-gradient(180deg, #312E81 0%, #3730A3 60%, #4338CA 100%);
+  background: linear-gradient(180deg, #2D2A24 0%, #342F27 60%, #3C362C 100%);
   transition: transform 0.3s ease, width 0.25s ease;
   /* Thanh bên nở ra trong 0.25s: nhãn xuất hiện ngay còn bề rộng thì tăng dần, nên không được để nhãn
      bẻ dòng hay tràn ra ngoài trong lúc đó. */
@@ -56,7 +122,7 @@ body {
   border-radius: 0.75rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #a5b4fc;
+  color: #d8cbb6;
   transition: all 0.2s;
   cursor: pointer;
   text-decoration: none;
@@ -69,7 +135,7 @@ body {
 }
 
 .sidebar-item.active {
-  background: rgba(255,255,255,0.2);
+  background: rgba(255,132,0,0.22);
   color: #fff;
   font-weight: 600;
 }
@@ -89,7 +155,7 @@ body {
   opacity: 0.9 !important;
 }
 
-/* Vạch trắng mảnh bên trái mục đang mở, mọc từ giữa ra mỗi khi vào trang. */
+/* Vạch cam mảnh bên trái mục đang mở, mọc từ giữa ra mỗi khi vào trang. */
 .sidebar-item {
   position: relative;
 }
@@ -101,7 +167,7 @@ body {
   width: 3px;
   height: 52%;
   border-radius: 9999px;
-  background: #fff;
+  background: #ff8400;
   transform: translateY(-50%);
   animation: navBar 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
@@ -115,7 +181,7 @@ body {
   position: fixed;
   inset: 0;
   z-index: 25;
-  background: rgba(15, 23, 42, 0.4);
+  background: rgba(45, 42, 36, 0.45);
   backdrop-filter: blur(2px);
   animation: fadeIn 0.2s ease both;
 }
@@ -124,7 +190,7 @@ body {
 .main-content {
   margin-left: var(--sidebar-width);
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--color-bg);
   transition: margin-left 0.25s ease;
 }
 
@@ -195,13 +261,13 @@ body {
 }
 
 .table-scroller thead th:last-child {
-  background-color: #fbfcfd;
+  background-color: #fdfbf7;
 }
 
 .table-scroller tbody tr:hover td:last-child {
   background-image: linear-gradient(
-    color-mix(in oklab, var(--color-indigo-100, #e0e7ff) 70%, transparent),
-    color-mix(in oklab, var(--color-indigo-100, #e0e7ff) 70%, transparent)
+    color-mix(in oklab, var(--color-indigo-100, #ffe9d1) 70%, transparent),
+    color-mix(in oklab, var(--color-indigo-100, #ffe9d1) 70%, transparent)
   );
 }
 
@@ -247,7 +313,7 @@ body {
     gap: 0.625rem 1rem;
     height: auto !important;
     padding: 0.875rem 1rem;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid #f4f0e8;
   }
 
   .stack-table tbody tr:last-child {
@@ -280,7 +346,7 @@ body {
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: #94a3b8;
+    color: #a8a094;
   }
 
   .stack-table td[data-card='head'],
@@ -291,7 +357,7 @@ body {
 
 /* ===== Gradient Text ===== */
 .gradient-text {
-  background: linear-gradient(135deg, #6366F1, #8B5CF6);
+  background: linear-gradient(135deg, #B35200, #E86A00);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -300,8 +366,8 @@ body {
 /* ===== Scrollbar ===== */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+::-webkit-scrollbar-thumb { background: #e8e1d4; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #d6ccbb; }
 
 /*
  * Thanh cuộn rõ cho một danh sách dài cuộn trong khung (danh sách câu hỏi của đề): thanh mặc định của ứng dụng mảnh và
@@ -309,9 +375,9 @@ body {
  * ::-webkit-scrollbar: đặt scrollbar-color/-width thì Chrome bỏ qua chúng.
  */
 .scroll-visible::-webkit-scrollbar { width: 12px; }
-.scroll-visible::-webkit-scrollbar-track { background: #f1f5f9; }
-.scroll-visible::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 9999px; border: 3px solid #f1f5f9; }
-.scroll-visible::-webkit-scrollbar-thumb:hover { background: #64748b; }
+.scroll-visible::-webkit-scrollbar-track { background: #f4f0e8; }
+.scroll-visible::-webkit-scrollbar-thumb { background: #a8a094; border-radius: 9999px; border: 3px solid #f4f0e8; }
+.scroll-visible::-webkit-scrollbar-thumb:hover { background: #766e62; }
 
 /* ===== Animations ===== */
 @keyframes fadeInUp {
@@ -472,8 +538,8 @@ body {
 
 /* Phần tử vừa được thêm sáng viền một nhịp rồi tắt, để mắt biết đó là cái mới. */
 @keyframes flash {
-  0%   { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.55), 0 8px 24px -8px rgba(99, 102, 241, 0.45); background-color: #eef2ff; }
-  100% { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0), 0 8px 24px -8px rgba(99, 102, 241, 0); background-color: #ffffff; }
+  0%   { box-shadow: 0 0 0 3px rgba(255, 132, 0, 0.55), 0 8px 24px -8px rgba(255, 132, 0, 0.45); background-color: #fff6ec; }
+  100% { box-shadow: 0 0 0 3px rgba(255, 132, 0, 0), 0 8px 24px -8px rgba(255, 132, 0, 0); background-color: #ffffff; }
 }
 
 .animate-flash {
@@ -540,7 +606,7 @@ a[role='button']:active {
 
 .hover-lift:hover {
   translate: 0 -3px;
-  box-shadow: 0 12px 28px -10px rgba(99, 102, 241, 0.28);
+  box-shadow: 0 12px 28px -10px rgba(179, 82, 0, 0.25);
 }
 
 /* ===== Chuyển động của khung quản trị và giáo viên ===== */
@@ -574,7 +640,7 @@ a[role='button']:active {
 }
 .stack-table tbody tr.cursor-pointer:hover > td:first-child,
 .table-scroller tbody tr.cursor-pointer:hover > td:first-child {
-  box-shadow: inset 3px 0 0 #6366f1;
+  box-shadow: inset 3px 0 0 #ff8400;
 }
 
 /* ===== Skeleton ===== */
@@ -584,7 +650,7 @@ a[role='button']:active {
 }
 
 .skeleton {
-  background-image: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+  background-image: linear-gradient(90deg, #f4f0e8 25%, #e8e1d4 37%, #f4f0e8 63%);
   background-size: 200% 100%;
   animation: skeletonShimmer 1.5s ease-in-out infinite;
 }
@@ -628,4 +694,25 @@ a[role='button']:active {
   .slide-exit-to-right {
     display: none;
   }
+}
+
+/*
+ * Chữ và biểu tượng trên nền cam thương hiệu là mực, không phải trắng (xem ghi chú ở @theme). Các nền cam đặc khai báo
+ * bằng `style` nội tuyến (gradient #ff8400 → #ffa01f), nên chọn theo giá trị của chính nó. Phải viết dạng `rgb(...)` chứ
+ * không phải mã hex: trình duyệt ghi lại thuộc tính style của phần tử React với mọi màu đã đổi sang rgb(). Luật nằm ngoài
+ * mọi @layer nên thắng cả `text-white` của Tailwind ở phần tử đó lẫn ở các phần tử con.
+ */
+[style*='rgb(255, 132, 0)'],
+[style*='rgb(255, 160, 31)'] {
+  color: #2d2a24;
+}
+
+[style*='rgb(255, 132, 0)'] [class*='text-white'],
+[style*='rgb(255, 160, 31)'] [class*='text-white'] {
+  color: #2d2a24;
+}
+
+[style*='rgb(255, 132, 0)'] [class*='text-indigo-'],
+[style*='rgb(255, 160, 31)'] [class*='text-indigo-'] {
+  color: rgba(45, 42, 36, 0.78);
 }

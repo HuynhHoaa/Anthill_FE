@@ -15,7 +15,7 @@ import { paperIndexOfLabel } from '../utils/paperPlan'
 
 const ROWS_PER_PAGE = 10
 
-const primaryGradient = 'linear-gradient(135deg,#6366F1,#8B5CF6)'
+const primaryGradient = 'linear-gradient(135deg,#FF8400,#FFA01F)'
 
 type StatusFilter = 'all' | ExamStatus
 

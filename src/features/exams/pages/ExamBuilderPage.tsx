@@ -401,7 +401,7 @@ function BlueprintPreviewCard({
 
       <div
         className="rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3"
-        style={{ background: 'linear-gradient(135deg, #EEF2FF, #F5F3FF)' }}
+        style={{ background: 'linear-gradient(135deg, #FFF6EC, #FFF3E6)' }}
       >
         <div>
           <p className="text-xs text-indigo-500 font-semibold uppercase tracking-wider">Tổng điểm của đề</p>
@@ -506,7 +506,7 @@ function BlueprintPreviewCard({
               type="button"
               onClick={onAddQuestion}
               className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-              style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+              style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
             >
               <Plus size={16} />
               Thêm câu hỏi vào ngân hàng
@@ -1682,7 +1682,7 @@ export default function ExamBuilderPage() {
               type="submit"
               disabled={isSaving || isBlueprintBlocked}
               className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-white font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+              style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
             >
               {savingMode === 'publish'
                 ? <Loader2 size={17} className="animate-spin" />

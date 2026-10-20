@@ -87,7 +87,7 @@ export default function TransferStudentModal({ student, group, onClose, onTransf
             onClick={() => void handleSubmit()}
             disabled={!canSubmit}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+            style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
           >
             {submitting ? <Loader2 size={15} className="animate-spin" /> : <ArrowRightLeft size={15} />}
             Chuyển lớp

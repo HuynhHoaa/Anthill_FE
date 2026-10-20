@@ -70,7 +70,7 @@ const headerButtonClass =
   'inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all whitespace-nowrap'
 const headCellClass = 'px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500'
 const chipClass = 'inline-flex items-center max-w-full px-2.5 py-1 rounded-full text-xs font-semibold'
-const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
+const primaryButtonStyle = { background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }
 
 interface QuestionRowProps {
   question: Question

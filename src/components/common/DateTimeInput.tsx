@@ -182,7 +182,7 @@ function CalendarPopover({ anchor, selected, onPick, onClose }: CalendarPopoverP
               aria-pressed={isSelected(day)}
               className={`h-8 rounded-lg text-sm transition-colors ${
                 isSelected(day)
-                  ? 'bg-indigo-600 text-white font-bold'
+                  ? 'bg-brand text-ink font-bold'
                   : isToday(day)
                     ? 'border border-indigo-300 text-indigo-700 font-semibold hover:bg-indigo-50'
                     : 'text-slate-700 hover:bg-slate-100'
@@ -265,7 +265,7 @@ function TimePopover({ anchor, hour, minute, onPick, onClose }: TimePopoverProps
 
   const optionClass = (isSelected: boolean) =>
     `w-full h-8 rounded-lg text-sm transition-colors ${
-      isSelected ? 'bg-indigo-600 text-white font-bold' : 'text-slate-700 hover:bg-slate-100'
+      isSelected ? 'bg-brand text-ink font-bold' : 'text-slate-700 hover:bg-slate-100'
     }`
 
   return createPortal(

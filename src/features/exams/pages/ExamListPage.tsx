@@ -38,7 +38,7 @@ const lifecycleOptions: Array<{ value: LifecycleFilter; label: string }> = [
   { value: 'closed', label: lifecycleLabels.closed },
 ]
 
-const primaryGradient = 'linear-gradient(135deg,#6366F1,#8B5CF6)'
+const primaryGradient = 'linear-gradient(135deg,#FF8400,#FFA01F)'
 
 // Ô sát hơn (px-3) dưới cỡ xl, nơi bảng phải nhét vừa ~880px; từ xl trở lên giữ px-5 như các bảng khác.
 const headCellClass =

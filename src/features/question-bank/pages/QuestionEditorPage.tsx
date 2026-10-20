@@ -617,7 +617,7 @@ export default function QuestionEditorPage({ audience }: QuestionEditorPageProps
       disabled={!canSave}
       title={!isValid ? 'Điền các ô đang sáng viền vàng để lưu được' : undefined}
       className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm text-white font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm"
-      style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+      style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
     >
       {saving || isUploadingImage ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
       {isUploadingImage ? 'Đang tải ảnh lên…' : isEdit ? 'Lưu thay đổi' : 'Tạo câu hỏi'}

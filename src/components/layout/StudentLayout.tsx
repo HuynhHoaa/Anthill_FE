@@ -10,6 +10,7 @@ import { getInitials } from '../../lib/format'
 import { describeStudyLoad, listMyGroupsCached } from '../../services/myLearningService'
 import type { MyGroup } from '../../types'
 import { getCurrentUser, logout } from '../../services/authService'
+import AnthillMark from '../brand/AnthillMark'
 
 interface StudentLayoutProps {
   children: ReactNode
@@ -87,9 +88,9 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
               <div className="flex items-center gap-2.5 flex-shrink-0">
                 <div
                   className="w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}
+                  style={{ background: 'linear-gradient(135deg, #FF8400, #FFA01F)' }}
                 >
-                  <GraduationCap size={20} className="text-white" />
+                  <AnthillMark size={22} className="text-[#2D2A24]" dotColor="#FBF7EE" />
                 </div>
                 <span className="font-bold text-xl text-slate-800">Anthill</span>
               </div>
@@ -97,9 +98,9 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
               <NavLink to="/hoc-sinh" className="flex items-center gap-2.5 flex-shrink-0">
                 <div
                   className="w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}
+                  style={{ background: 'linear-gradient(135deg, #FF8400, #FFA01F)' }}
                 >
-                  <GraduationCap size={20} className="text-white" />
+                  <AnthillMark size={22} className="text-[#2D2A24]" dotColor="#FBF7EE" />
                 </div>
                 <span className="font-bold text-xl text-slate-800">Anthill</span>
               </NavLink>

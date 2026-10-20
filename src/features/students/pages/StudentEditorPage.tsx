@@ -576,11 +576,11 @@ export default function StudentEditorPage() {
 
           <aside className="space-y-4 xl:sticky xl:top-6">
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="h-16" style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }} />
+              <div className="h-16" style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }} />
               <div className="px-5 pb-5">
                 <div
                   className="w-16 h-16 -mt-9 rounded-2xl border-4 border-white shadow-sm flex items-center justify-center text-white text-lg font-bold"
-                  style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                  style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
                 >
                   {getInitials(values.fullName)}
                 </div>
@@ -656,7 +656,7 @@ export default function StudentEditorPage() {
                   type="submit"
                   disabled={submitting}
                   className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-white font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                  style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
                 >
                   {submitting ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
                   {submitting ? 'Đang lưu...' : isEditMode ? 'Lưu thay đổi' : 'Tạo học sinh'}
@@ -691,7 +691,7 @@ export default function StudentEditorPage() {
             type="button"
             onClick={() => setIssuedPassword(null)}
             className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-            style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+            style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
           >
             Tôi đã chép lại
           </button>

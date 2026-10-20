@@ -1,9 +1,10 @@
 import type { FocusEvent } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
-  Bell, UserCircle, LogOut, GraduationCap, ChevronRight, X, type LucideIcon,
+  Bell, UserCircle, LogOut, ChevronRight, X, type LucideIcon,
 } from 'lucide-react'
 import UserAvatar from '../common/UserAvatar'
+import AnthillMark from '../brand/AnthillMark'
 
 export interface SidebarMenuItem {
   icon: LucideIcon
@@ -64,9 +65,9 @@ export default function Sidebar({
       >
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: 'rgba(255,255,255,0.2)' }}
+          style={{ background: '#FF8400' }}
         >
-          <GraduationCap size={20} className="text-white wiggle-on-hover" />
+          <AnthillMark size={22} className="text-[#2D2A24] wiggle-on-hover" dotColor="#FBF7EE" />
         </div>
         {!collapsed && (
           <>
@@ -143,7 +144,7 @@ export default function Sidebar({
                 <span aria-hidden="true" className="absolute top-1.5 right-2.5 w-2.5 h-2.5 rounded-full bg-red-400 opacity-60 animate-ping motion-reduce:animate-none" />
                 <span
                   className="absolute top-1.5 right-2.5 w-2.5 h-2.5 rounded-full border-2"
-                  style={{ background: '#ef4444', borderColor: '#3730A3' }}
+                  style={{ background: '#ef4444', borderColor: '#352F27' }}
                 />
               </>
             )

@@ -697,7 +697,7 @@ export default function ExamAssignPanel({ exam, assignments, onAssigned, onViewT
                 onClick={openConfirm}
                 disabled={recipientCount === 0 || windowProblems.length > 0 || submitting}
                 className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-white font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
               >
                 <Send size={17} /> Xác nhận giao bài
               </button>

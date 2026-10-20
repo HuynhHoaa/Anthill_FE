@@ -329,7 +329,7 @@ export default function ResultDetailPage({ audience }: ResultDetailPageProps) {
                 onClick={() => setQuestionFilter(key)}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
                   isActive
-                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    ? 'bg-brand text-ink shadow-sm shadow-indigo-200'
                     : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-200 hover:text-indigo-600'
                 }`}
               >

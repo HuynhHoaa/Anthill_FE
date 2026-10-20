@@ -15,7 +15,7 @@ export function TeacherAvatar({ teacher, size = 40 }: { teacher: GroupTeacher; s
         width: size,
         height: size,
         fontSize: Math.round(size * 0.34),
-        background: `linear-gradient(135deg, ${teacher.avatarColor}, #8B5CF6)`,
+        background: `linear-gradient(135deg, ${teacher.avatarColor}, #FFA01F)`,
       }}
     >
       {getInitials(teacher.fullName)}

@@ -57,6 +57,9 @@ EduQuiz.Frontend/
 │   ├── assets/
 │   │
 │   ├── components/
+│   │   ├── brand/
+│   │   │   ├── AnthillMark.tsx        # dấu hiệu nét mảnh (chữ A dựng như ngọn đồi, thanh ngang là ba chú kiến) cho thanh bên
+│   │   │   └── AnthillBadge.tsx       # huy hiệu đặc nền mực bóng cam cho trang đăng nhập; hình rút gọn của nó là public/favicon.svg
 │   │   ├── common/
 │   │   │   ├── Badge.tsx
 │   │   │   ├── CountUp.tsx            # con số chạy từ 0 / giá trị cũ tới giá trị mới (tổng quan); giảm chuyển động thì hiện thẳng
@@ -93,10 +96,15 @@ EduQuiz.Frontend/
 │   │   │   ├── pages/
 │   │   │   │   ├── LoginPage.tsx
 │   │   │   │   └── ProfilePage.tsx
-│   │   │   └── components/
-│   │   │       ├── ChangePasswordForm.tsx
-│   │   │       ├── ProfileInfoForm.tsx
-│   │   │       └── StudentScoreSummary.tsx
+│   │   │   ├── components/
+│   │   │   │   ├── ChangePasswordForm.tsx
+│   │   │   │   ├── AntMascot.tsx              # chú kiến gác cổng ló qua mép phiếu: che mắt khi gõ mật khẩu, hé mắt khi hiện mật khẩu, nhíu mày khi lỗi, giơ tay mừng khi vào được
+│   │   │   │   ├── AntTrail.tsx               # tổ kiến và đàn kiến ở chân trang (SVG animateMotion); chạy nhanh hơn khi máy chủ đang dậy hoặc đang đăng nhập
+│   │   │   │   ├── ProfileInfoForm.tsx
+│   │   │   │   └── StudentScoreSummary.tsx
+│   │   │   ├── hooks/
+│   │   │   │   └── useApiStatus.ts            # hỏi /health/live một lần để báo "máy chủ đang thức dậy" (máy chủ miễn phí ngủ sau 15 phút)
+│   │   │   └── login.css                      # kiểu riêng của trang đăng nhập: phiếu thi trên bàn giấy kem, màu và chữ lấy từ portfolio (Be Vietnam Pro, Space Mono)
 │   │   │
 │   │   ├── dashboard/
 │   │   │   └── pages/
@@ -265,7 +273,7 @@ EduQuiz.Frontend/
 │   │   └── topicTheme.ts
 │   │
 │   ├── styles/
-│   │   └── index.css              # kèm các hiệu ứng dùng chung: rowIn (hàng bảng vào lần lượt), stagger-in, bar-grow, animate-tab-in, animate-flash, animate-pop, animate-sheen, animate-float, hover-lift, nút lún khi bấm; tất cả tắt khi chọn giảm chuyển động
+│   │   └── index.css              # bảng màu cam ở đầu file (@theme ghi đè thang indigo/violet/purple/slate; `bg-brand` + `text-ink` là cam thương hiệu, chữ trên nền cam luôn là mực) và luật chữ mực trên gradient cam; kèm các hiệu ứng dùng chung: rowIn (hàng bảng vào lần lượt), stagger-in, bar-grow, animate-tab-in, animate-flash, animate-pop, animate-sheen, animate-float, hover-lift, nút lún khi bấm; tất cả tắt khi chọn giảm chuyển động
 │   │
 │   ├── types/
 │   │   └── index.ts                 # model dùng chung toàn app

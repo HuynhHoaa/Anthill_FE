@@ -32,7 +32,7 @@ export default function AvatarEditor({ profile, onSaved }: AvatarEditorProps) {
       avatarUrl={profile.avatarUrl}
       initials={getInitials(profile.fullName)}
       className="w-20 h-20 rounded-3xl text-2xl shadow-sm"
-      style={{ background: `linear-gradient(135deg, ${profile.avatarColor}, #8B5CF6)` }}
+      style={{ background: `linear-gradient(135deg, ${profile.avatarColor}, #FFA01F)` }}
     />
   )
 

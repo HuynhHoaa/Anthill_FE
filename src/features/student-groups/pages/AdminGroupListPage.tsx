@@ -33,7 +33,7 @@ import GroupHealthIndicator from '../components/GroupHealthIndicator'
 import { TeacherAvatar } from '../components/TeacherAvatar'
 import { getGroupIssues } from '../components/groupHealth'
 
-const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
+const primaryButtonStyle = { background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }
 const headerCellClass = 'px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500'
 const selectClass =
   'px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'

@@ -1,0 +1,584 @@
+/*
+ * Trang đăng nhập: một phiếu thi trên bàn giấy kem. Màu và chữ lấy từ cùng bảng với portfolio của chủ dự án
+ * (giấy #f5efe6, mực #2d2a24, cam #ff8400; Be Vietnam Pro cho tiêu đề, Space Mono cho nhãn), để ảnh chụp trang này
+ * đặt cạnh các dự án khác trông cùng một "giọng".
+ */
+
+.login-page {
+  --paper-bg: #f5efe6;
+  --paper: #fbf7ee;
+  --desk: #ebe1d0;
+  --ink: #2d2a24;
+  --ink-soft: #5f5646;
+  --line: rgba(45, 42, 36, 0.085);
+  --orange: #ff8400;
+  --orange-deep: #e56f00;
+  --pen: #d93a2b;
+
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: 'Be Vietnam Pro', 'Inter', sans-serif;
+  background:
+    radial-gradient(60% 55% at 50% 40%, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 70%),
+    var(--paper-bg);
+}
+
+.login-mono {
+  font-family: 'Space Mono', ui-monospace, 'SFMono-Regular', monospace;
+}
+
+/* Chữ "anthill" khổng lồ chìm sau phiếu. */
+.login-bgword {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  translate: -50% -50%;
+  font-size: clamp(8rem, 31vw, 31rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+  color: rgba(45, 42, 36, 0.045);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Thương hiệu ở góc trái. */
+.login-brand {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.25rem 1.5rem 0;
+}
+
+@media (min-width: 1024px) {
+  .login-brand {
+    position: absolute;
+    left: 2.5rem;
+    top: 1.75rem;
+    padding: 0;
+  }
+}
+
+.login-brand-name {
+  font-size: 1.7rem;
+  font-weight: 900;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+/* Rê chuột vào thương hiệu: huy hiệu nghiêng nhẹ và ba chú kiến nhảy sóng. */
+.login-brand-badge {
+  overflow: visible;
+  transition: rotate 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.login-brand:hover .login-brand-badge {
+  rotate: -6deg;
+}
+
+.badge-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.login-brand:hover .badge-dot {
+  animation: badgeHop 0.7s ease-in-out infinite;
+}
+
+.login-brand:hover .badge-dot:nth-child(2) { animation-delay: 0.1s; }
+.login-brand:hover .badge-dot:nth-child(3) { animation-delay: 0.2s; }
+
+@keyframes badgeHop {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+
+.login-main {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: calc(100vh - 3.5rem);
+  align-items: center;
+  justify-content: center;
+  padding: 7.5rem 1rem 9.5rem;
+}
+
+@media (min-width: 1024px) {
+  .login-main {
+    min-height: 100vh;
+    padding: 5.75rem 1.5rem 7rem;
+  }
+}
+
+/* ── phiếu ─────────────────────────────────────────────────────────────── */
+.sheet-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 35rem;
+}
+
+.sheet {
+  position: relative;
+  z-index: 2;
+  padding: 2.1rem 1.75rem 1.4rem 4.6rem;
+  border: 2px solid var(--ink);
+  border-radius: 1.25rem;
+  background-color: var(--paper);
+  background-image: repeating-linear-gradient(to bottom, transparent 0 31px, var(--line) 31px 32px);
+  background-position: 0 22px;
+  box-shadow: 8px 8px 0 var(--ink);
+  animation: sheetIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* Lề đỏ như vở học sinh. */
+.sheet::before {
+  content: '';
+  position: absolute;
+  left: 3.35rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(217, 58, 43, 0.4);
+}
+
+/* Ba lỗ đóng gáy. */
+.sheet-hole {
+  position: absolute;
+  left: 1.05rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  border: 2px solid var(--ink);
+  border-radius: 9999px;
+  background: var(--paper-bg);
+  box-shadow: inset 1px 2px 0 rgba(45, 42, 36, 0.35);
+}
+
+/* Nhãn dán nghiêng, cùng kiểu nhãn "Nổi bật" của portfolio. */
+.sheet-tab {
+  position: absolute;
+  left: 4.6rem;
+  top: -0.85rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.4rem;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  rotate: -2deg;
+}
+
+.sheet-title {
+  font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.4rem);
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+/* Vệt bút dạ cam dưới cụm nhấn. */
+.marker {
+  background: linear-gradient(transparent 62%, rgba(255, 132, 0, 0.5) 62%, rgba(255, 132, 0, 0.5) 92%, transparent 92%);
+  padding: 0 0.08em;
+  margin: 0 -0.08em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.sheet-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.sheet-input {
+  width: 100%;
+  height: 3.1rem;
+  padding: 0 1rem;
+  border: 2px solid var(--ink);
+  border-radius: 0.7rem;
+  background: #fffdf8;
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 600;
+  outline: none;
+  transition: box-shadow 0.15s ease, translate 0.15s ease;
+}
+
+.sheet-input::placeholder {
+  color: #a39a89;
+  font-weight: 400;
+}
+
+.sheet-input:hover {
+  translate: 0 -1px;
+}
+
+.sheet-input:focus {
+  box-shadow: 4px 4px 0 var(--orange);
+  translate: -1px -1px;
+}
+
+.sheet-input[aria-invalid='true'] {
+  border-color: var(--pen);
+  box-shadow: 4px 4px 0 rgba(217, 58, 43, 0.35);
+}
+
+.sheet-link {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--orange);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.sheet-link:hover {
+  color: var(--orange-deep);
+}
+
+/* Nút đóng dấu: viền mực, bóng cứng, bấm thì lún xuống. */
+.sheet-button {
+  display: inline-flex;
+  width: 100%;
+  height: 3.3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border: 2px solid var(--ink);
+  border-radius: 0.8rem;
+  background: var(--orange);
+  color: var(--ink);
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  box-shadow: 4px 4px 0 var(--ink);
+  transition: translate 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease;
+}
+
+.sheet-button:not(:disabled):hover {
+  translate: -1px -1px;
+  box-shadow: 5px 5px 0 var(--ink);
+  background: #ff9420;
+}
+
+.sheet-button:not(:disabled):active {
+  translate: 3px 3px;
+  box-shadow: 1px 1px 0 var(--ink);
+  scale: 1;
+}
+
+.sheet-button:disabled {
+  cursor: wait;
+  background: #ffb25e;
+}
+
+.sheet-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  border: 2px solid var(--ink);
+  border-radius: 0.7rem;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.sheet-note--error { background: #ffe6df; border-color: var(--pen); color: #8f2316; }
+.sheet-note--warn { background: #fff0cf; color: #6b4a00; }
+.sheet-note--ok { background: #e3f4dc; color: #25561b; }
+
+.sheet-foot {
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* ── màn thấp (laptop 720px): thu gọn để chú kiến và cả phiếu nằm vừa một màn hình ───────── */
+@media (min-width: 1024px) and (max-height: 820px) {
+  .login-main {
+    padding-top: 4rem;
+    padding-bottom: 4rem;
+  }
+
+  .sheet {
+    padding-top: 1.7rem;
+    padding-bottom: 1.1rem;
+  }
+
+  .sheet-title {
+    font-size: 2rem;
+  }
+
+  .mascot {
+    width: 170px;
+    height: 110px;
+    bottom: calc(100% - 19px);
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 700px) {
+  .sheet-sub {
+    display: none;
+  }
+}
+
+/* ── điện thoại: bớt lề trái, nhãn dán dời sang phải để khỏi bị đầu kiến che ─────────── */
+@media (max-width: 640px) {
+  .sheet {
+    padding: 1.8rem 1.1rem 1.2rem 3.2rem;
+  }
+
+  .sheet::before {
+    left: 2.4rem;
+  }
+
+  .sheet-hole {
+    left: 0.65rem;
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+
+  .sheet-tab {
+    left: auto;
+    right: 0.6rem;
+    padding: 0.25rem 0.55rem;
+    font-size: 0.6rem;
+    rotate: 2deg;
+  }
+
+  .sheet-title {
+    font-size: 1.5rem;
+  }
+}
+
+/* ── chú kiến gác cổng ─────────────────────────────────────────────────── */
+.mascot {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 22px);
+  width: 200px;
+  height: 130px;
+  translate: -50% 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.mascot--head { z-index: 1; }
+.mascot--paws { z-index: 3; }
+
+@media (max-width: 480px) {
+  .mascot {
+    width: 160px;
+    height: 104px;
+    bottom: calc(100% - 18px);
+  }
+}
+
+.mascot-bob {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: mascotBreathe 4.2s ease-in-out infinite;
+}
+
+.mascot-pupil {
+  transform: translate(calc(var(--lx, 0) * 1px), calc(var(--ly, 0) * 1px));
+  transition: transform 0.12s ease-out;
+}
+
+.mascot-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mascotBlink 5.6s infinite;
+}
+
+.mascot-eye--r { animation-delay: 0.04s; }
+
+.mascot-paw {
+  transition: transform 0.38s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.mascot-brows,
+.mascot-sweat,
+.mascot-mouth--happy,
+.mascot-mouth--error {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* tư thế */
+.sheet-wrap[data-pose='cover'] .mascot-paw--l { transform: translate(21px, -46px); }
+.sheet-wrap[data-pose='cover'] .mascot-paw--r { transform: translate(-21px, -46px); }
+.sheet-wrap[data-pose='cover'] .mascot-pupil { transform: translate(0, 2px); }
+
+.sheet-wrap[data-pose='peek'] .mascot-paw--l { transform: translate(21px, -46px); }
+.sheet-wrap[data-pose='peek'] .mascot-paw--r { transform: translate(-6px, -14px); }
+
+.sheet-wrap[data-pose='cheer'] .mascot-paw--l { transform: translate(-30px, -62px); }
+.sheet-wrap[data-pose='cheer'] .mascot-paw--r { transform: translate(30px, -62px); }
+.sheet-wrap[data-pose='cheer'] .mascot { animation: mascotHop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.sheet-wrap[data-pose='cheer'] .mascot-mouth--idle { opacity: 0; }
+.sheet-wrap[data-pose='cheer'] .mascot-mouth--happy { opacity: 1; }
+
+/* tâm trạng lỗi */
+.sheet-wrap[data-mood='error'] .mascot { animation: mascotShake 0.5s ease-in-out; }
+.sheet-wrap[data-mood='error'] .mascot-brows,
+.sheet-wrap[data-mood='error'] .mascot-sweat,
+.sheet-wrap[data-mood='error'] .mascot-mouth--error { opacity: 1; }
+.sheet-wrap[data-mood='error'] .mascot-mouth--idle { opacity: 0; }
+
+/* ── sàn, tổ và đàn kiến ───────────────────────────────────────────────── */
+.login-ground {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 0;
+  height: 170px;
+  pointer-events: none;
+}
+
+.ant-busy {
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+
+.login-ground[data-busy='true'] .ant-busy {
+  opacity: 1;
+}
+
+/* ── chỉ báo máy chủ ───────────────────────────────────────────────────── */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: 22rem;
+  padding: 0.45rem 0.85rem;
+  border: 2px solid var(--ink);
+  border-radius: 9999px;
+  background: var(--paper);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.35;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.status-pill-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--orange);
+}
+
+.status-pill[data-tone='waking'] .status-pill-dot { animation: pulseDot 1s ease-in-out infinite; }
+.status-pill[data-tone='error'] { border-color: var(--pen); }
+.status-pill[data-tone='error'] .status-pill-dot { background: var(--pen); }
+.status-pill[data-tone='ready'] .status-pill-dot { background: #3f9b2e; }
+
+.login-status {
+  position: relative;
+  z-index: 6;
+  padding: 0.75rem 1.5rem 0;
+}
+
+@media (min-width: 1024px) {
+  .login-status {
+    position: absolute;
+    right: 2.5rem;
+    top: 1.75rem;
+    padding: 0;
+  }
+}
+
+/* ── ba chấm kiến chạy trong nút chờ ───────────────────────────────────── */
+.ant-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ant-dots > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--ink);
+  animation: antWave 0.9s ease-in-out infinite;
+}
+
+.ant-dots > span:nth-child(2) { animation-delay: 0.12s; }
+.ant-dots > span:nth-child(3) { animation-delay: 0.24s; }
+
+/* ── hoạt ảnh ──────────────────────────────────────────────────────────── */
+@keyframes sheetIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes mascotBreathe {
+  0%, 100% { transform: scale(1, 1); }
+  50%      { transform: scale(1.015, 1.03); }
+}
+
+@keyframes mascotBlink {
+  0%, 93%, 100% { transform: scaleY(1); }
+  96%           { transform: scaleY(0.1); }
+}
+
+@keyframes mascotHop {
+  0%   { transform: translateY(0); }
+  40%  { transform: translateY(-14px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes mascotShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px) rotate(-2deg); }
+  40% { transform: translateX(7px) rotate(2deg); }
+  60% { transform: translateX(-5px) rotate(-1deg); }
+  80% { transform: translateX(4px) rotate(1deg); }
+}
+
+@keyframes antWave {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .mascot-bob,
+  .mascot-eye,
+  .ant-dots > span,
+  .status-pill-dot,
+  .sheet-wrap[data-pose='cheer'] .mascot,
+  .sheet-wrap[data-mood='error'] .mascot,
+  .login-brand:hover .badge-dot {
+    animation: none;
+  }
+
+  .login-brand-badge,
+  .mascot-paw,
+  .mascot-pupil,
+  .sheet-input,
+  .sheet-button {
+    transition: none;
+  }
+
+  .sheet-input:hover,
+  .sheet-input:focus {
+    translate: none;
+  }
+}

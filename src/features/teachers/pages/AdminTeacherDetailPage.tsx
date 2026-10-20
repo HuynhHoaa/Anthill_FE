@@ -234,7 +234,7 @@ export default function AdminTeacherDetailPage() {
               <div className="flex items-center gap-3">
                 <div
                   className="w-12 h-12 rounded-full flex items-center justify-center text-base font-bold text-white flex-shrink-0"
-                  style={{ background: `linear-gradient(135deg, ${teacher.avatarColor}, #8B5CF6)` }}
+                  style={{ background: `linear-gradient(135deg, ${teacher.avatarColor}, #FFA01F)` }}
                 >
                   {getInitials(teacher.fullName)}
                 </div>

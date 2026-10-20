@@ -30,7 +30,7 @@ function toastDuration(message: string): number {
 const toastStyles: Record<ToastType, { icon: LucideIcon; iconClass: string; barColor: string }> = {
   success: { icon: CheckCircle2, iconClass: 'text-emerald-500', barColor: '#10B981' },
   error: { icon: XCircle, iconClass: 'text-red-500', barColor: '#EF4444' },
-  info: { icon: Info, iconClass: 'text-indigo-500', barColor: '#6366F1' },
+  info: { icon: Info, iconClass: 'text-indigo-500', barColor: '#FF8400' },
 }
 
 const ToastContext = createContext<ToastApi | null>(null)
