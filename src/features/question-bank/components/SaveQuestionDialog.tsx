@@ -22,7 +22,7 @@ interface SaveQuestionDialogProps {
   onSave: (keepCreating: boolean) => void
 }
 
-const primaryGradient = 'linear-gradient(135deg,#6366F1,#8B5CF6)'
+const primaryGradient = 'linear-gradient(135deg,#FF8400,#FFA01F)'
 
 /**
  * Hộp xác nhận lúc bấm nút lưu của trình soạn câu hỏi: cho xem lại câu sắp lưu đúng như học sinh sẽ thấy, rồi chọn luôn bước

@@ -13,7 +13,7 @@ export default function EmptyState({ icon: Icon = Inbox, title, description, act
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-6 py-14 flex flex-col items-center text-center animate-fade-in-up">
       <div
         className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 animate-float"
-        style={{ background: 'linear-gradient(135deg, #EEF2FF, #F5F3FF)' }}
+        style={{ background: 'linear-gradient(135deg, #FFF6EC, #FFF3E6)' }}
       >
         <Icon size={28} className="text-indigo-500" />
       </div>

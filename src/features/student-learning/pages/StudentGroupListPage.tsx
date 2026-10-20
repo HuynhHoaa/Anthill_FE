@@ -22,7 +22,7 @@ function Progress({ done, total }: { done: number; total: number }) {
         <span className="font-semibold text-slate-600 tabular-nums">{percent}%</span>
       </div>
       <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
-        <div className="h-full rounded-full bg-indigo-500 bar-grow" style={{ width: `${percent}%` }} />
+        <div className="h-full rounded-full bg-brand bar-grow" style={{ width: `${percent}%` }} />
       </div>
     </div>
   )
@@ -34,7 +34,7 @@ function GroupCard({ group, showTerm }: { group: MyGroup; showTerm: boolean }) {
       to={`/hoc-sinh/lop-hoc/${group.id}`}
       className="group hover-lift bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all overflow-hidden flex flex-col"
     >
-      <div className="h-1.5 w-full" style={{ background: group.isLocked ? '#CBD5E1' : 'linear-gradient(90deg,#6366F1,#8B5CF6)' }} />
+      <div className="h-1.5 w-full" style={{ background: group.isLocked ? '#CBD5E1' : 'linear-gradient(90deg,#FF8400,#FFA01F)' }} />
       <div className="px-4 py-3.5 flex flex-col flex-1 gap-2.5">
         <div className="flex items-start gap-3">
           <span className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">

@@ -149,7 +149,7 @@ export default function Modal({
               <span
                 aria-hidden="true"
                 className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white shadow-sm"
-                style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
               >
                 {icon}
               </span>

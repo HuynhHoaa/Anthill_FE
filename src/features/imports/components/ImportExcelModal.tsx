@@ -36,7 +36,7 @@ interface ImportExcelModalProps {
 
 type Phase = 'pick' | 'checking' | 'preview' | 'importing' | 'done'
 
-const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
+const primaryButtonStyle = { background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }
 const primaryButtonClass =
   'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed'
 const secondaryButtonClass =

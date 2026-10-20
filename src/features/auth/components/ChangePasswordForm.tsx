@@ -211,7 +211,7 @@ export default function ChangePasswordForm({ heading, description, onSuccess }: 
           type="submit"
           disabled={saving}
           className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-          style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+          style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
         >
           <KeyRound size={15} />
           {saving ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}

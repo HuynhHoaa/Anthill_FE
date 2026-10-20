@@ -73,7 +73,7 @@ export default function Pagination({ page, pageSize, total, onPageChange }: Pagi
                   ? `${numberButtonClass} text-white shadow-sm`
                   : `${numberButtonClass} border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300`
               }
-              style={item === currentPage ? { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' } : undefined}
+              style={item === currentPage ? { background: 'linear-gradient(135deg,#FF8400,#FFA01F)' } : undefined}
             >
               {item}
             </button>

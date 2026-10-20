@@ -367,7 +367,7 @@ export default function QuestionPickerDialog({
               onClick={() => onConfirm(Array.from(selected.values()))}
               disabled={selected.size === 0}
               className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+              style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
             >
               {selected.size > 0 ? `Thêm ${selected.size} câu vào đề` : 'Thêm vào đề'}
             </button>
@@ -693,7 +693,7 @@ export default function QuestionPickerDialog({
                       ? 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100'
                       : 'text-white'
                   }`}
-                  style={previewIsChecked ? undefined : { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                  style={previewIsChecked ? undefined : { background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
                 >
                   <CheckCircle2 size={16} />
                   {previewIsChecked ? 'Đã chọn — bấm để bỏ chọn' : 'Chọn câu này'}

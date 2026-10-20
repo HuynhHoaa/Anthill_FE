@@ -16,7 +16,7 @@ import { deleteTerm, listTerms } from '../../../services/termService'
 import type { AcademicTerm } from '../../../types'
 import TermFormModal from '../components/TermFormModal'
 
-const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
+const primaryButtonStyle = { background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }
 const headerCellClass = 'px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500'
 
 /** `yyyy-MM-dd` → `dd/mm/yyyy`. */

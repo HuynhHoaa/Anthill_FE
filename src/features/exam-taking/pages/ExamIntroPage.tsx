@@ -358,7 +358,7 @@ export default function ExamIntroPage() {
                   style={{
                     background: isInProgressAssignment
                       ? 'linear-gradient(135deg,#F59E0B,#EA580C)'
-                      : 'linear-gradient(135deg,#6366F1,#8B5CF6)',
+                      : 'linear-gradient(135deg,#FF8400,#FFA01F)',
                   }}
                 >
                   <PlayCircle size={18} /> {isInProgressAssignment ? 'Tiếp tục làm bài' : 'Bắt đầu làm bài'}
@@ -387,7 +387,7 @@ export default function ExamIntroPage() {
                       type="button"
                       onClick={reload}
                       className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl text-white font-bold text-sm shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
-                      style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                      style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
                     >
                       <RefreshCw size={17} /> Tải lại để vào làm bài
                     </button>
@@ -440,7 +440,7 @@ export default function ExamIntroPage() {
                 <NavLink
                   to={resultLink}
                   className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl text-white font-bold text-sm shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
-                  style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                  style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
                 >
                   <Eye size={17} /> Xem kết quả
                 </NavLink>

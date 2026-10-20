@@ -130,7 +130,7 @@ export default function ConfirmDialog({
             className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
               isDanger ? 'bg-red-500 hover:bg-red-600' : ''
             }`}
-            style={isDanger ? undefined : { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+            style={isDanger ? undefined : { background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
           >
             {loading && <Loader2 size={15} className="animate-spin" />}
             {confirmLabel}

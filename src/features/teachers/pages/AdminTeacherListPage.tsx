@@ -33,7 +33,7 @@ import { useTeacherAccountActions } from '../hooks/useTeacherAccountActions'
 // Mười hai dòng ~52px cùng thanh trang vừa một cửa sổ cao ~900px sau khi công cụ đã lên thanh tiêu đề.
 const PAGE_SIZE = 12
 
-const primaryButtonStyle = { background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }
+const primaryButtonStyle = { background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }
 const headerCellClass = 'px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500'
 const selectClass =
   'px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all'
@@ -264,7 +264,7 @@ export default function AdminTeacherListPage() {
                           <div className="flex items-center gap-3 min-w-0">
                             <div
                               className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                              style={{ background: `linear-gradient(135deg, ${teacher.avatarColor}, #8B5CF6)` }}
+                              style={{ background: `linear-gradient(135deg, ${teacher.avatarColor}, #FFA01F)` }}
                             >
                               {getInitials(teacher.fullName)}
                             </div>

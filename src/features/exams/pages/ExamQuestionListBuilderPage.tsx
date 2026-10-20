@@ -83,7 +83,7 @@ const inputInvalidClass = `${inputBaseClass} border-red-300 focus:border-red-400
 const lockedFieldClass = 'disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed'
 const labelClass = 'block text-xs font-semibold text-slate-600 mb-1'
 const cardClass = 'bg-white rounded-2xl border border-slate-100 shadow-sm'
-const primaryGradient = 'linear-gradient(135deg,#6366F1,#8B5CF6)'
+const primaryGradient = 'linear-gradient(135deg,#FF8400,#FFA01F)'
 
 const levels: readonly DifficultyLevel[] = ['easy', 'medium', 'hard']
 const levelColor: Record<DifficultyLevel, string> = { easy: '#10B981', medium: '#F59E0B', hard: '#EF4444' }

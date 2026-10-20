@@ -52,7 +52,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
             type="button"
             onClick={this.handleRetry}
             className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-            style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+            style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
           >
             <RefreshCw size={15} />
             Thử lại

@@ -26,15 +26,15 @@ export default function ForceChangePasswordPage() {
   return (
     <div
       className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #EEF2FF 0%, #F8FAFC 45%, #F5F3FF 100%)' }}
+      style={{ background: 'linear-gradient(160deg, #FFF6EC 0%, #F8FAFC 45%, #FFF3E6 100%)' }}
     >
       <div
         className="absolute -top-32 -left-24 w-96 h-96 rounded-full pointer-events-none"
-        style={{ background: 'rgba(99, 102, 241, 0.08)' }}
+        style={{ background: 'rgba(255, 132, 0, 0.08)' }}
       />
       <div
         className="absolute -bottom-40 -right-24 w-[28rem] h-[28rem] rounded-full pointer-events-none"
-        style={{ background: 'rgba(139, 92, 246, 0.08)' }}
+        style={{ background: 'rgba(255, 160, 31, 0.08)' }}
       />
 
       <div className="relative w-full max-w-md animate-fade-in-up">

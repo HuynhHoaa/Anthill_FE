@@ -119,7 +119,7 @@ export default function QuestionPreview({
                         isRevealed
                           ? 'bg-emerald-500 text-white'
                           : isSelected
-                            ? 'bg-indigo-600 text-white'
+                            ? 'bg-brand text-ink'
                             : 'bg-slate-100 text-slate-500'
                       }`}
                     >

@@ -127,7 +127,7 @@ function NotificationRow({ notification, processing, onOpen }: NotificationRowPr
 
       <span className="flex items-center gap-2.5 flex-shrink-0 self-center">
         {!notification.isRead && (
-          <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" title="Chưa đọc" />
+          <span className="w-2.5 h-2.5 rounded-full bg-brand" title="Chưa đọc" />
         )}
         {notification.link && <ChevronRight size={16} className="text-slate-300" />}
       </span>
@@ -294,7 +294,7 @@ export default function NotificationsPage({ audience }: NotificationsPageProps) 
                 onClick={() => setFilter(key)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                   isActive
-                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    ? 'bg-brand text-ink shadow-sm shadow-indigo-200'
                     : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-200 hover:text-indigo-600'
                 }`}
               >

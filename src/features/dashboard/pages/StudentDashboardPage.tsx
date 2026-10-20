@@ -132,7 +132,7 @@ function OpenExamCard({ exam, index, now }: { exam: StudentExamItem; index: numb
     <div
       className="rounded-3xl p-6 text-white shadow-lg relative overflow-hidden animate-fade-in-up"
       style={{
-        background: `linear-gradient(135deg, ${exam.topicColor}, #6366F1)`,
+        background: `linear-gradient(135deg, ${exam.topicColor}, #FF8400)`,
         animationDelay: `${index * 0.08}s`,
       }}
     >
@@ -299,7 +299,7 @@ export default function StudentDashboardPage() {
       {/* ===== Lời chào ===== */}
       <div
         className="rounded-3xl p-7 mb-8 relative overflow-hidden animate-fade-in-up"
-        style={{ background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 60%, #A78BFA 100%)' }}
+        style={{ background: 'linear-gradient(135deg, #FF8400 0%, #FFA01F 60%, #FFB84D 100%)' }}
       >
         <div className="absolute -top-8 -right-8 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
         <div className="absolute bottom-0 left-1/3 w-32 h-32 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />

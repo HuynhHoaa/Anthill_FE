@@ -262,7 +262,7 @@ export default function ProfileInfoForm({ profile, onSaved }: ProfileInfoFormPro
               type="submit"
               disabled={saving}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-              style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+              style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
             >
               <Save size={15} />
               {saving ? 'Đang lưu...' : 'Lưu thay đổi'}

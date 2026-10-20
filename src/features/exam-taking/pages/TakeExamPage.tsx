@@ -81,7 +81,7 @@ function formatTimeOfDay(value: Date): string {
 }
 
 function getMarkClass(state: QuestionMarkState): string {
-  if (state === 'current') return 'bg-indigo-600 text-white border border-indigo-600 shadow-sm shadow-indigo-200'
+  if (state === 'current') return 'bg-brand text-ink border border-brand shadow-sm shadow-indigo-200'
   if (state === 'flagged') return 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100'
   if (state === 'answered') return 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100'
   return 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'
@@ -744,7 +744,7 @@ export default function TakeExamPage() {
               <NavLink
                 to="/hoc-sinh/bai-kiem-tra"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-                style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
               >
                 <ChevronLeft size={16} /> Về danh sách bài kiểm tra
               </NavLink>
@@ -886,7 +886,7 @@ export default function TakeExamPage() {
               onClick={requestSubmit}
               disabled={submitting}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+              style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
             >
               <Send size={16} /> Nộp bài
             </button>
@@ -896,7 +896,7 @@ export default function TakeExamPage() {
         <div className="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden">
           <div
             className="h-full rounded-full transition-all duration-300"
-            style={{ width: `${progressPercent}%`, background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+            style={{ width: `${progressPercent}%`, background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
           />
         </div>
       </div>
@@ -1026,7 +1026,7 @@ export default function TakeExamPage() {
                   <div className="flex items-start gap-3">
                     <span
                       className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                        isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
+                        isSelected ? 'bg-brand text-ink' : 'bg-slate-100 text-slate-500'
                       }`}
                     >
                       {String.fromCharCode(65 + index)}
@@ -1068,7 +1068,7 @@ export default function TakeExamPage() {
                       <span
                         aria-hidden="true"
                         className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 mt-1 transition-colors ${
-                          isSelected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white'
+                          isSelected ? 'border-brand bg-brand text-ink' : 'border-slate-300 bg-white'
                         }`}
                       >
                         {isSelected && <Check size={13} strokeWidth={3} />}
@@ -1098,7 +1098,7 @@ export default function TakeExamPage() {
                 onClick={requestSubmit}
                 disabled={submitting}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60"
-                style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}
+                style={{ background: 'linear-gradient(135deg,#FF8400,#FFA01F)' }}
               >
                 <Send size={16} /> Nộp bài
               </button>
