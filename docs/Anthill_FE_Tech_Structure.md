@@ -97,7 +97,7 @@ EduQuiz.Frontend/
 │   │   │   │   └── ProfilePage.tsx
 │   │   │   ├── components/
 │   │   │   │   ├── ChangePasswordForm.tsx
-│   │   │   │   ├── LoginStage.tsx             # tấm "tổ kiến" bên trái trang đăng nhập: ba tầng đồi = ba vai trò, đàn kiến (SMIL animateMotion), nhãn tầng sáng lên khi trỏ vào nút vai trò
+│   │   │   │   ├── LoginStage.tsx             # tấm "tổ kiến" bên trái trang đăng nhập: ba tầng đồi = ba vai trò, đàn kiến bò bằng SVG animateMotion (đứng yên khi chọn giảm chuyển động)
 │   │   │   │   ├── ProfileInfoForm.tsx
 │   │   │   │   └── StudentScoreSummary.tsx
 │   │   │   ├── hooks/
@@ -278,7 +278,7 @@ EduQuiz.Frontend/
 │   │
 │   └── main.tsx                     # BrowserRouter → ToastProvider → RealtimeProvider → ConfirmProvider → App
 │
-├── .env.example                     # VITE_API_BASE_URL, VITE_DEMO_ACCOUNTS
+├── .env.example                     # VITE_API_BASE_URL
 ├── package.json
 └── README.md
 ```

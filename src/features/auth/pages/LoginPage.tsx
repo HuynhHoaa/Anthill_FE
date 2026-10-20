@@ -1,12 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import {
-  Eye, EyeOff, Lock, User, AlertCircle, ShieldCheck, Presentation, GraduationCap, Sparkles, type LucideIcon,
-} from 'lucide-react'
+import { Eye, EyeOff, Lock, User, AlertCircle } from 'lucide-react'
 import Modal from '../../../components/common/Modal'
 import { getCurrentUser, login } from '../../../services/authService'
 import type { UserRole } from '../../../types'
-import LoginStage, { type StageRole } from '../components/LoginStage'
+import LoginStage from '../components/LoginStage'
 import { useApiStatus } from '../hooks/useApiStatus'
 import '../login.css'
 
@@ -74,20 +72,6 @@ function fieldToneClass(hasError: boolean): string {
 }
 
 /**
- * Tài khoản mẫu: dữ liệu demo do `DbSeeder` ở backend nạp sẵn. Chỉ hiện khi chạy dev hoặc khi bản triển khai bật
- * `VITE_DEMO_ACCOUNTS=true` — bản dùng thật không được in tài khoản và mật khẩu ra trang đăng nhập (xem §5 của
- * tài liệu yêu cầu).
- */
-const DEMO_ENABLED = import.meta.env.DEV || import.meta.env.VITE_DEMO_ACCOUNTS === 'true'
-const DEMO_PASSWORD = '123456'
-
-const DEMO_ACCOUNTS: { role: StageRole; label: string; person: string; username: string; icon: LucideIcon }[] = [
-  { role: 'admin', label: 'Quản trị viên', person: 'Phạm Quốc Huy', username: 'huy.pq@anthill.edu.vn', icon: ShieldCheck },
-  { role: 'teacher', label: 'Giáo viên', person: 'Nguyễn Văn An', username: 'an.nv@anthill.edu.vn', icon: Presentation },
-  { role: 'student', label: 'Học sinh', person: 'Trần Thị Lan', username: 'lan.tt', icon: GraduationCap },
-]
-
-/**
  * Cho người dùng biết máy chủ miễn phí đang ngủ. Không nói gì khi nó trả lời nhanh: chỉ lên tiếng khi phải chờ lâu,
  * và báo lại một lần khi đã dậy.
  */
@@ -145,8 +129,6 @@ export default function LoginPage() {
   const sessionReason = typeof routeState?.reason === 'string' && routeState.reason ? routeState.reason : undefined
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [demoRole, setDemoRole] = useState<StageRole | null>(null)
-  const [pointedRole, setPointedRole] = useState<StageRole | null>(null)
   const [form, setForm] = useState({ username: '', password: '' })
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({})
   const [serverError, setServerError] = useState<string | undefined>(undefined)
@@ -169,7 +151,6 @@ export default function LoginPage() {
     } catch (caught) {
       setServerError(caught instanceof Error ? caught.message : 'Đăng nhập không thành công. Vui lòng thử lại.')
       setLoading(false)
-      setDemoRole(null)
     }
   }
 
@@ -183,19 +164,9 @@ export default function LoginPage() {
     await signIn(form.username, form.password)
   }
 
-  // Nút vai trò xem thử: điền sẵn tài khoản vào form (để người xem thấy mình đang đăng nhập bằng gì) rồi vào luôn.
-  const handleDemo = async (account: (typeof DEMO_ACCOUNTS)[number]) => {
-    if (loading) return
-    setFieldErrors({})
-    setServerError(undefined)
-    setDemoRole(account.role)
-    setForm({ username: account.username, password: DEMO_PASSWORD })
-    await signIn(account.username, DEMO_PASSWORD)
-  }
-
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
-      <LoginStage highlight={pointedRole} />
+      <LoginStage />
 
       <main className="login-form-surface relative z-10 -mt-6 flex flex-1 items-start justify-center rounded-t-[1.75rem] px-5 pb-10 pt-8 shadow-[0_-12px_30px_-12px_rgba(30,27,75,0.35)] sm:px-8 lg:mt-0 lg:items-center lg:rounded-none lg:px-10 lg:py-12 lg:shadow-none">
         <div className="w-full max-w-[26rem]">
@@ -320,7 +291,7 @@ export default function LoginPage() {
                 className="inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-xl text-base font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-80 disabled:hover:translate-y-0"
                 style={{ background: 'linear-gradient(135deg, #4F46E5, #7C3AED)' }}
               >
-                {loading && !demoRole ? (
+                {loading ? (
                   <>
                     <span className="ant-dots" aria-hidden="true">
                       <span />
@@ -332,51 +303,6 @@ export default function LoginPage() {
                 ) : 'Đăng nhập'}
               </button>
             </form>
-
-            {DEMO_ENABLED && (
-              <section aria-labelledby="demo-accounts-title" className="rounded-2xl border border-dashed border-indigo-200 bg-white/75 p-4">
-                <h2 id="demo-accounts-title" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-indigo-700">
-                  <Sparkles size={14} />
-                  Xem thử bằng tài khoản mẫu
-                </h2>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {DEMO_ACCOUNTS.map(account => {
-                    const Icon = account.icon
-                    const busy = loading && demoRole === account.role
-                    return (
-                      <button
-                        key={account.role}
-                        type="button"
-                        disabled={loading}
-                        onClick={() => handleDemo(account)}
-                        onMouseEnter={() => setPointedRole(account.role)}
-                        onMouseLeave={() => setPointedRole(null)}
-                        onFocus={() => setPointedRole(account.role)}
-                        onBlur={() => setPointedRole(null)}
-                        className="demo-role flex min-w-0 flex-col items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-1.5 py-3 text-center hover:border-indigo-300 hover:shadow-md focus-visible:border-indigo-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
-                          {busy ? (
-                            <span className="ant-dots" aria-hidden="true">
-                              <span />
-                              <span />
-                              <span />
-                            </span>
-                          ) : (
-                            <Icon size={18} />
-                          )}
-                        </span>
-                        <span className="text-[0.8rem] font-semibold leading-tight text-slate-800">{account.label}</span>
-                        <span className="w-full truncate text-[0.7rem] leading-tight text-slate-400">{account.person}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-                <p className="mt-3 text-[0.72rem] leading-relaxed text-slate-500">
-                  Dữ liệu mẫu do hệ thống tạo sẵn, bạn cứ thử thoải mái.
-                </p>
-              </section>
-            )}
 
             <p className="text-xs text-slate-400">© {new Date().getFullYear()} Anthill</p>
           </div>

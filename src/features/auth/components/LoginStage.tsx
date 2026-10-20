@@ -1,18 +1,11 @@
 import { useEffect, useRef } from 'react'
 import AnthillMark from '../../../components/brand/AnthillMark'
 
-export type StageRole = 'admin' | 'teacher' | 'student'
-
-interface LoginStageProps {
-  /** Vai trò đang được trỏ tới ở form (nút xem thử): tầng đồi tương ứng sáng lên. */
-  highlight?: StageRole | null
-}
-
 /**
  * Ba tầng của tổ kiến, từ ngoài vào trong: quản trị viên (cả trường), giáo viên (lớp), học sinh (từng em).
  * Toạ độ theo `viewBox` 720×470; đỉnh đồi ở (360, 96), chân đồi ở y = 470.
  */
-const LAYERS: { role: StageRole; label: string; d: string; labelAt: [number, number] }[] = [
+const LAYERS: { role: 'admin' | 'teacher' | 'student'; label: string; d: string; labelAt: [number, number] }[] = [
   { role: 'admin', label: 'QUẢN TRỊ VIÊN', d: 'M-80 470C-40 300 170 110 360 96C550 110 760 300 800 470Z', labelAt: [534, 252] },
   { role: 'teacher', label: 'GIÁO VIÊN', d: 'M60 470C90 340 230 190 360 182C490 190 630 340 660 470Z', labelAt: [468, 322] },
   { role: 'student', label: 'HỌC SINH', d: 'M190 470C205 390 290 300 360 296C430 300 515 390 530 470Z', labelAt: [390, 396] },
@@ -83,7 +76,7 @@ function Ant({ tile }: { tile?: string }) {
   )
 }
 
-export default function LoginStage({ highlight = null }: LoginStageProps) {
+export default function LoginStage() {
   const svgRef = useRef<SVGSVGElement>(null)
 
   // Người dùng chọn giảm chuyển động: dừng đàn kiến tại chỗ (đã rải đều nhờ `begin` âm) thay vì cho chạy.
@@ -155,7 +148,6 @@ export default function LoginStage({ highlight = null }: LoginStageProps) {
           <path
             key={role}
             className="stage-layer stage-rise"
-            data-active={highlight === role}
             d={d}
             fill="url(#stage-ground)"
             stroke="#fff"
@@ -200,7 +192,7 @@ export default function LoginStage({ highlight = null }: LoginStageProps) {
 
         {/* Nhãn ba tầng */}
         {LAYERS.map(({ role, label, labelAt: [x, y] }) => (
-          <g key={role} className="stage-pill" data-active={highlight === role} transform={`translate(${x} ${y})`}>
+          <g key={role} className="stage-pill" transform={`translate(${x} ${y})`}>
             <rect x="0" y="-11" width={label.length * 7.4 + 32} height="22" rx="11" />
             <circle cx="12" cy="0" r="2.6" />
             <text x="22" y="3.6">{label}</text>

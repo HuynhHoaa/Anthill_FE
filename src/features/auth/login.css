@@ -68,27 +68,14 @@
   }
 }
 
-/* Tầng đồi sáng viền vàng khi người dùng trỏ vào nút vai trò tương ứng ở form. */
-.stage-layer {
-  transition: stroke 0.3s ease, stroke-opacity 0.3s ease, fill 0.3s ease;
-}
-
-.stage-layer[data-active='true'] {
-  stroke: #fbbf24;
-  stroke-opacity: 0.95;
-  fill: rgba(251, 191, 36, 0.1);
-}
-
 .stage-pill rect {
   fill: rgba(14, 12, 48, 0.62);
   stroke: rgba(255, 255, 255, 0.2);
   stroke-width: 1;
-  transition: fill 0.3s ease, stroke 0.3s ease;
 }
 
 .stage-pill circle {
   fill: rgba(255, 255, 255, 0.55);
-  transition: fill 0.3s ease;
 }
 
 .stage-pill text {
@@ -97,17 +84,6 @@
   font-weight: 700;
   letter-spacing: 0.11em;
   fill: rgba(224, 231, 255, 0.92);
-  transition: fill 0.3s ease;
-}
-
-.stage-pill[data-active='true'] rect {
-  fill: #fbbf24;
-  stroke: #fbbf24;
-}
-
-.stage-pill[data-active='true'] circle,
-.stage-pill[data-active='true'] text {
-  fill: #1e1b4b;
 }
 
 /* Vòng sáng lan ra từ đỉnh đồi. */
@@ -154,15 +130,6 @@
 .ant-dots > span:nth-child(2) { animation-delay: 0.12s; }
 .ant-dots > span:nth-child(3) { animation-delay: 0.24s; }
 
-/* Thẻ vai trò xem thử nhấc lên khi rê chuột. */
-.demo-role {
-  transition: translate 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.demo-role:not(:disabled):hover {
-  translate: 0 -2px;
-}
-
 /* Nền chấm mờ của khung form, gợi lối mòn của đàn kiến. */
 .login-form-surface {
   background-color: #fafaff;
@@ -178,9 +145,5 @@
   .stage-sparkle,
   .ant-dots > span {
     animation: none;
-  }
-
-  .demo-role:not(:disabled):hover {
-    translate: none;
   }
 }
