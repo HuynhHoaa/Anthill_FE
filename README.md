@@ -28,6 +28,7 @@ npm run dev              # http://localhost:5173
 | Biến | Giá trị trong `.env.example` | Ghi chú |
 |---|---|---|
 | `VITE_API_BASE_URL` | `http://localhost:5002` | Gốc của API, không kèm `/api` — các service đã tự ghi đường dẫn `/api/...` |
+| `VITE_DEMO_ACCOUNTS` | (không đặt) | `true` thì trang đăng nhập hiện ba nút "Xem thử bằng tài khoản mẫu" (quản trị viên, giáo viên, học sinh). Chạy `npm run dev` thì luôn hiện; bản dùng thật để trống |
 
 Thiếu `.env` thì mọi lời gọi API đều hỏng, vì `vite.config.ts` không cấu hình proxy. Frontend và API
 phải cùng giao thức; mặc định cả hai chạy http. Repo chưa cấu hình https cho Vite: muốn dùng thì thêm
@@ -50,7 +51,8 @@ unit test trong `tests/Anthill.Tests` và các bộ kiểm HTTP trong `tests/api
 ### Tài khoản demo
 
 Mật khẩu chung: `123456`. Trang đăng nhập chỉ có hai ô — email/tên đăng nhập và mật khẩu, không chọn
-vai trò: server tự dò định danh và điều hướng thẳng tới dashboard đúng vai trò sau khi đăng nhập.
+vai trò: server tự dò định danh và điều hướng thẳng tới dashboard đúng vai trò sau khi đăng nhập. Bản demo
+(`VITE_DEMO_ACCOUNTS=true`) có thêm ba nút vào thẳng bằng tài khoản mẫu bên dưới form.
 
 | Vai trò | Đăng nhập bằng | Dữ liệu mẫu |
 |---|---|---|

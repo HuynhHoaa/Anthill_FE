@@ -57,6 +57,8 @@ EduQuiz.Frontend/
 │   ├── assets/
 │   │
 │   ├── components/
+│   │   ├── brand/
+│   │   │   └── AnthillMark.tsx        # dấu hiệu Anthill: chữ A dựng như ngọn đồi, thanh ngang là ba chú kiến; cùng hình với public/favicon.svg
 │   │   ├── common/
 │   │   │   ├── Badge.tsx
 │   │   │   ├── CountUp.tsx            # con số chạy từ 0 / giá trị cũ tới giá trị mới (tổng quan); giảm chuyển động thì hiện thẳng
@@ -93,10 +95,14 @@ EduQuiz.Frontend/
 │   │   │   ├── pages/
 │   │   │   │   ├── LoginPage.tsx
 │   │   │   │   └── ProfilePage.tsx
-│   │   │   └── components/
-│   │   │       ├── ChangePasswordForm.tsx
-│   │   │       ├── ProfileInfoForm.tsx
-│   │   │       └── StudentScoreSummary.tsx
+│   │   │   ├── components/
+│   │   │   │   ├── ChangePasswordForm.tsx
+│   │   │   │   ├── LoginStage.tsx             # tấm "tổ kiến" bên trái trang đăng nhập: ba tầng đồi = ba vai trò, đàn kiến (SMIL animateMotion), nhãn tầng sáng lên khi trỏ vào nút vai trò
+│   │   │   │   ├── ProfileInfoForm.tsx
+│   │   │   │   └── StudentScoreSummary.tsx
+│   │   │   ├── hooks/
+│   │   │   │   └── useApiStatus.ts            # hỏi /health/live một lần để báo "máy chủ đang thức dậy" (máy chủ miễn phí ngủ sau 15 phút)
+│   │   │   └── login.css                      # kiểu và hoạt ảnh riêng của trang đăng nhập (chữ hiệu Bricolage Grotesque, vòng ping, ba chấm kiến chạy)
 │   │   │
 │   │   ├── dashboard/
 │   │   │   └── pages/
@@ -272,7 +278,7 @@ EduQuiz.Frontend/
 │   │
 │   └── main.tsx                     # BrowserRouter → ToastProvider → RealtimeProvider → ConfirmProvider → App
 │
-├── .env.example                     # VITE_API_BASE_URL
+├── .env.example                     # VITE_API_BASE_URL, VITE_DEMO_ACCOUNTS
 ├── package.json
 └── README.md
 ```
