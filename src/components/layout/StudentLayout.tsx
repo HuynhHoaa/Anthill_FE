@@ -10,6 +10,7 @@ import { getInitials } from '../../lib/format'
 import { describeStudyLoad, listMyGroupsCached } from '../../services/myLearningService'
 import type { MyGroup } from '../../types'
 import { getCurrentUser, logout } from '../../services/authService'
+import AnthillMark from '../brand/AnthillMark'
 
 interface StudentLayoutProps {
   children: ReactNode
@@ -89,7 +90,7 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
                   className="w-9 h-9 rounded-xl flex items-center justify-center"
                   style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}
                 >
-                  <GraduationCap size={20} className="text-white" />
+                  <AnthillMark size={22} className="text-white" />
                 </div>
                 <span className="font-bold text-xl text-slate-800">Anthill</span>
               </div>
@@ -99,7 +100,7 @@ export default function StudentLayout({ children, examMode = false }: StudentLay
                   className="w-9 h-9 rounded-xl flex items-center justify-center"
                   style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}
                 >
-                  <GraduationCap size={20} className="text-white" />
+                  <AnthillMark size={22} className="text-white" />
                 </div>
                 <span className="font-bold text-xl text-slate-800">Anthill</span>
               </NavLink>
