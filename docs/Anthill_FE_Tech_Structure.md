@@ -273,7 +273,7 @@ EduQuiz.Frontend/
 │   │   └── topicTheme.ts
 │   │
 │   ├── styles/
-│   │   └── index.css              # kèm các hiệu ứng dùng chung: rowIn (hàng bảng vào lần lượt), stagger-in, bar-grow, animate-tab-in, animate-flash, animate-pop, animate-sheen, animate-float, hover-lift, nút lún khi bấm; tất cả tắt khi chọn giảm chuyển động
+│   │   └── index.css              # bảng màu cam ở đầu file (@theme ghi đè thang indigo/violet/purple/slate; `bg-brand` + `text-ink` là cam thương hiệu, chữ trên nền cam luôn là mực) và luật chữ mực trên gradient cam; kèm các hiệu ứng dùng chung: rowIn (hàng bảng vào lần lượt), stagger-in, bar-grow, animate-tab-in, animate-flash, animate-pop, animate-sheen, animate-float, hover-lift, nút lún khi bấm; tất cả tắt khi chọn giảm chuyển động
 │   │
 │   ├── types/
 │   │   └── index.ts                 # model dùng chung toàn app

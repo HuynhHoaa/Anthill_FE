@@ -183,7 +183,7 @@ src/
 ├── services/        9 service theo nghiệp vụ + mappers — trang không gọi API trực tiếp
 ├── hooks/           useAsync, useDebouncedValue, useMediaQuery
 ├── lib/             apiClient, format, topicTheme
-├── styles/          index.css
+├── styles/          index.css  (bảng màu cam của thương hiệu nằm ở @theme đầu file)
 ├── types/           model dùng chung toàn app
 └── main.tsx         BrowserRouter → ToastProvider → ConfirmProvider → App
 ```
